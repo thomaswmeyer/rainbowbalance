@@ -1,0 +1,19 @@
+{
+  "name": "endlessrainbows",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Endless Rainbows — a js13kGames 2026 entry (theme: Unicorns and Rainbows).",
+  "scripts": {
+    "dev": "node scripts/dev_server.js",
+    "build": "node scripts/build.js",
+    "size": "node scripts/build.js --quiet"
+  },
+  "license": "MIT",
+  "devDependencies": {
+    "@gfx/zopfli": "^1.0.15",
+    "esbuild": "^0.28.2",
+    "roadroller": "^2.1.0",
+    "terser": "^5.51.2"
+  }
+}
