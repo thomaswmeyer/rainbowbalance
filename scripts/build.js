@@ -31,9 +31,10 @@ import { minify } from 'terser';
 import { Packer } from 'roadroller';
 import { deflate } from '@gfx/zopfli';
 import { mkdirSync, rmSync, writeFileSync, readFileSync } from 'fs';
-import { join, dirname } from 'path';
+import { join, dirname, basename } from 'path';
 import { fileURLToPath } from 'url';
 import { promisify } from 'util';
+import { minifyGlsl } from './glsl.js';
 
 const ROOT = dirname(dirname(fileURLToPath(import.meta.url)));
 const OUT = join(ROOT, 'dist');
@@ -46,51 +47,31 @@ const zopfliDeflate = promisify(deflate);
 // ---------------------------------------------------------------------------
 
 /**
- * Squeeze a shader. Conservative on purpose: comments go, indentation goes,
- * spaces next to punctuation go, and nothing else is touched — no renaming, no
- * constant folding. A wrong byte here is a black screen that compiles, which
- * is the most expensive kind of bug to find at 2am on the deadline.
- *
- * Preprocessor lines keep their own line; everything else is joined up.
- *
- * @param {string} src
- * @returns {string}
+ * Find the `g`…`` tagged shader templates and replace each with its minified
+ * self, before esbuild sees the file. spglsl is async, so the substitution is
+ * done by hand rather than with a replacer function.
  */
-function minifyGlsl(src) {
-    const noComments = src
-        .replace(/\/\*[\s\S]*?\*\//g, ' ')
-        .replace(/\/\/[^\n]*/g, '');
-
-    const out = [];
-    for (let line of noComments.split('\n')) {
-        line = line.trim();
-        if (!line) continue;
-        if (line[0] === '#') { out.push('\n' + line + '\n'); continue; }
-        out.push(line + ' ');
-    }
-
-    let s = out.join('')
-        .replace(/\s+/g, (m) => (m.includes('\n') ? '\n' : ' '))
-        // Spaces either side of punctuation are never load-bearing in GLSL…
-        .replace(/\s*([{}();,=<>+\-*/%?:[\]!&|])\s*/g, '$1')
-        // …except where removing one glues two operators into a third.
-        .replace(/([+\-])([+\-])/g, '$1 $2')
-        .replace(/\n\s*/g, '\n');
-    return s.trim();
-}
-
-/** Find `g`…`` tagged shader templates and squeeze what is inside them. */
 const glslPlugin = {
     name: 'glsl',
     setup(build) {
-        build.onLoad({ filter: /src[\\/].*\.js$/ }, (args) => {
+        build.onLoad({ filter: /src[\\/].*\.js$/ }, async (args) => {
             const src = readFileSync(args.path, 'utf8');
-            const contents = src.replace(/\bg`([^`]*)`/g, (_, body) =>
-                '`' + minifyGlsl(body) + '`');
+            const shaders = [...src.matchAll(/\bg`([^`]*)`/g)];
+            let contents = '', last = 0;
+            for (const m of shaders) {
+                const name = basename(args.path, '.js');
+                contents += src.slice(last, m.index) + '`' + await minifyGlsl(m[1], name) + '`';
+                last = m.index + m[0].length;
+                glslBytes[0] += m[1].length;
+            }
+            contents += src.slice(last);
             return { contents, loader: 'js' };
         });
     },
 };
+
+/** Raw shader bytes seen, for the report. */
+const glslBytes = [0];
 
 // ---------------------------------------------------------------------------
 // Pipeline
@@ -186,6 +167,10 @@ function crc32(buf) {
     return ~c >>> 0;
 }
 
+// spglsl keeps a WebAssembly instance alive; without this the build hangs
+// after printing its report.
+(await import('spglsl')).spglslUnload();
+
 // --- report -----------------------------------------------------------------
 
 const free = LIMIT - zip.length;
@@ -197,6 +182,8 @@ if (!quiet) {
         prev = size;
     }
     console.log(`  ${'html'.padEnd(11)} ${String(html.length).padStart(6)} B`);
+    console.log(`  ${'(glsl in)'.padEnd(11)} ${String(glslBytes[0]).padStart(6)} B raw` +
+        (process.env.GLSL_SPGLSL ? ' — spglsl (run `npm run check`!)' : ' — regex minifier'));
 }
 console.log(`[build] ${zip.length} / ${LIMIT} bytes — ${free} free ` +
     `(${(free / LIMIT * 100).toFixed(1)}%, ${kb(free)})`);

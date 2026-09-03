@@ -7,13 +7,15 @@
   "scripts": {
     "dev": "node scripts/dev_server.js",
     "build": "node scripts/build.js",
-    "size": "node scripts/build.js --quiet"
+    "size": "node scripts/build.js --quiet",
+    "check": "node scripts/check_shaders.js"
   },
   "license": "MIT",
   "devDependencies": {
     "@gfx/zopfli": "^1.0.15",
     "esbuild": "^0.28.2",
     "roadroller": "^2.1.0",
+    "spglsl": "^0.3.1",
     "terser": "^5.51.2"
   }
 }
