@@ -2,27 +2,20 @@
  * Endless Rainbows — boot, loop, and the one rule the whole game is about.
  *
  * Two swarms fight; the player never commands either. What the player does is
- * keep them level, and the rainbow is the readout: it frays toward whichever
- * side is winning and erodes while the board stays lopsided. Hold the balance
- * and it heals, and a second bow appears. Let it shatter and the run is over.
+ * keep them level, and the rainbow is the readout: it fades from whichever
+ * side is winning, and is whole only when the board is level. Hold it there
+ * and a second bow appears.
  *
- * The simulation is not here yet. What is here is that rule, driven by a
- * placeholder wander, so the feel of the core loop — how fast the bow reacts,
- * how punishing the drift is, how it looks on the way down — can be tuned
- * before a single unicorn exists. Those constants are the game.
+ * The simulation is not here yet. What is here is the balance, driven by a
+ * placeholder wander, so the bow can be judged against a moving number
+ * before a single unicorn exists.
  */
 
 import { initGl, resize, setTime } from './gl.js';
 import { initRainbow, drawRainbow } from './rainbow.js';
 
-// --- the rule ---------------------------------------------------------------
+// --- the balance ------------------------------------------------------------
 
-/** How far off centre still counts as balanced. The player's margin. */
-const DEADZONE = 0.15;
-/** Integrity lost per second at maximum imbalance. */
-const DRAIN = 0.34;
-/** Integrity regained per second while inside the deadzone. */
-const REGEN = 0.13;
 /** How hard one nudge pulls the board back toward level. */
 const NUDGE = 0.22;
 /** Simulation step. Fixed, so the rule never depends on frame rate. */
@@ -31,11 +24,8 @@ const STEP = 1 / 60;
 export const state = {
     /** −1 rainicorns ahead … +1 sunicorns ahead. */
     _balance: 0,
-    /** 0…1 — what is left of the bow. The health bar. */
-    _integrity: 1,
-    /** Seconds survived. The score. */
+    /** Seconds into the run. */
     _elapsed: 0,
-    _over: false,
     /** Set by the debug panel to drive the bow by hand. */
     _manual: false,
 };
@@ -45,11 +35,11 @@ let _target = 0;
 let _drift = 0;
 
 /**
- * One fixed step of the rule.
+ * One fixed step.
  * @param {number} dt seconds
  */
 function step(dt) {
-    if (state._over || state._manual) return;
+    if (state._manual) return;
     state._elapsed += dt;
 
     // Placeholder for the swarm: a wander that re-aims every few seconds and
@@ -60,12 +50,6 @@ function step(dt) {
     _drift *= 0.985;
     _target = Math.max(-1, Math.min(1, _target + _drift * dt * pressure * 3));
     state._balance += (_target - state._balance) * dt * 1.6;
-
-    // Erode while lopsided, heal while level.
-    const err = Math.max(0, Math.abs(state._balance) - DEADZONE) / (1 - DEADZONE);
-    state._integrity += (err > 0 ? -err * DRAIN : REGEN) * dt;
-    state._integrity = Math.max(0, Math.min(1, state._integrity));
-    if (state._integrity <= 0) state._over = true;
 }
 
 /**
@@ -75,7 +59,6 @@ function step(dt) {
  * @param {number} x pointer x in 0…1 across the canvas
  */
 function nudge(x) {
-    if (state._over) { reset(); return; }
     // Push away from whichever half was touched, so the gesture is "hold this
     // side down" rather than an abstract slider.
     state._balance -= (x < 0.5 ? -1 : 1) * NUDGE;
@@ -84,8 +67,6 @@ function nudge(x) {
 
 export function reset() {
     state._balance = state._elapsed = _target = _drift = 0;
-    state._integrity = 1;
-    state._over = false;
 }
 
 // --- boot -------------------------------------------------------------------
@@ -114,6 +95,6 @@ if (!initGl(canvas)) {
 
         setTime(t);
         resize(canvas);
-        drawRainbow(state._balance, state._integrity);
+        drawRainbow(state._balance);
     });
 }

@@ -5,10 +5,9 @@ A js13kGames 2026 entry — theme **Unicorns and Rainbows**. Submissions close
 externally hosted anything.
 
 Two swarms fight and the player commands neither. What the player does is keep
-them level. The rainbow is the readout: it frays toward whichever side is
-winning and erodes while the board stays lopsided. Hold the balance and it
-heals, and a second bow appears above it. Let it shatter and the run is over.
-Score is time survived.
+them level. The rainbow is the readout: it fades from whichever side is
+winning, and is whole only when the board is level. Hold it there and a second
+bow appears above it. What ends a run is not decided yet.
 
 ## Quickstart
 
@@ -28,11 +27,10 @@ not in that loop; it only runs for the build.
 
 ## Where it stands
 
-The rainbow and the rule it expresses are in. The simulation is not: `balance`
-is driven by a placeholder wander, and the player's whole verb is a click that
-pulls the board back toward level. That is deliberate — the constants at the
-top of `src/main.js` (deadzone, drain, regen, pressure ramp) are the game, and
-they can be tuned against the real visuals before a single unicorn exists.
+The rainbow is in. The simulation is not: `balance` is driven by a placeholder
+wander, and the player's whole verb is a click that pulls the board back
+toward level. The debug panel's slider drives the bow by hand, and `?b=0.5`
+opens the dev page in that mode at a given balance.
 
 ```
 [build]  2716 / 13312 bytes — 10596 free (79.6%)
@@ -46,9 +44,9 @@ they can be tuned against the real visuals before a single unicorn exists.
 | | |
 |---|---|
 | `src/gl.js` | WebGL2 context, programs, uniforms, the fullscreen triangle, instanced quad `Batch` |
-| `src/rainbow.js` | sky, ground and both bows — one fragment shader, two uniforms |
-| `src/main.js` | boot, fixed-step loop, and the balance/integrity rule |
-| `src/debug.js` | scrub `balance` and `integrity` by hand. Never ships |
+| `src/rainbow.js` | sky, clouds, ground and both bows — one fragment shader, one number in |
+| `src/main.js` | boot, fixed-step loop, and the balance |
+| `src/debug.js` | scrub `balance` by hand. Never ships |
 | `scripts/build.js` | esbuild → GLSL squeeze → terser → Roadroller → zopfli zip, with the budget gate |
 | `scripts/glsl.js` | the two shader minifiers, and why the weaker one is the default |
 | `scripts/check_shaders.js` | renders source vs minified shader and compares pixels |
@@ -76,9 +74,10 @@ they can be tuned against the real visuals before a single unicorn exists.
 - **Never `pow()` a value that can go negative.** It is undefined in GLSL and
   renders as NaN, which renders as a white screen and no error at all. Square
   by multiplying. This cost an hour on day one.
-- **Which side erodes is a paired decision.** `balance > 0` means sunicorns
-  ahead: the sky glows on the right and the *left* end of the bow is eaten.
-  Flip one of those without the other and the two cues contradict each other.
+- **Which side fades is a paired decision.** `balance > 0` means sunicorns
+  ahead, and sunicorns are the *left* of the screen: the sky glows on the
+  left, the clouds roll in on the left, and the bow fades from its left foot.
+  Move one of those without the others and the cues contradict each other.
 
 ## What is left
 
