@@ -37,10 +37,10 @@ uniform vec2 uRes;
 uniform float uTime, uBalance;
 
 const float PI = 3.14159265;
-const float HORIZON = -0.18;
+const float HORIZON = 0.2;
 const vec2  CENTRE = vec2(0.0, -0.42);
 const float R1 = 0.70, W1 = 0.075;
-const float R2 = 0.96, W2 = 0.105;
+const float R2 = 0.85, W2 = 0.075;
 
 vec3 hsv(float h, float s, float v){
   vec3 k = clamp(abs(mod(h * 6.0 + vec3(0.0, 4.0, 2.0), 6.0) - 3.0) - 1.0, 0.0, 1.0);
@@ -220,7 +220,7 @@ void main(){
   // moving either one without the other would make them contradict.
   // The bow stops at the ground. Same soft seam as the horizon, so its feet
   // land on the grass rather than being sliced by it.
-  float sky = smoothstep(0.0, 0.006, p.y - hills);
+  float sky = smoothstep(0.0, 0.006, p.y+0.35);
   vec4 p1 = bow(r, u, R1, W1, sky, side, lean * 0.30, 0.0);
   c = mix(c, p1.rgb, p1.a);
 
@@ -231,16 +231,16 @@ void main(){
     c = mix(c, p2.rgb, p2.a);
   }
 
-  // Halo, so the bow sits in the air rather than on top of it. Squared by
-  // multiplication, not pow(): pow() with a negative base is undefined in
-  // GLSL, and (r - R1) is negative everywhere inside the arc — which renders
-  // as NaN, which renders as a white screen.
-  float k = (r - R1) / (W1 * 3.5);
-  c += hsv(0.5 + 0.2 * sin(uTime * 0.2), 0.35, 1.0)
-       * exp(-k * k) * 0.14 * along(u, b) * sky;
+  // // Halo, so the bow sits in the air rather than on top of it. Squared by
+  // // multiplication, not pow(): pow() with a negative base is undefined in
+  // // GLSL, and (r - R1) is negative everywhere inside the arc — which renders
+  // // as NaN, which renders as a white screen.
+  // float k = (r - R1) / (W1 * 3.5);
+  // c += hsv(0.5 + 0.2 * sin(uTime * 0.2), 0.35, 1.0)
+  //      * exp(-k * k) * 0.14 * along(u, b) * sky;
 
-  // Vignette.
-  c *= 1.0 - 0.30 * dot(p, p);
+  // // Vignette.
+  // c *= 1.0 - 0.30 * dot(p, p);
   o = vec4(c, 1.0);
 }`;
 
