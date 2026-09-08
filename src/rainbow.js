@@ -52,17 +52,17 @@ vec3 hsv(float h, float s, float v){
 // taking the absolute value — with a domain warp. The usual recipe; the
 // constants are what make it clouds rather than smoke or marble.
 
-const float CLOUD_SCALE = 0.55;
-const float CLOUD_DRIFT = 0.03;
-const float CLOUD_DARK = 0.5;
-const float CLOUD_LIGHT = 0.6;
-const vec3  CLOUD_TINT = vec3(0.46, 0.48, 0.56);
+const float CLOUD_SCALE = 0.3;   // scaling of the noise
+const float CLOUD_DRIFT = 0.02;  // speed of the clouds
+const float CLOUD_DARK = 0.0;
+const float CLOUD_LIGHT = 0.3;
+const vec3  CLOUD_TINT = vec3(0.26, 0.28, 0.26);
 // Base cover on the cloud side of the front.
-const float RAIN_COVER = 0.7;
+const float RAIN_COVER = 1.0;
 // Half-width of the front, in screen units.
 const float FRONT_SOFT = 0.3;
 // The cloud layer is a flat sheet overhead; this is its height over the eye.
-const float CLOUD_HEIGHT = 0.5;
+const float CLOUD_HEIGHT = 0.3;
 const float CLOUD_DENSITY = 8.0;
 const float CLOUD_SKY_TINT = 0.5;
 const mat2 TWIST = mat2(1.6, 1.2, -1.2, 1.6);
