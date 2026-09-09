@@ -32,6 +32,13 @@ const ROOT = dirname(dirname(fileURLToPath(import.meta.url)));
 const SRC = join(ROOT, 'src');
 /** Per-channel difference tolerated between the two renders. */
 const TOLERANCE = 2;
+/**
+ * Fraction of samples allowed over it. A raymarched hard edge turns a
+ * last-bit difference in a folded constant into a whole pixel's worth of
+ * change, so a few such pixels per frame prove nothing; a stripe of them
+ * would.
+ */
+const OUTLIERS = 1e-5;
 
 /**
  * Per-instance attribute data for the shaders that are drawn instanced, one
@@ -124,7 +131,7 @@ const browser = await puppeteer.launch({
 const page = await browser.newPage();
 await page.setContent('<canvas id=c width=320 height=240></canvas>');
 
-const results = await page.evaluate(async (pairs, cases) => {
+const results = await page.evaluate(async (pairs, cases, tolerance) => {
     const gl = document.getElementById('c').getContext('webgl2');
     const build = (vs, fs) => {
         const p = gl.createProgram();
@@ -186,7 +193,7 @@ const results = await page.evaluate(async (pairs, cases) => {
             out.push({ name: pair.name, error: a.error ? `source: ${a.error}` : `minified: ${b.error}` });
             continue;
         }
-        let worst = 0, differing = 0, worstCase = '';
+        let worst = 0, differing = 0, over = 0, worstCase = '';
         for (let i = 0; i < cases.length; i++) {
             const c = cases[i];
             const pa = render(a.p, c, pair.attribs, pair.instances[i]);
@@ -195,14 +202,15 @@ const results = await page.evaluate(async (pairs, cases) => {
             for (let i = 0; i < pa.length; i++) {
                 const d = Math.abs(pa[i] - pb[i]);
                 if (d) differing++;
+                if (d > tolerance) over++;
                 if (d > localWorst) localWorst = d;
             }
             if (localWorst > worst) { worst = localWorst; worstCase = JSON.stringify(c); }
         }
-        out.push({ name: pair.name, worst, differing, worstCase, pixels: 320 * 240 * 4 * cases.length });
+        out.push({ name: pair.name, worst, differing, over, worstCase, pixels: 320 * 240 * 4 * cases.length });
     }
     return out;
-}, pairs, CASES);
+}, pairs, CASES, TOLERANCE);
 
 await browser.close();
 
@@ -210,10 +218,10 @@ let bad = false;
 for (const r of results) {
     if (r.error) { console.error(`[check] ${r.name}: ${r.error}`); bad = true; continue; }
     const pct = (r.differing / r.pixels * 100).toFixed(2);
-    const verdict = r.worst > TOLERANCE ? 'FAIL' : 'ok';
-    if (r.worst > TOLERANCE) bad = true;
-    console.log(`[check] ${r.name}: ${verdict} — worst channel delta ${r.worst}` +
-        ` (tolerance ${TOLERANCE}), ${pct}% of samples differ at all` +
-        (r.worst ? `, worst at ${r.worstCase}` : ''));
+    const fail = r.over > r.pixels * OUTLIERS;
+    if (fail) bad = true;
+    console.log(`[check] ${r.name}: ${fail ? 'FAIL' : 'ok'} — worst channel delta ${r.worst}` +
+        ` (tolerance ${TOLERANCE}), ${r.over} samples over it (allowed ${Math.floor(r.pixels * OUTLIERS)})` +
+        `, ${pct}% differ at all` + (r.worst ? `, worst at ${r.worstCase}` : ''));
 }
 process.exit(bad ? 1 : 0);

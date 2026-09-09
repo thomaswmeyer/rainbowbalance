@@ -54,18 +54,23 @@ Voronoi-blade march, both after David Hoskins'
 [lsfXz4](https://www.shadertoy.com/view/lsfXz4) — that one is CC BY-NC-SA, so
 nothing is copied from it, and the blade march itself is gone: the blade field
 is sampled once as a texture on the ground. Rain falls under the clouds:
-that began as a bug in how the horizon sky was sampled and was kept. The tuning
-panel that produced the constants is in git history (commit 82c266a): it gave
-a live slider to every `const … // min max` line in the shader, with
-"copy GLSL" to paste the values back. Restore `src/debug.js` and the two
-hooks in `rainbow.js` and `main.js` from that commit to tune again.
+that began as a bug in how the horizon sky was sampled and was kept. The
+sunicorn castle stands at the bow's left foot: a signed distance field,
+marched only inside its bounding sphere, built the way the buildings in dr2's
+[WtjSzR](https://www.shadertoy.com/view/WtjSzR) are (CC BY-NC-SA, nothing
+copied). The rainicorn castle is not built yet. The dev page's
+panels: checkboxes that compile each feature out of the shader, to see what
+it costs; a slider for every `const … // min max` line in the shader (only
+the frame-rate constants have a range at the moment; give a line one back to
+tune its look); "bake" to recompile with the slider values as real constants,
+which is the frame rate to believe; and "copy GLSL" to paste the values back.
 
 ```
-[build]  3145 / 13312 bytes — 10167 free (76.4%)
-  esbuild     5909 B
-  terser      5646 B  (-4%)
-  roadroller  3837 B  (-32%)
-  glsl        4013 B  (-78% of 18373 B raw)
+[build]  3654 / 13312 bytes — 9658 free (72.6%)
+  esbuild     7513 B
+  terser      7250 B  (-4%)
+  roadroller  4521 B  (-38%)
+  glsl        5617 B  (-77% of 24412 B raw)
 ```
 
 ## Layout
@@ -73,10 +78,10 @@ hooks in `rainbow.js` and `main.js` from that commit to tune again.
 | | |
 |---|---|
 | `src/gl.js` | WebGL2 context, programs, uniforms, the fullscreen triangle, instanced quad `Batch` |
-| `src/rainbow.js` | sky, clouds, hills, grass and both bows — one fragment shader, one number in |
+| `src/rainbow.js` | sky, clouds, hills, grass, castle and both bows — one fragment shader, one number in |
 | `src/unicorn.js` | one signed-distance unicorn, instanced — the swarms, and where they stand |
 | `src/main.js` | boot, fixed-step loop, and the balance |
-| `src/debug.js` | scrub `balance` by hand. Never ships |
+| `src/debug.js` | scrub `balance` by hand, switch features off, tune constants live. Never ships |
 | `scripts/build.js` | esbuild → GLSL squeeze → terser → Roadroller → zopfli zip, with the budget gate |
 | `scripts/glsl.js` | the shader minifier seam around shader-minifier-js |
 | `scripts/check_shaders.js` | renders source vs minified shader and compares pixels |
@@ -95,10 +100,11 @@ hooks in `rainbow.js` and `main.js` from that commit to tune again.
 - **`__DEBUG__` is defined `false` at build time.** Anything reached only
   through `if (__DEBUG__)` is eliminated, including the dynamic import of
   `debug.js`. The build fails if the panel's strings survive into the bundle.
-- **Shader constants with a `// min max` comment were tuned by slider**, and
-  the panel that did it (git history, 82c266a) rewrote them into uniforms.
-  Keep them out of constant expressions so it can come back: no
-  `const x = NAME`, no global initialised from one.
+- **A shader constant with a `// min max` comment is a slider on the dev
+  page**, which rewrites it into a uniform. So keep tunable constants out of
+  constant expressions: no `const x = NAME`, no global initialised from one.
+  Feature switches are `const int NAME_ON = 1` and tested with `== 1`: the
+  minifier folds that and drops the dead branch, and does not fold `!true`.
 - **No backticks anywhere in a shader, including comments.** It is a JS
   template literal, and the first backtick ends it.
 - **No shared shader snippets.** The minifier folds constants, inlines, and
