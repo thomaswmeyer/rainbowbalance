@@ -54,23 +54,24 @@ Voronoi-blade march, both after David Hoskins'
 [lsfXz4](https://www.shadertoy.com/view/lsfXz4) — that one is CC BY-NC-SA, so
 nothing is copied from it, and the blade march itself is gone: the blade field
 is sampled once as a texture on the ground. Rain falls under the clouds:
-that began as a bug in how the horizon sky was sampled and was kept. The
-sunicorn castle stands at the bow's left foot: a signed distance field,
-marched only inside its bounding sphere, built the way the buildings in dr2's
+that began as a bug in how the horizon sky was sampled and was kept. A
+castle stands at each foot of the bow, the sunicorns' in sandstone and the
+rainicorns' in obsidian: one signed distance field, marched only inside its
+bounding sphere, built the way the buildings in dr2's
 [WtjSzR](https://www.shadertoy.com/view/WtjSzR) are (CC BY-NC-SA, nothing
-copied). The rainicorn castle is not built yet. The dev page's
-panels: checkboxes that compile each feature out of the shader, to see what
-it costs; a slider for every `const … // min max` line in the shader (only
-the frame-rate constants have a range at the moment; give a line one back to
-tune its look); "bake" to recompile with the slider values as real constants,
-which is the frame rate to believe; and "copy GLSL" to paste the values back.
+copied). The dev page has
+checkboxes that compile each feature out of the shader, to see what it costs.
+The slider panel that tuned the constants is in git history (commit 0e0063e):
+a slider per `const … // min max` line, "bake" to recompile with the values
+as constants, "copy GLSL" to get them back. Restore `src/debug.js` from there
+and give the lines their ranges back to tune again.
 
 ```
-[build]  3654 / 13312 bytes — 9658 free (72.6%)
-  esbuild     7513 B
-  terser      7250 B  (-4%)
-  roadroller  4521 B  (-38%)
-  glsl        5617 B  (-77% of 24412 B raw)
+[build]  3763 / 13312 bytes — 9549 free (71.7%)
+  esbuild     7762 B
+  terser      7499 B  (-3%)
+  roadroller  4656 B  (-38%)
+  glsl        5866 B  (-77% of 25022 B raw)
 ```
 
 ## Layout
@@ -78,10 +79,10 @@ which is the frame rate to believe; and "copy GLSL" to paste the values back.
 | | |
 |---|---|
 | `src/gl.js` | WebGL2 context, programs, uniforms, the fullscreen triangle, instanced quad `Batch` |
-| `src/rainbow.js` | sky, clouds, hills, grass, castle and both bows — one fragment shader, one number in |
+| `src/rainbow.js` | sky, clouds, hills, grass, castles and both bows — one fragment shader, one number in |
 | `src/unicorn.js` | one signed-distance unicorn, instanced — the swarms, and where they stand |
 | `src/main.js` | boot, fixed-step loop, and the balance |
-| `src/debug.js` | scrub `balance` by hand, switch features off, tune constants live. Never ships |
+| `src/debug.js` | scrub `balance` by hand, switch features off. Never ships |
 | `scripts/build.js` | esbuild → GLSL squeeze → terser → Roadroller → zopfli zip, with the budget gate |
 | `scripts/glsl.js` | the shader minifier seam around shader-minifier-js |
 | `scripts/check_shaders.js` | renders source vs minified shader and compares pixels |
@@ -100,11 +101,12 @@ which is the frame rate to believe; and "copy GLSL" to paste the values back.
 - **`__DEBUG__` is defined `false` at build time.** Anything reached only
   through `if (__DEBUG__)` is eliminated, including the dynamic import of
   `debug.js`. The build fails if the panel's strings survive into the bundle.
-- **A shader constant with a `// min max` comment is a slider on the dev
-  page**, which rewrites it into a uniform. So keep tunable constants out of
-  constant expressions: no `const x = NAME`, no global initialised from one.
-  Feature switches are `const int NAME_ON = 1` and tested with `== 1`: the
-  minifier folds that and drops the dead branch, and does not fold `!true`.
+- **Keep tunable shader constants out of constant expressions**: no
+  `const x = NAME`, no global initialised from one. The slider panel (git
+  history, 0e0063e) rewrites them into uniforms, and that is what lets it
+  come back. Feature switches are `const int NAME_ON = 1` and tested with
+  `== 1`: the minifier folds that and drops the dead branch, and does not
+  fold `!true`.
 - **No backticks anywhere in a shader, including comments.** It is a JS
   template literal, and the first backtick ends it.
 - **No shared shader snippets.** The minifier folds constants, inlines, and

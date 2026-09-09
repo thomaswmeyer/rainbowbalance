@@ -50,7 +50,7 @@ const int CASTLE_ON = 1;
 
 const float PI = 3.14159265;
 const float HORIZON = 0.2;
-const vec2  CENTRE = vec2(0.0, -0.42);
+const vec2  CENTRE = vec2(0.0, -0.31);
 const float R1 = 0.70, W1 = 0.075;
 const float R2 = 0.85, W2 = 0.075;
 
@@ -70,30 +70,28 @@ vec3 hsv(float h, float s, float v){
 // Worley and Perlin noise options (value noise was tried against both and
 // kept), and the noise-texture lookup (the hash fallback is used instead).
 //
-// Tuned by hand from the debug panel, which gives a slider to every
-// "const float|int NAME = value; // min max" line in this shader by turning
-// it into a uniform on the dev page. Only the constants that set the frame
-// rate keep a range now; to tune a look again, give its line one back. No
-// tunable constant may be used in a constant expression: no "const x = NAME",
-// no global initialised from one. (And no backticks anywhere in this shader,
-// including comments: it is a JS template literal.)
+// Tuned by hand from a slider panel that is in git history (commit 0e0063e):
+// it turned every "const … // min max" line into a uniform on the dev page.
+// Keep these constants out of constant expressions so it can come back: no
+// "const x = NAME", no global initialised from one. (And no backticks
+// anywhere in this shader, including comments: it is a JS template literal.)
 const float COVERAGE    = 0.664;
 const float THICKNESS   = 19.17;
 const float ABSORPTION  = 1.045;
 const float WIND_SPEED  = 0.147;
 const float FBM_FREQ    = 2.739;
-const float NOISE_SCALE = 0.022206;
+const float NOISE_SCALE = 0.011633;
 // The cost of the clouds, all four of it: steps through the layer, octaves
 // of noise per step, the fog below which ground does not bother, and how far
 // a grazing march goes before giving up.
-const float STEPS       = 16.9;       // 4 64
-const int   OCTAVES     = 3;          // 1 6
-const float FOG_CUT     = 0.02;       // 0 1
-const float CLOUD_FAR   = 317.5;     // 100 3000
+const float STEPS       = 16.78;
+const int   OCTAVES     = 3;
+const float FOG_CUT     = 0.5;
+const float CLOUD_FAR   = 317.5;
 const float LIGHT_GAIN  = 1.75;       // lighting is exp(height) / this: brighter toward the top of the layer
-const float ATMOS_Y     = -457.75;    // centre of the cloud sphere, below the eye
-const float ATMOS_R     = 525.6;      // its radius; base height is ATMOS_Y + ATMOS_R
-const float FOV         = 45.7;       // half-angle, degrees
+const float ATMOS_Y     = -465.71;  // centre of the cloud sphere, below the eye
+const float ATMOS_R     = 468.2;  // its radius; base height is ATMOS_Y + ATMOS_R
+const float FOV         = 30.0;  // half-angle, degrees
 const float FRONT_SOFT  = 0.3046;     // half-width of the weather front, screen units
 
 // Value noise by iq, https://www.shadertoy.com/view/4sfGzS — the hash
@@ -166,25 +164,25 @@ vec4 clouds(vec3 rd, vec3 sky, float amount){
 // understanding of how it works. The camera is the clouds' camera, so the
 // hills stand against the sky where they actually are, and slopes take the
 // light: the sun is behind the viewer, where a bow's sun always is.
-const float HILL_AMP     = 6.78;  // height of the hills
-const float HILL_FREQ    = 0.010722;  // size of the hills: smaller is wider
-const float EYE          = 6.9975;  // eye height over the ground under it
-const int   HILL_STEPS   = 31;         // 8 100
-const float FAR          = 1000.0;      // 20 1000  ground beyond this is sky
+const float HILL_AMP     = 4.56;  // height of the hills
+const float HILL_FREQ    = 0.01719;  // size of the hills: smaller is wider
+const float EYE          = 8.596;  // eye height over the ground under it
+const int   HILL_STEPS   = 31;
+const float FAR          = 1000.0;     // ground beyond this is sky
 const float SUN_ELEV     = 35.04;  // degrees above the horizon, behind the viewer
 const float AMBIENT      = 0.4;  // light on a slope facing away from the sun
 // A ray flatter than this sees the clouds as if at this slant. Below it the
 // cloud march takes one sample and quits, or walks backwards and finds
 // nothing, so ground that falls away or is beyond FAR, and the fog on the
 // way there, would show bare gradient in the shape of the hills.
-const float SKY_MIN      = 0.071885;
+const float SKY_MIN      = 0.02723;
 // Rain. It began as a bug: every ray under the horizon sampled the clouds
 // along the same clamped direction, which extruded the cloud base straight
 // down in screen columns, and through the fog that read as shafts of rain
 // under the cloud, fading before the ground. Kept, and made to fall.
 const float RAIN         = 0.6;  // how dark the shafts are
 const float RAIN_SPEED   = 0.028;
-const float RAIN_SCALE   = 16.65;  // shafts per screen width, roughly
+const float RAIN_SCALE   = 52.292;  // shafts per screen width, roughly
 
 // Dave Hoskins, "Hash without Sine", https://www.shadertoy.com/view/4djSRW (MIT).
 vec2 hash22(vec2 p){
@@ -325,9 +323,9 @@ vec3 grass(vec3 pos, vec3 nor, float dist, float sun){
 // The castle sits on the terrain where the ray through the bow's foot lands,
 // facing the camera, so the bow comes down behind it.
 const float CASTLE_NEAR  = 1.0;  // of the way from the eye to where the foot's ray meets the ground
-const float CASTLE_SCALE = 0.5;
-const float FOOT         = -0.35;  // where on screen the bow's feet stand
-const int   CASTLE_STEPS = 52;         // 16 96
+const float CASTLE_SCALE = 0.5864;
+const float FOOT         = -0.24;      // where on screen the bow's feet stand
+const int   CASTLE_STEPS = 52;
 
 float sdBox(vec3 p, vec3 b){
   vec3 d = abs(p) - b;
@@ -477,23 +475,29 @@ void main(){
   vec3 ro = vec3(0.0, terrain(vec2(0.0)) + EYE, 0.0);
   float t = ground(ro, rd);
 
-  // ---- the castle ----------------------------------------------------------
-  // Under the bow's left foot: where the ray through that screen point
+  // ---- the castles ---------------------------------------------------------
+  // One under each foot of the bow: where the ray through that screen point
   // meets the terrain, found by a few rounds of dropping a plumb line from
   // the last guess, which converges on these gentle hills and costs three
-  // terrain lookups instead of a march. Then pulled toward the camera by
-  // CASTLE_NEAR so the bow comes down inside the walls.
-  vec3 fd = normalize(vec3(sqrt(R1 * R1 - (FOOT - CENTRE.y) * (FOOT - CENTRE.y)), FOOT - HORIZON, -0.5 / tan(radians(FOV))));
-  float tf = EYE / -fd.y;
+  // terrain lookups instead of a march. Pulled toward the camera by
+  // CASTLE_NEAR so the bow comes down inside the walls. The nearer hit wins.
+  // Castle 0 is the sunicorns', on the left, sandstone; castle 1 the
+  // rainicorns', on the right, obsidian.
   vec3 cp = ro;
   vec2 cf = vec2(1.0, 0.0);
   float tc = -1.0;
-  if (CASTLE_ON == 1) {
+  int which = 0;
+  if (CASTLE_ON == 1) for (int k = 0; k < 2; k++) {
+    // Screen left is world +x.
+    float sx = k == 0 ? 1.0 : -1.0;
+    vec3 fd = normalize(vec3(sx * sqrt(R1 * R1 - (FOOT - CENTRE.y) * (FOOT - CENTRE.y)), FOOT - HORIZON, -0.5 / tan(radians(FOV))));
+    float tf = EYE / -fd.y;
     for (int i = 0; i < 3; i++) tf = (ro.y - terrain((ro + fd * tf).xz)) / -fd.y;
-    cp = ro + fd * tf * CASTLE_NEAR;
-    cp.y = terrain(cp.xz);
-    cf = normalize(ro.xz - cp.xz);
-    tc = castleHit(ro, rd, cp, cf);
+    vec3 kp = ro + fd * tf * CASTLE_NEAR;
+    kp.y = terrain(kp.xz);
+    vec2 kf = normalize(ro.xz - kp.xz);
+    float tk = castleHit(ro, rd, kp, kf);
+    if (tk > 0.0 && (tc < 0.0 || tk < tc)) { tc = tk; cp = kp; cf = kf; which = k; }
   }
   bool onCastle = tc > 0.0 && (t < 0.0 || tc < t);
 
@@ -514,10 +518,20 @@ void main(){
     // Sandstone, lit like the ground under the same sky, darker toward the
     // foot of the walls for want of real occlusion.
     vec3 sun_dir = vec3(0.0, sin(radians(SUN_ELEV)), cos(radians(SUN_ELEV)));
+    float sun = 1.0 - amount;
     float lit = mix(AMBIENT, 1.0, max(dot(nor, sun_dir), 0.0));
-    vec3 light = mix(vec3(0.55, 0.62, 0.80) * SHADE, vec3(1.15, 1.05, 0.85) * lit, 1.0 - amount);
+    vec3 light = mix(vec3(0.55, 0.62, 0.80) * SHADE, vec3(1.15, 1.05, 0.85) * lit, sun);
     float base = 0.6 + 0.4 * clamp((pos.y - cp.y) / CASTLE_SCALE, 0.0, 1.0);
-    surf = vec3(0.93, 0.82, 0.62) * light * base;
+    if (which == 0) {
+      surf = vec3(0.93, 0.82, 0.62) * light * base;
+    } else {
+      // Obsidian: almost no diffuse, so what reads is the sun's highlight,
+      // kept whatever the weather so the castle always looks polished, and
+      // the sky mirrored in it, strongest at grazing angles.
+      float spec = pow(max(dot(nor, normalize(sun_dir - rd)), 0.0), 40.0);
+      float fresnel = 0.15 + 0.85 * pow(1.0 - max(dot(nor, -rd), 0.0), 2.0);
+      surf = vec3(0.03, 0.03, 0.04) * light * base + spec * vec3(0.9, 0.85, 0.75) + fresnel * horizon * 0.8;
+    }
   } else if (t >= 0.0) {
     vec3 pos = ro + rd * t;
     surf = grass(pos, normal(pos.xz), t, 1.0 - amount);
@@ -581,26 +595,18 @@ export function initRainbow() {
 
 /**
  * Dev only: recompile the pass from a variant of its source, for the debug
- * panel's switches and sliders. `names` are extra uniforms that variant
- * declares; the returned setter takes name → value and the values are
- * applied on every draw. Throws with the log if it does not compile.
+ * panel's feature switches. Throws with the log if it does not compile.
  * @param {string} src
- * @param {string[]} [names]
- * @returns {(values: Record<string, number>) => void}
  */
-export function recompile(src, names = []) {
-    if (!__DEBUG__) return () => {};
+export function recompile(src) {
+    if (!__DEBUG__) return;
     _prog = program(FULLSCREEN_VS, src);
-    _u = uniforms(_prog, ['uRes', 'uTime', 'uBalance', ...names]);
-    _tweaks = {};
-    return (values) => { _tweaks = values; };
+    _u = uniforms(_prog, ['uRes', 'uTime', 'uBalance']);
 }
-let _tweaks = {};
 
 /** @param {number} balance −1…+1, 0 is perfectly held */
 export function drawRainbow(balance) {
     gl.useProgram(_prog);
     _u({ uRes: [width, height], uTime: time, uBalance: balance });
-    if (__DEBUG__) _u(_tweaks);
     fullscreen();
 }
