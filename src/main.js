@@ -12,7 +12,7 @@
  */
 
 import { initGl, resize, setTime } from './gl.js';
-import { initRainbow, drawRainbow, tuneWith, FS } from './rainbow.js';
+import { initRainbow, drawRainbow } from './rainbow.js';
 import { initUnicorns, stepUnicorns, drawUnicorns } from './unicorn.js';
 
 // --- the balance ------------------------------------------------------------
@@ -87,7 +87,7 @@ if (!initGl(canvas)) {
 
     addEventListener('pointerdown', (e) => nudge(e.clientX / innerWidth));
 
-    if (__DEBUG__) import('./debug.js').then((d) => d.initDebug(state, reset, FS, tuneWith));
+    if (__DEBUG__) import('./debug.js').then((d) => d.initDebug(state, reset));
 
     let last = 0, acc = 0;
     requestAnimationFrame(function frame(now) {

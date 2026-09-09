@@ -54,18 +54,18 @@ Voronoi-blade march, both after David Hoskins'
 [lsfXz4](https://www.shadertoy.com/view/lsfXz4) — that one is CC BY-NC-SA, so
 nothing is copied from it, and the blade march itself is gone: the blade field
 is sampled once as a texture on the ground. Rain falls under the clouds:
-that began as a bug in how the horizon sky was sampled and was kept. The dev
-page's right-hand panel has a live slider for every `const … // min max` line
-in the shader (the grass ones; the cloud constants are done and have no
-range), with "copy GLSL" to paste the values you settle on back over the
-source.
+that began as a bug in how the horizon sky was sampled and was kept. The tuning
+panel that produced the constants is in git history (commit 82c266a): it gave
+a live slider to every `const … // min max` line in the shader, with
+"copy GLSL" to paste the values back. Restore `src/debug.js` and the two
+hooks in `rainbow.js` and `main.js` from that commit to tune again.
 
 ```
-[build]  3142 / 13312 bytes — 10170 free (76.4%)
-  esbuild     5928 B
-  terser      5665 B  (-4%)
-  roadroller  3850 B  (-32%)
-  glsl        4032 B  (-78% of 18507 B raw)
+[build]  3145 / 13312 bytes — 10167 free (76.4%)
+  esbuild     5909 B
+  terser      5646 B  (-4%)
+  roadroller  3837 B  (-32%)
+  glsl        4013 B  (-78% of 18373 B raw)
 ```
 
 ## Layout
@@ -76,7 +76,7 @@ source.
 | `src/rainbow.js` | sky, clouds, hills, grass and both bows — one fragment shader, one number in |
 | `src/unicorn.js` | one signed-distance unicorn, instanced — the swarms, and where they stand |
 | `src/main.js` | boot, fixed-step loop, and the balance |
-| `src/debug.js` | scrub `balance` by hand, and tune the shader's constants live. Never ships |
+| `src/debug.js` | scrub `balance` by hand. Never ships |
 | `scripts/build.js` | esbuild → GLSL squeeze → terser → Roadroller → zopfli zip, with the budget gate |
 | `scripts/glsl.js` | the shader minifier seam around shader-minifier-js |
 | `scripts/check_shaders.js` | renders source vs minified shader and compares pixels |
@@ -95,10 +95,10 @@ source.
 - **`__DEBUG__` is defined `false` at build time.** Anything reached only
   through `if (__DEBUG__)` is eliminated, including the dynamic import of
   `debug.js`. The build fails if the panel's strings survive into the bundle.
-- **Tunable shader constants are `const float NAME = 1.0; // min max note`
-  lines.** The debug panel rewrites each into a uniform for the dev page, so
-  none of them may appear in a constant expression: no `const x = NAME`, no
-  global initialised from one. Ints work too, through a `#define`.
+- **Shader constants with a `// min max` comment were tuned by slider**, and
+  the panel that did it (git history, 82c266a) rewrote them into uniforms.
+  Keep them out of constant expressions so it can come back: no
+  `const x = NAME`, no global initialised from one.
 - **No backticks anywhere in a shader, including comments.** It is a JS
   template literal, and the first backtick ends it.
 - **No shared shader snippets.** The minifier folds constants, inlines, and

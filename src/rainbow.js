@@ -32,7 +32,7 @@
 
 import { g, program, uniforms, fullscreen, gl, FULLSCREEN_VS, time, width, height } from './gl.js';
 
-export const FS = g`#version 300 es
+const FS = g`#version 300 es
 precision highp float;
 out vec4 o;
 uniform vec2 uRes;
@@ -60,13 +60,12 @@ vec3 hsv(float h, float s, float v){
 // Worley and Perlin noise options (value noise was tried against both and
 // kept), and the noise-texture lookup (the hash fallback is used instead).
 //
-// Tuned by hand from the debug panel, which gives a slider to every
-// "const float|int NAME = value; // min max" line in this shader. These are
-// done, so their ranges are gone and the panel leaves them alone; the grass
-// constants below still have theirs. A tunable constant is a uniform on the
-// dev page, so none may be used in a constant expression: no "const x = NAME",
-// no global initialised from one. (And no backticks anywhere in this shader,
-// including comments: it is a JS template literal.)
+// Tuned by hand. The panel that did it is in git history (commit 82c266a):
+// it gave a slider to every "const float|int NAME = value; // min max" line
+// in this shader by turning them into uniforms on the dev page, which is why
+// none of those constants is used in a constant expression, and the "min
+// max" comments below are the ranges that were explored. (And no backticks
+// anywhere in this shader, including comments: it is a JS template literal.)
 const float COVERAGE    = 0.664;
 const float THICKNESS   = 19.17;
 const float ABSORPTION  = 1.045;
@@ -437,27 +436,9 @@ export function initRainbow() {
 }
 
 
-/**
- * Dev only. Swap in a variant of the shader whose tunable constants are
- * uniforms (the debug panel writes that variant), so the panel can drive
- * them live without a recompile. Returns a setter taking name → value; the
- * values are applied on every draw.
- * @param {string} src
- * @param {string[]} names the uniform names in that variant
- * @returns {(values: Record<string, number>) => void}
- */
-export function tuneWith(src, names) {
-    if (!__DEBUG__) return () => {};
-    _prog = program(FULLSCREEN_VS, src);
-    _u = uniforms(_prog, ['uRes', 'uTime', 'uBalance', ...names]);
-    return (values) => { _tweaks = values; };
-}
-let _tweaks = {};
-
 /** @param {number} balance −1…+1, 0 is perfectly held */
 export function drawRainbow(balance) {
     gl.useProgram(_prog);
     _u({ uRes: [width, height], uTime: time, uBalance: balance });
-    if (__DEBUG__) _u(_tweaks);
     fullscreen();
 }
