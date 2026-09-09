@@ -5,26 +5,28 @@
  *
  *   npm run check
  *
- * This exists because of what spglsl does. Renaming a local and folding a
- * constant cannot produce a shader that fails to compile; they produce one
- * that compiles perfectly and draws something subtly different, and a blank or
- * wrong frame at 2am gives no hint whether the minifier or the last edit
- * caused it. So: compile both versions in one context, render each across a
- * grid of uniform values at a fixed time, and compare the pixels.
+ * This exists because of what an optimising minifier can do. Renaming a
+ * local and folding a constant cannot produce a shader that fails to compile;
+ * they produce one that compiles perfectly and draws something subtly
+ * different, and a blank or wrong frame at 2am gives no hint whether the
+ * minifier or the last edit caused it. spglsl did exactly that to this
+ * rainbow once, and this check is what caught it. So: compile both versions
+ * in one context, render each across a grid of uniform values at a fixed
+ * time, and compare the pixels.
  *
  * Constant folding legitimately shifts the last bit or two of a float, so the
  * comparison allows a difference of TOLERANCE per channel. Anything a person
  * could see is far outside that.
  *
- * Needs a browser: `npm i -D puppeteer`, or point PUPPETEER_PATH at an
- * existing installation. Without one it skips rather than fails, so it never
- * blocks a build.
+ * Needs a browser: `npm i -D puppeteer`, or `npm i --no-save puppeteer-core`
+ * with PUPPETEER_PATH=puppeteer-core and CHROME_PATH pointing at a Chrome
+ * binary. Without one it skips rather than fails, so it never blocks a build.
  */
 
 import { readFileSync, readdirSync } from 'fs';
 import { join, dirname, basename } from 'path';
 import { fileURLToPath } from 'url';
-import { minifyGlsl } from './glsl.js';
+import { minifyGlsl, SHADER_TEMPLATE } from './glsl.js';
 
 const ROOT = dirname(dirname(fileURLToPath(import.meta.url)));
 const SRC = join(ROOT, 'src');
@@ -81,9 +83,8 @@ const vertexByFile = new Map();
 for (const file of readdirSync(SRC).filter((f) => f.endsWith('.js'))) {
     const name = basename(file, '.js');
     const src = readFileSync(join(SRC, file), 'utf8');
-    for (const m of src.matchAll(/\bg`([^`]*)`/g)) {
+    for (const m of src.matchAll(SHADER_TEMPLATE)) {
         const body = m[1];
-        if (!/#version/.test(body)) continue;               // a snippet, not a unit
         if (/gl_Position/.test(body)) { vertexByFile.set(name, body); continue; }
         shaders.push({ name, src: body });
     }
@@ -111,9 +112,8 @@ if (!puppeteer) {
     process.exit(0);
 }
 
-const pairs = [];
-for (const s of shaders) pairs.push({ ...s, min: await minifyGlsl(s.src, s.name) });
-(await import('spglsl')).spglslUnload();
+// Each pair minified, vertex stage included.
+const pairs = shaders.map((s) => ({ ...s, min: minifyGlsl(s.src, s.name), vsMin: minifyGlsl(s.vs, s.name) }));
 
 const browser = await puppeteer.launch({
     executablePath: process.env.CHROME_PATH || undefined,
@@ -126,9 +126,9 @@ await page.setContent('<canvas id=c width=320 height=240></canvas>');
 
 const results = await page.evaluate(async (pairs, cases) => {
     const gl = document.getElementById('c').getContext('webgl2');
-    const build = (vertexSrc, fs) => {
+    const build = (vs, fs) => {
         const p = gl.createProgram();
-        for (const [type, src] of [[gl.VERTEX_SHADER, vertexSrc], [gl.FRAGMENT_SHADER, fs]]) {
+        for (const [type, src] of [[gl.VERTEX_SHADER, vs], [gl.FRAGMENT_SHADER, fs]]) {
             const sh = gl.createShader(type);
             gl.shaderSource(sh, src);
             gl.compileShader(sh);
@@ -179,7 +179,9 @@ const results = await page.evaluate(async (pairs, cases) => {
     gl.bindVertexArray(gl.createVertexArray());
     const out = [];
     for (const pair of pairs) {
-        const a = build(pair.vs, pair.src), b = build(pair.vs, pair.min);
+        // The minified pair is drawn with the minified vertex shader, so the
+        // whole shipped pair is what gets compared, not just the fragment half.
+        const a = build(pair.vs, pair.src), b = build(pair.vsMin, pair.min);
         if (a.error || b.error) {
             out.push({ name: pair.name, error: a.error ? `source: ${a.error}` : `minified: ${b.error}` });
             continue;

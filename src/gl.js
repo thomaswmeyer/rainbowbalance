@@ -14,8 +14,9 @@
  *   - Internal properties are named with a leading underscore. The build
  *     mangles those (`terser --mangle-props /^_/`), so `this._program` costs
  *     two bytes in the shipped build and `this.program` would cost eight.
- *   - Shader source goes in a `g` tagged template. The build finds those and
- *     runs a GLSL squeezer over them; nothing else in the file is touched.
+ *   - Shader source goes in a `g` tagged template, one whole shader per
+ *     template, `#version` line first. The build finds those and runs
+ *     shader-minifier-js over them; nothing else in the file is touched.
  *     Do not interpolate into them — `${}` inside a shader would be dropped.
  */
 
@@ -171,7 +172,15 @@ export function fullscreen() {
  * declared once, at construction, as a list of attribute widths. The unit quad
  * itself is not stored anywhere: the vertex shader builds it from
  * gl_VertexID like the fullscreen triangle does, so a batch owns exactly one
- * buffer.
+ * buffer. Each batch's vertex shader carries its own copy of that corner
+ * function —
+ *
+ *     vec2 corner(){ return vec2(gl_VertexID & 1, gl_VertexID >> 1 & 1) - 0.5; }
+ *
+ * — rather than sharing a snippet, because every shader must be a whole
+ * translation unit for the minifier to see it (the build rejects a `g`
+ * template without a `#version` line), and the minifier inlines the function
+ * anyway.
  */
 export class Batch {
     /**
@@ -228,11 +237,3 @@ export class Batch {
     }
 }
 
-/**
- * The companion vertex-shader prelude for a Batch: turns gl_VertexID 0..3 into
- * the corners of a unit quad centred on the origin.
- */
-export const QUAD_CORNER = g`
-vec2 corner(){
-  return vec2(float(gl_VertexID & 1) - 0.5, float((gl_VertexID >> 1) & 1) - 0.5);
-}`;

@@ -19,8 +19,15 @@ npm run size     # the byte count on its own
 npm run check    # do the minified shaders render what the source rendered?
 ```
 
-`check` needs a browser (`npm i -D puppeteer`, or point `PUPPETEER_PATH` at
-one). Without it, it skips rather than fails.
+`check` needs a browser: `npm i -D puppeteer`, or the lighter
+`npm i --no-save puppeteer-core` plus `PUPPETEER_PATH=puppeteer-core` and
+`CHROME_PATH` pointing at a Chrome binary. Without one it skips rather than
+fails.
+
+The shaders are minified by `shader-minifier-js`, the TypeScript port of
+Shader Minifier, pulled from GitHub at a pinned commit (it is not on npm).
+`npm install` clones it and runs its build, which is why the first install
+is slow. To move the pin, change the hash in `package.json` and reinstall.
 
 `npm run dev` serves the source as written — save, refresh, done. esbuild is
 not in that loop; it only runs for the build.
@@ -39,11 +46,26 @@ for now — the build constants are frozen in `unicorn.js`, named and used
 exactly where a per-instance value would go, so giving them diverse
 measurements later is a move from constant to attribute and nothing else.
 
+The clouds are a volumetric march ported close to Valentin Galea's
+[XtBXDw](https://www.shadertoy.com/view/XtBXDw) (MIT), tuned by hand, on its
+value noise (Worley and Perlin were tried and dropped). The hills are a
+raymarched heightfield and the grass on them is the far field of a
+Voronoi-blade march, both after David Hoskins'
+[lsfXz4](https://www.shadertoy.com/view/lsfXz4) — that one is CC BY-NC-SA, so
+nothing is copied from it, and the blade march itself is gone: the blade field
+is sampled once as a texture on the ground. Rain falls under the clouds:
+that began as a bug in how the horizon sky was sampled and was kept. The dev
+page's right-hand panel has a live slider for every `const … // min max` line
+in the shader (the grass ones; the cloud constants are done and have no
+range), with "copy GLSL" to paste the values you settle on back over the
+source.
+
 ```
-[build]  5539 / 13312 bytes — 7773 free (58.4%)
-  esbuild    13749 B
-  terser     13321 B  (-3%)
-  roadroller  7035 B  (-47%)
+[build]  3142 / 13312 bytes — 10170 free (76.4%)
+  esbuild     5928 B
+  terser      5665 B  (-4%)
+  roadroller  3850 B  (-32%)
+  glsl        4032 B  (-78% of 18507 B raw)
 ```
 
 ## Layout
@@ -51,12 +73,12 @@ measurements later is a move from constant to attribute and nothing else.
 | | |
 |---|---|
 | `src/gl.js` | WebGL2 context, programs, uniforms, the fullscreen triangle, instanced quad `Batch` |
-| `src/rainbow.js` | sky, clouds, ground and both bows — one fragment shader, one number in |
+| `src/rainbow.js` | sky, clouds, hills, grass and both bows — one fragment shader, one number in |
 | `src/unicorn.js` | one signed-distance unicorn, instanced — the swarms, and where they stand |
 | `src/main.js` | boot, fixed-step loop, and the balance |
-| `src/debug.js` | scrub `balance` by hand. Never ships |
+| `src/debug.js` | scrub `balance` by hand, and tune the shader's constants live. Never ships |
 | `scripts/build.js` | esbuild → GLSL squeeze → terser → Roadroller → zopfli zip, with the budget gate |
-| `scripts/glsl.js` | the two shader minifiers, and why the weaker one is the default |
+| `scripts/glsl.js` | the shader minifier seam around shader-minifier-js |
 | `scripts/check_shaders.js` | renders source vs minified shader and compares pixels |
 | `scripts/dev_server.js` | static files, no dependencies |
 
@@ -65,20 +87,33 @@ measurements later is a move from constant to attribute and nothing else.
 - **Internal properties start with `_`.** Terser mangles `/^_/`, so
   `this._balance` costs two bytes in the shipped build. Anything not
   underscore-prefixed keeps its full name forever.
-- **Shader source goes in a `` g`…` `` tagged template.** The build finds those
-  and squeezes them; nothing else in the file is touched. **No `${}`
-  interpolation inside one** — the minifier takes `raw[0]` and the rest would
-  be dropped silently.
+- **Shader source goes in a `` g`…` `` tagged template, one whole shader per
+  template, `#version` first.** The build finds those and minifies them;
+  nothing else in the file is touched, and a template without a `#version`
+  line fails the build. **No `${}` interpolation inside one** — the minifier
+  takes `raw[0]` and the rest would be dropped silently.
 - **`__DEBUG__` is defined `false` at build time.** Anything reached only
   through `if (__DEBUG__)` is eliminated, including the dynamic import of
   `debug.js`. The build fails if the panel's strings survive into the bundle.
-- **The default GLSL minifier is a regex squeezer, on purpose.** `spglsl` is a
-  real compiler and would save ~180 more bytes, but 0.3.1 silently miscompiles
-  `x - (y - z)` — it drops the parentheses without flipping the inner sign, and
-  the same for `/`, `%` and the shifts. Our own `(r - (radius - w * 0.5)) / w`
-  hit it and drew the bow a full band-width out of place, which `npm run check`
-  caught as a 205/255 channel delta. `GLSL_SPGLSL=1` opts in; a patch is with
-  upstream. Run `npm run check` before trusting any build made that way.
+- **Tunable shader constants are `const float NAME = 1.0; // min max note`
+  lines.** The debug panel rewrites each into a uniform for the dev page, so
+  none of them may appear in a constant expression: no `const x = NAME`, no
+  global initialised from one. Ints work too, through a `#define`.
+- **No backticks anywhere in a shader, including comments.** It is a JS
+  template literal, and the first backtick ends it.
+- **No shared shader snippets.** The minifier folds constants, inlines, and
+  renames everything the JS side does not address by name (uniforms,
+  attributes and varyings keep theirs), so it has to see each shader whole:
+  a function pasted in from a snippet would be renamed out from under its
+  callers. Each shader that needs a helper — the batch vertex shaders' unit
+  quad `corner()`, say — carries its own two-line copy, and the minifier
+  inlines it anyway.
+- **Run `npm run check` after touching a shader.** An optimising minifier's
+  failure mode is a shader that compiles and draws something subtly wrong.
+  The previous tool, `spglsl` 0.3.1, dropped the parentheses from
+  `x - (y - z)` without flipping the sign and drew the bow a full band-width
+  out of place; the check caught it as a 205/255 channel delta, and it is
+  the same check that now shows a delta of 0 for shader-minifier-js.
 - **Never `pow()` a value that can go negative.** It is undefined in GLSL and
   renders as NaN, which renders as a white screen and no error at all. Square
   by multiplying. This cost an hour on day one.

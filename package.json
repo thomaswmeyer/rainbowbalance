@@ -15,7 +15,7 @@
     "@gfx/zopfli": "^1.0.15",
     "esbuild": "^0.28.2",
     "roadroller": "^2.1.0",
-    "spglsl": "^0.3.1",
+    "shader-minifier-js": "github:thomaswmeyer/shader-minifier-js#cff30a2653399ff268aed7780b4574f8a77ad923",
     "terser": "^5.51.2"
   }
 }

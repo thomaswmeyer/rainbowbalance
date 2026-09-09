@@ -11,8 +11,8 @@
  *
  *   1. esbuild     bundle + minify, __DEBUG__ defined false so the debug panel
  *                  and every development-only branch is eliminated here.
- *   2. GLSL        shader sources (the `g` tagged templates) squeezed by the
- *                  minifier below, before esbuild ever sees them.
+ *   2. GLSL        shader sources (the `g` tagged templates) run through
+ *                  shader-minifier-js before esbuild ever sees them.
  *   3. terser      a second pass, mangling every property named with a leading
  *                  underscore — which is why the source names internals that
  *                  way. This is worth several hundred bytes and costs only the
@@ -34,7 +34,7 @@ import { mkdirSync, rmSync, writeFileSync, readFileSync } from 'fs';
 import { join, dirname, basename } from 'path';
 import { fileURLToPath } from 'url';
 import { promisify } from 'util';
-import { minifyGlsl } from './glsl.js';
+import { minifyGlsl, SHADER_TEMPLATE } from './glsl.js';
 
 const ROOT = dirname(dirname(fileURLToPath(import.meta.url)));
 const OUT = join(ROOT, 'dist');
@@ -48,30 +48,28 @@ const zopfliDeflate = promisify(deflate);
 
 /**
  * Find the `g`…`` tagged shader templates and replace each with its minified
- * self, before esbuild sees the file. spglsl is async, so the substitution is
- * done by hand rather than with a replacer function.
+ * self, before esbuild sees the file. The lookbehind keeps the phrase
+ * "`g` template" in a doc comment from being taken for one.
  */
 const glslPlugin = {
     name: 'glsl',
     setup(build) {
-        build.onLoad({ filter: /src[\\/].*\.js$/ }, async (args) => {
+        build.onLoad({ filter: /src[\\/].*\.js$/ }, (args) => {
             const src = readFileSync(args.path, 'utf8');
-            const shaders = [...src.matchAll(/\bg`([^`]*)`/g)];
-            let contents = '', last = 0;
-            for (const m of shaders) {
-                const name = basename(args.path, '.js');
-                contents += src.slice(last, m.index) + '`' + await minifyGlsl(m[1], name) + '`';
-                last = m.index + m[0].length;
-                glslBytes[0] += m[1].length;
-            }
-            contents += src.slice(last);
+            const name = basename(args.path, '.js');
+            const contents = src.replace(SHADER_TEMPLATE, (_, body) => {
+                glslBytes[0] += body.length;
+                const min = minifyGlsl(body, name);
+                glslBytes[1] += min.length;
+                return '`' + min + '`';
+            });
             return { contents, loader: 'js' };
         });
     },
 };
 
-/** Raw shader bytes seen, for the report. */
-const glslBytes = [0];
+/** Shader bytes in and out, for the report. */
+const glslBytes = [0, 0];
 
 // ---------------------------------------------------------------------------
 // Pipeline
@@ -167,10 +165,6 @@ function crc32(buf) {
     return ~c >>> 0;
 }
 
-// spglsl keeps a WebAssembly instance alive; without this the build hangs
-// after printing its report.
-(await import('spglsl')).spglslUnload();
-
 // --- report -----------------------------------------------------------------
 
 const free = LIMIT - zip.length;
@@ -182,8 +176,8 @@ if (!quiet) {
         prev = size;
     }
     console.log(`  ${'html'.padEnd(11)} ${String(html.length).padStart(6)} B`);
-    console.log(`  ${'(glsl in)'.padEnd(11)} ${String(glslBytes[0]).padStart(6)} B raw` +
-        (process.env.GLSL_SPGLSL ? ' — spglsl (run `npm run check`!)' : ' — regex minifier'));
+    console.log(`  ${'glsl'.padEnd(11)} ${String(glslBytes[1]).padStart(6)} B` +
+        ` (${((glslBytes[1] / glslBytes[0] - 1) * 100).toFixed(0)}% of ${glslBytes[0]} B raw)`);
 }
 console.log(`[build] ${zip.length} / ${LIMIT} bytes — ${free} free ` +
     `(${(free / LIMIT * 100).toFixed(1)}%, ${kb(free)})`);
