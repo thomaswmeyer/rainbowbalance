@@ -30,6 +30,16 @@ import { minifyGlsl, SHADER_TEMPLATE } from './glsl.js';
 
 const ROOT = dirname(dirname(fileURLToPath(import.meta.url)));
 const SRC = join(ROOT, 'src');
+/**
+ * What the two renders are drawn at. Big enough that the smallest thing
+ * either draws is more than a handful of pixels: a castle deep in the field
+ * covers a dozen pixels at 320×240, almost all of them silhouette, and there
+ * a sub-pixel disagreement about where a marched edge falls counts as a
+ * whole pixel's worth of difference — twelve of the fifteen outliers allowed,
+ * for two renders that agree everywhere at twice this. Doubling it costs
+ * four times the readback and about a second.
+ */
+const W = 640, H = 480;
 /** Per-channel difference tolerated between the two renders. */
 const TOLERANCE = 2;
 /**
@@ -67,17 +77,18 @@ const attribsOf = (vs) =>
 
 /**
  * Uniform values to sweep. Time is fixed so both renders see the same frame.
- * uCastle is the castle pass's: where one stands on the bow's foot line, the
- * stone of whoever holds it, and how much of a claim there is on it. Both
- * stones and a castle in the middle held by nobody are all worth a case,
- * since each is a branch of its own in the shader.
+ * uCastle is the castle pass's: where one stands on the field in the herd's
+ * x and y, the stone of whoever holds it, and how much of a claim there is on
+ * it. Both stones, a castle deep in the field held by nobody, and one part
+ * way through changing hands are all worth a case, since each is a branch of
+ * its own in the shader and depth is what sets its size.
  */
 const CASES = [
-    { uTime: 3.0, uBalance: 0.0, uIntegrity: 1.0, uCastle: [-0.6965, 0, 1] },
-    { uTime: 3.0, uBalance: 0.75, uIntegrity: 0.35, uCastle: [0.6965, 1, 1] },
-    { uTime: 7.5, uBalance: -0.4, uIntegrity: 0.7, uCastle: [0, 0, 0] },
-    { uTime: 11.0, uBalance: 1.0, uIntegrity: 0.0, uCastle: [0, 1, 0.5] },
-    { uTime: 0.25, uBalance: -1.0, uIntegrity: 0.5, uCastle: [-0.6965, 0, 0.5] },
+    { uTime: 3.0, uBalance: 0.0, uIntegrity: 1.0, uCastle: [-0.6965, -0.24, 0, 1] },
+    { uTime: 3.0, uBalance: 0.75, uIntegrity: 0.35, uCastle: [0.6965, -0.24, 1, 1] },
+    { uTime: 7.5, uBalance: -0.4, uIntegrity: 0.7, uCastle: [0, 0.02, 0, 0] },
+    { uTime: 11.0, uBalance: 1.0, uIntegrity: 0.0, uCastle: [0, 0.02, 1, 0.5] },
+    { uTime: 0.25, uBalance: -1.0, uIntegrity: 0.5, uCastle: [-0.6965, -0.24, 0, 0.5] },
 ];
 
 async function loadPuppeteer() {
@@ -141,9 +152,9 @@ const browser = await puppeteer.launch({
         '--use-gl=swiftshader', '--enable-unsafe-swiftshader'],
 });
 const page = await browser.newPage();
-await page.setContent('<canvas id=c width=320 height=240></canvas>');
+await page.setContent(`<canvas id=c width=${W} height=${H}></canvas>`);
 
-const results = await page.evaluate(async (pairs, cases, tolerance) => {
+const results = await page.evaluate(async (pairs, cases, tolerance, w, h) => {
     const gl = document.getElementById('c').getContext('webgl2');
     const build = (vs, fs) => {
         const p = gl.createProgram();
@@ -168,11 +179,12 @@ const results = await page.evaluate(async (pairs, cases, tolerance) => {
             if (!l) return;
             if (!Array.isArray(v)) gl.uniform1f(l, v);
             else if (v.length === 2) gl.uniform2f(l, v[0], v[1]);
-            else gl.uniform3f(l, v[0], v[1], v[2]);
+            else if (v.length === 3) gl.uniform3f(l, v[0], v[1], v[2]);
+            else gl.uniform4f(l, v[0], v[1], v[2], v[3]);
         };
-        set('uRes', [320, 240]);
+        set('uRes', [w, h]);
         for (const k in values) set(k, values[k]);
-        gl.viewport(0, 0, 320, 240);
+        gl.viewport(0, 0, w, h);
         // A shader that discards leaves whatever the last draw wrote, and the
         // two programs are rendered one after the other into the same buffer.
         gl.clearColor(0, 0, 0, 1);
@@ -193,8 +205,8 @@ const results = await page.evaluate(async (pairs, cases, tolerance) => {
         } else {
             gl.drawArrays(gl.TRIANGLES, 0, 3);
         }
-        const px = new Uint8Array(320 * 240 * 4);
-        gl.readPixels(0, 0, 320, 240, gl.RGBA, gl.UNSIGNED_BYTE, px);
+        const px = new Uint8Array(w * h * 4);
+        gl.readPixels(0, 0, w, h, gl.RGBA, gl.UNSIGNED_BYTE, px);
         return px;
     };
 
@@ -222,10 +234,10 @@ const results = await page.evaluate(async (pairs, cases, tolerance) => {
             }
             if (localWorst > worst) { worst = localWorst; worstCase = JSON.stringify(c); }
         }
-        out.push({ name: pair.name, worst, differing, over, worstCase, pixels: 320 * 240 * 4 * cases.length });
+        out.push({ name: pair.name, worst, differing, over, worstCase, pixels: w * h * 4 * cases.length });
     }
     return out;
-}, pairs, CASES, TOLERANCE);
+}, pairs, CASES, TOLERANCE, W, H);
 
 await browser.close();
 

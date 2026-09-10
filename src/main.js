@@ -122,9 +122,13 @@ function drawScene(balance) {
         _y: c._y,
         // Nobody's castle shows no stone of either side, so which side's it
         // would have been does not matter; 0 keeps the branch cheap.
-        _draw: () => drawCastle(c._x, Math.max(c._side, 0), c._cap / sim.CAP, balance),
+        _draw: () => drawCastle(c._x, c._y, Math.max(c._side, 0), c._cap / sim.CAP, balance),
     }));
-    items.push({ _y: Math.max(...sim.castles.map((c) => c._y)) + 1e-3, _draw: () => drawBow(balance) });
+    // The bow belongs at the depth of its own feet, not at the deepest
+    // castle's: it is drawn over the herd behind that line and under the
+    // herd in front of it, which is what puts a marching column half in
+    // front of the arch and half behind it.
+    items.push({ _y: sim.FOOT + 1e-3, _draw: () => drawBow(balance) });
     items.sort((a, b) => b._y - a._y);
     let i = 0;
     for (const it of items) { i = drawUnicorns(sim.herd, i, it._y); it._draw(); }

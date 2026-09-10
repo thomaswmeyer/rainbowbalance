@@ -56,8 +56,9 @@ player's verb is god mode: a touch strikes down the unicorn nearest to it.
 
 Castles change hands, which is what a fighter with nothing in front of it
 walks off to do. There are three: one at each foot of the bow, held from the
-first frame, and one standing unclaimed between them. What moves a claim is
-who is standing on the castle — every fighter within reach presses with its
+first frame, and one standing unclaimed far up the field between them. What
+moves a claim is who is standing on the castle — every fighter within reach
+presses with its
 size, so a veteran counts for more than a recruit, and only the difference
 between the two sides tells, so a castle with as many defenders on it as
 attackers is held however big the crowd. Past three recruits' worth a crowd
@@ -73,13 +74,32 @@ the claim on one is how much of its holder's sandstone or obsidian has come
 in, so a castle changing hands bleaches and then takes the other colour on.
 Taken, it goes up in the same white shower a promotion does.
 
-That has a consequence worth writing down: a side that loses a castle loses
-the spawns it needed to take one back, so a board left to itself is decided
-inside a minute. Keeping it level is the player's job, and that is now the
-game. It is also why `npm run sim`'s long run plays the player, badly — a
-smite on the leading side once a second while it is three fighters ahead —
-since otherwise every number it collects comes from the first minute of a
-run that is already over.
+Where that third castle stands is what makes the fight two-dimensional. It
+is most of the way back to the horizon, so both sides walk to it on the
+diagonal and meet across the middle of the ground rather than along the one
+line the bow's feet make: over ten minutes of play the fighting has moved
+from y −0.24, which is that line to the tenth of a unit, to y −0.17, and the
+front rank of the field is empty except when someone is driven back onto it.
+Two rules come with that. Everything on the ground that is a distance rather
+than a unicorn's own size — a castle's reach, the doorstep a fighter stops
+at, the ground its recruits come out onto — is scaled by the depth it is at,
+because the field is drawn in perspective and a castle at the horizon is a
+smaller thing to walk to and to hold; and a fighter marching on a castle
+walks to a lane of its own a little to one side of it in depth, so that a
+column arrives on a front rather than in single file. A lane is half the
+reach at most, so the far edge of the front is still standing on the castle.
+What the crowd settles at a gate is left settled: once a fighter is on a
+castle's ground it stops correcting its depth, so a garrison shoved along
+the wall stays spread along it instead of packing back onto the doorstep.
+
+Capture has a consequence worth writing down: a side that loses a castle
+loses the spawns it needed to take one back, so a board left to itself is
+decided inside a minute. Keeping it level is the player's job, and that is
+now the game. It is also why `npm run sim`'s long run plays the player,
+badly — a smite on the leading side every second and a half while it is two
+fighters ahead, the lightest hand that keeps a run going — since otherwise
+every number it collects comes from the first minute of a run that is
+already over.
 
 Next, in order: what ends a run, deaths with some ceremony, unicorn classes
 beyond the fighter, then sound.
@@ -94,10 +114,12 @@ nothing is copied from it, and the blade march itself is gone: the blade field
 is sampled once as a texture on the ground. Rain falls under the clouds:
 that began as a bug in how the horizon sky was sampled and was kept. A
 castle stands at each foot of the bow, the sunicorns' in sandstone and the
-rainicorns' in obsidian, and a third between them in whatever stone belongs
-to whoever holds it: one signed distance field, marched only inside its
-bounding sphere, drawn once per castle at a screen x the simulation hands it,
-built the way the buildings in dr2's
+rainicorns' in obsidian, and a third far up the field between them in
+whatever stone belongs to whoever holds it: one signed distance field,
+marched only inside its bounding sphere, drawn once per castle at the
+position the simulation hands it — x across and y for depth, in the herd's
+own units, so a castle deep in the field comes out smaller and hazier with
+nothing else said about it — built the way the buildings in dr2's
 [WtjSzR](https://www.shadertoy.com/view/WtjSzR) are (CC BY-NC-SA, nothing
 copied). `?b=0.5` opens the dev page with the balance frozen at that value.
 The dev page shows the frame rate and the counts under the clock, and takes
@@ -108,11 +130,11 @@ the values as constants, "copy GLSL" to get them back. Restore `src/debug.js`
 from there and give the lines their ranges back to tune again.
 
 ```
-[build]  7805 / 13312 bytes — 5507 free (41.4%)
-  esbuild    22008 B
-  terser     20605 B  (-6%)
-  roadroller 10167 B  (-51%)
-  glsl       12522 B  (-71% of 42915 B raw)
+[build]  7855 / 13312 bytes — 5457 free (41.0%)
+  esbuild    22122 B
+  terser     20693 B  (-6%)
+  roadroller 10229 B  (-51%)
+  glsl       12530 B  (-71% of 43179 B raw)
 ```
 
 ## Layout
@@ -123,7 +145,7 @@ from there and give the lines their ranges back to tune again.
 | `src/rainbow.js` | three passes: the world (sky, clouds, hills, grass), a castle, the bow — one number in |
 | `src/unicorn.js` | one signed-distance unicorn, instanced — draws the herd it is handed |
 | `src/sparks.js` | the burst a unicorn goes out in, instanced dots in its own colours |
-| `src/sim.js` | the fight: castles spawn and are captured, fighters pair off and fight, balance is who is left |
+| `src/sim.js` | the fight: castles spawn and are captured, fighters cross the field and fight, balance is who is left |
 | `scripts/sim_test.js` | the fight headless — unit tests on hand-built situations, then a long run checked for invariants, with a crude player keeping it alive |
 | `src/main.js` | boot, fixed-step loop, the page and clock, god mode, and the depth-ordered draw of herd, castles and bow |
 | `src/debug.js` | frame rate under the clock, and the `?b=` and `?off=` URL switches. Never ships |
@@ -160,12 +182,19 @@ from there and give the lines their ranges back to tune again.
   callers. Each shader that needs a helper — the batch vertex shaders' unit
   quad `corner()`, say — carries its own two-line copy, and the minifier
   inlines it anyway.
-- **Run `npm run check` after touching a shader.** An optimising minifier's
-  failure mode is a shader that compiles and draws something subtly wrong.
-  The previous tool, `spglsl` 0.3.1, dropped the parentheses from
-  `x - (y - z)` without flipping the sign and drew the bow a full band-width
-  out of place; the check caught it as a 205/255 channel delta, and it is
-  the same check that now shows a delta of 0 for shader-minifier-js.
+- **Run `npm run check` after touching a shader**, and give a new state a
+  case in `CASES` if the sweep does not already reach it. An optimising
+  minifier's failure mode is a shader that compiles and draws something
+  subtly wrong. The previous tool, `spglsl` 0.3.1, dropped the parentheses
+  from `x - (y - z)` without flipping the sign and drew the bow a full
+  band-width out of place; the check caught it as a 205/255 channel delta,
+  and it is the same check that now shows a delta of 0 for
+  shader-minifier-js. It renders at 640×480 rather than something smaller
+  because the smallest thing on screen — a castle deep in the field — covers
+  a dozen pixels at 320×240, nearly all of them silhouette, and there a
+  sub-pixel disagreement about where a marched edge falls reads as a whole
+  pixel's worth of difference: twelve of the fifteen outliers allowed, for
+  two renders that agree everywhere at twice the size.
 - **Never `pow()` a value that can go negative.** It is undefined in GLSL and
   renders as NaN, which renders as a white screen and no error at all. Square
   by multiplying. This cost an hour on day one.

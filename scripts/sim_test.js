@@ -21,6 +21,8 @@
  * spawns it needed to take one back — and a run that is over measures
  * nothing. So the harness smites the leading side when the board tilts far
  * enough, which is the game's one verb used the way the game asks for it.
+ * The stats say how often it had to, and whether a side was wiped out
+ * anyway: both are worth watching when the fight is retuned.
  *
  *   npm run sim              # both, with the numbers
  *   npm run sim -- 3600      # a longer end-to-end run
@@ -56,7 +58,7 @@ function stage(them) {
     sim.reset();
     for (const t of them) {
         sim.herd.push({
-            _x: 0, _y: -0.2, _s: 0.06, _side: 0, _face: 1, _ph: 0,
+            _x: 0, _y: -0.2, _s: 0.06, _side: 0, _face: 1, _ph: 0, _lane: 0,
             _hp: T.HP, _max: T.HP, _lvl: 0, _scale: 0.5,
             _fight: 0, _rest: false, _foe: null, _att: 0, _eng: false, _hit: null,
             ...t,
@@ -167,9 +169,15 @@ function units() {
             `${overlap(a, b).toFixed(2)} overlapping`);
     }
 
-    // A crowd on one spot spreads out and stops overlapping.
+    // A crowd on one spot spreads out and stops overlapping. They are stood
+    // on their own castle with every castle already theirs, so that they
+    // have arrived and this measures the separation rather than twenty
+    // unicorns converging on somewhere they are all walking to.
     {
-        stage(Array.from({ length: 20 }, (_, i) => ({ _x: 0.001 * i, _y: -0.2 })));
+        stage(Array.from({ length: 20 }, (_, i) => ({
+            _x: SUN_CASTLE._x + 0.001 * i, _y: SUN_CASTLE._y,
+        })));
+        for (const c of sim.castles) { c._side = 0; c._own = true; c._cap = T.CAP; }
         run(120);
         const { worst, pair } = worstOverlap();
         ok('a crowd of twenty on one spot comes apart', worst < 0.02,
@@ -282,6 +290,140 @@ function units() {
         run(1);
         ok('an enemy beyond sight is not a target', a._foe === null,
             `it picked one ${(1.2).toFixed(1)} away, sight is ${T.LOOK}`);
+    }
+}
+
+// ---------------------------------------------------------------------------
+// The ground
+// ---------------------------------------------------------------------------
+
+/**
+ * The field has depth, and the rules that make anything of it: a castle far
+ * up it, a march that goes up the field rather than across it, a column that
+ * arrives on a front, and distances that shrink with depth the way the
+ * drawing does.
+ */
+function field() {
+    say('\n[sim] ground');
+
+    // The middle castle is what makes the fight two-dimensional. It stands
+    // most of the way up the field, and neither side starts nearer it.
+    {
+        sim.reset();
+        const band = T.FAR_Y - T.NEAR_Y;
+        ok('the middle castle stands far up the field',
+            MID_CASTLE._y - SUN_CASTLE._y > band * 0.4,
+            `it is ${(MID_CASTLE._y - SUN_CASTLE._y).toFixed(2)} up a band of ${band.toFixed(2)}`);
+        const reach = (c) => Math.hypot(c._x - MID_CASTLE._x, c._y - MID_CASTLE._y);
+        ok('and neither side starts nearer to it',
+            Math.abs(reach(SUN_CASTLE) - reach(RAIN_CASTLE)) < 1e-9,
+            `${reach(SUN_CASTLE).toFixed(3)} against ${reach(RAIN_CASTLE).toFixed(3)}`);
+    }
+
+    // Which means a fighter with nothing in sight walks up the field and not
+    // only across it. This is the whole point of the middle castle standing
+    // where it does.
+    {
+        const [a] = stage([{ _x: SUN_CASTLE._x, _y: SUN_CASTLE._y, _side: 0 }]);
+        const x0 = a._x, y0 = a._y;
+        run(60 * 3);
+        ok('a fighter with nothing in sight walks up the field, not just across it',
+            a._y - y0 > 0.05 && a._x - x0 > 0.05,
+            `it went ${(a._x - x0).toFixed(3)} across and ${(a._y - y0).toFixed(3)} up`);
+    }
+
+    // A column walks to a front rather than in single file: each fighter is
+    // given a lane of its own a little to one side of the castle in depth,
+    // and marches to that instead of to the castle's exact depth.
+    {
+        const arrive = (lane) => {
+            stage([{ _x: MID_CASTLE._x - 0.4, _y: MID_CASTLE._y, _side: 0, _lane: lane }])[0];
+            run(60 * 5);
+            return sim.herd[0]._y - MID_CASTLE._y;
+        };
+        const deep = arrive(T.LANE / 2), level = arrive(0), shallow = arrive(-T.LANE / 2);
+        ok('a fighter marches to a lane of its own, not to the castle\'s exact depth',
+            deep > level + 0.02 && shallow < level - 0.02,
+            `lanes came out at ${deep.toFixed(3)} / ${level.toFixed(3)} / ${shallow.toFixed(3)}`);
+        ok('so a column of them arrives on a front', deep - shallow > 0.05,
+            `only ${(deep - shallow).toFixed(3)} between the outermost two`);
+    }
+
+    // The outermost lane is still on the castle: half a lane is inside the
+    // reach CAP_R measures, and both are the castle's own size, so that
+    // holds at any depth. A fighter that marched to the far edge of the
+    // front would otherwise queue up outside the claim it came to press.
+    {
+        ok('a lane is narrower than the ground a castle is held from',
+            T.LANE / 2 < T.CAP_R, `half a lane is ${T.LANE / 2}, the reach ${T.CAP_R}`);
+        stage([{ _x: MID_CASTLE._x - 0.4, _y: MID_CASTLE._y, _side: 0, _lane: T.LANE / 2 }]);
+        run(60 * 5);
+        ok('and a fighter that walked to the outermost one is pressing the claim',
+            MID_CASTLE._cap > 0 && MID_CASTLE._side === 0,
+            `claim ${MID_CASTLE._cap.toFixed(2)} to side ${MID_CASTLE._side}` +
+            `, standing ${Math.hypot(sim.herd[0]._x - MID_CASTLE._x,
+                sim.herd[0]._y - MID_CASTLE._y).toFixed(3)} off`);
+    }
+
+    // The castles hand the lanes out: recruits out of one gate get different
+    // ones, which is what makes a front of a column. The lane is read as
+    // each recruit appears, since a lane is not fixed for life — what a
+    // fighter is shoved to at a gate it takes for its own.
+    {
+        stage([]);
+        for (const c of sim.castles) c._t = 1e9;
+        SUN_CASTLE._t = 0.01;
+        const seen = new Set(), lanes = [];
+        for (let i = 0; i < 60 * 12; i++) {
+            play(1);
+            for (const u of sim.herd) if (!seen.has(u)) { seen.add(u); lanes.push(u._lane); }
+        }
+        ok('a castle turns its recruits out on lanes of their own',
+            lanes.length > 2 && new Set(lanes).size === lanes.length
+            && lanes.every((l) => Math.abs(l) <= T.LANE / 2),
+            `${lanes.length} out of the gate, lanes ${lanes.map((l) => l.toFixed(3)).join(' ')}`);
+    }
+
+    // And what the crowd settles at the gate, nobody walks back out of:
+    // being shoved aside in depth changes a fighter's mind about its lane.
+    {
+        const [a] = stage([{ _x: MID_CASTLE._x, _y: MID_CASTLE._y, _side: 0 }]);
+        run(30);
+        const shoved = a._y + 0.06;
+        a._y = shoved;
+        run(60);
+        ok('shoved aside at the gate, a fighter holds the depth it was shoved to',
+            Math.abs(a._y - shoved) < 0.005,
+            `it walked ${(a._y - shoved).toFixed(3)} back into the crowd`);
+    }
+
+    // Distances to a castle are its own size, not a fixed number of screen
+    // units: one deep in the field is a smaller thing to stand on.
+    {
+        // Far enough off to press a castle at the feet, too far for one deep
+        // in the field. One step, before anyone can walk anywhere.
+        const off = T.CAP_R * 0.8;
+        stage([{ _x: SUN_CASTLE._x, _y: SUN_CASTLE._y - off, _side: 1 }]);
+        run(1);
+        ok('a castle at the feet is pressed from this far off', SUN_CASTLE._cap < T.CAP,
+            `claim still ${SUN_CASTLE._cap}`);
+        stage([{ _x: MID_CASTLE._x, _y: MID_CASTLE._y - off, _side: 1 }]);
+        run(1);
+        ok('and one deep in the field is not, its ground being smaller',
+            MID_CASTLE._cap === 0 && MID_CASTLE._side === -1,
+            `claim ${MID_CASTLE._cap.toFixed(2)} to side ${MID_CASTLE._side}`);
+    }
+
+    // The doorstep goes the same way: a far castle is walked further into.
+    {
+        const [a] = stage([{ _x: MID_CASTLE._x + 0.3, _y: MID_CASTLE._y, _side: 0 }]);
+        run(60 * 20);
+        const deep = Math.hypot(a._x - MID_CASTLE._x, a._y - MID_CASTLE._y);
+        const [b] = stage([{ _x: SUN_CASTLE._x + 0.3, _y: SUN_CASTLE._y, _side: 1 }]);
+        run(60 * 20);
+        const front = Math.hypot(b._x - SUN_CASTLE._x, b._y - SUN_CASTLE._y);
+        ok('a fighter stands closer in to a castle deep in the field',
+            deep < front * 0.8, `${deep.toFixed(3)} against ${front.toFixed(3)} at the feet`);
     }
 }
 
@@ -489,6 +631,7 @@ function e2e() {
     const st = {
         deaths: 0, together: 0, promotions: 0, worst: 0, broke: 0, taken: 0, smitten: 0, decided: -1,
         /** @type {number[]} */ balances: [], /** @type {number[]} */ fights: [],
+        /** @type {number[]} */ depth: [], /** @type {number[]} */ across: [],
         /** @type {Map<object, number>} */ since: new Map(),
     };
 
@@ -504,17 +647,19 @@ function e2e() {
         st.taken += sim.captured.length;
         sim.captured.length = 0;
 
-        // The player, once a second, and only while one side is three fighters
-        // ahead: its best, struck down where it stands. A heavier hand than
-        // this holds the board level by keeping it empty, which measures as
-        // little as a wipeout does; a lighter one lets the run end.
-        if (n % 60 === 0) {
+        // The player, every second and a half, and only while one side is two
+        // fighters ahead: its best, struck down where it stands. The
+        // lightest hand that keeps a run going — heavier holds the board
+        // level by keeping it empty, which measures as little as a wipeout
+        // does, and lighter lets the run be decided and the rest of it
+        // measure nothing.
+        if (n % 90 === 0) {
             let sun = 0, rain = 0;
             for (const u of sim.herd) if (u._hp > 0) u._side ? rain++ : sun++;
             // Not in the first seconds, when the board is empty because
             // nothing has spawned yet.
             if (t > 10 && (!sun || !rain) && st.decided < 0) st.decided = t;
-            if (Math.abs(sun - rain) >= 3) {
+            if (Math.abs(sun - rain) >= 2) {
                 const side = sun > rain ? 0 : 1;
                 let best = null;
                 for (const u of sim.herd) {
@@ -532,6 +677,16 @@ function e2e() {
         if (n % 30 === 0) {
             if (st.broke < 5 && !invariants(t)) st.broke++;
             st.worst = Math.max(st.worst, worstOverlap().worst);
+            // How much of the field the fight is actually spread over. The
+            // fight used to happen along the line of the bow's feet, and the
+            // castle deep in the middle is what took it off that line, so
+            // this is the number that says whether it still has.
+            const live = sim.herd.filter((u) => u._hp > 0);
+            if (live.length > 3) {
+                const ys = live.map((u) => u._y), xs = live.map((u) => u._x);
+                st.depth.push(Math.max(...ys) - Math.min(...ys));
+                st.across.push(Math.max(...xs) - Math.min(...xs));
+            }
         }
         if (n % 300 === 0) st.balances.push(sim.balance);
     }
@@ -553,6 +708,8 @@ function e2e() {
     row('smitten by the harness', st.smitten);
     row('castles taken', st.taken);
     row('a side first wiped out', st.decided < 0 ? 'never' : `${st.decided.toFixed(0)}s`);
+    row('ground held at once', `${mean(st.depth).toFixed(2)} deep of ${(T.FAR_Y - T.NEAR_Y).toFixed(2)}`
+        + `, ${mean(st.across).toFixed(2)} across`);
     row('castles at the end', sim.castles
         .map((c) => (c._side < 0 ? 'nobody' : c._side ? 'rainicorn' : 'sunicorn')
             + (c._own ? '' : ` (claim ${(c._cap / T.CAP * 100) | 0}%)`)).join(', '));
@@ -562,6 +719,7 @@ function e2e() {
 // ---------------------------------------------------------------------------
 
 units();
+field();
 capture();
 e2e();
 console.log(failed

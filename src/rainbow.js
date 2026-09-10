@@ -380,8 +380,9 @@ uniform float uBalance;
 const int BOW_ON = 1;
 
 const float PI = 3.14159265;
-// Keep CENTRE, R1 and FOOT in step with the world shader, which places the
-// castles under the bow's feet from them.
+// Keep CENTRE, R1 and FOOT in step with the world shader. The simulation
+// stands its two home castles under the feet these describe, so a change
+// here has to be echoed there.
 const vec2  CENTRE = vec2(0.0, -0.31);
 const float R1 = 0.70, W1 = 0.075;
 const float R2 = 0.85, W2 = 0.075;
@@ -480,9 +481,11 @@ precision highp float;
 out vec4 o;
 uniform vec2 uRes;
 uniform float uBalance;
-// Where this castle stands on the foot line in screen x, whose stone it is
-// built of, and how much of a claim is on it: 0 is bare unclaimed stone.
-uniform vec3 uCastle;
+// Where this castle stands, in the herd's screen x and y — y is depth, so a
+// castle further up the field is further away and smaller for it — then whose
+// stone it is built of, and how much of a claim is on it: 0 is bare
+// unclaimed stone.
+uniform vec4 uCastle;
 
 const int CASTLE_ON = 1;
 
@@ -571,7 +574,6 @@ vec3 normal(vec2 xz){
 // facing the camera, so the bow comes down behind it.
 const float CASTLE_NEAR  = 1.0;  // of the way from the eye to where the foot's ray meets the ground
 const float CASTLE_SCALE = 0.5864;
-const float FOOT         = -0.24;      // where on screen the bow's feet stand
 const int   CASTLE_STEPS = 52;
 
 float sdBox(vec3 p, vec3 b){
@@ -653,12 +655,15 @@ void main(){
   vec3 rd = normalize(vec3(-p.x, p.y - HORIZON, -0.5 / tan(radians(FOV))));
   vec3 ro = vec3(0.0, terrain(vec2(0.0)) + EYE, 0.0);
 
-  // Where the ray through this castle's place on the foot line meets the
+  // Where the ray through this castle's place on the field meets the
   // terrain, by a few rounds of dropping a plumb line from the last guess.
   // Screen left is world +x, so the screen x comes in negated. The
-  // simulation says where each castle stands, which is what lets one stand
-  // between the bow's feet and not only under them.
-  vec3 fd = normalize(vec3(-uCastle.x, FOOT - HORIZON, -0.5 / tan(radians(FOV))));
+  // simulation says where each castle stands, in the same space the herd
+  // walks in, which is what lets one stand deep in the field rather than
+  // only under a foot of the bow: the ray is flatter, meets the ground
+  // further off, and the castle comes out smaller and hazier with no more
+  // said about it.
+  vec3 fd = normalize(vec3(-uCastle.x, uCastle.y - HORIZON, -0.5 / tan(radians(FOV))));
   float tf = EYE / -fd.y;
   for (int i = 0; i < 3; i++) tf = (ro.y - terrain((ro + fd * tf).xz)) / -fd.y;
   vec3 cp = ro + fd * tf * CASTLE_NEAR;
@@ -693,8 +698,8 @@ void main(){
   // the holder's stone has come in: one being taken bleaches as the claim
   // is broken and takes the other side's colour on as the new one is made.
   vec3 c = vec3(0.52, 0.52, 0.55) * light * base;
-  if (uCastle.y < 0.5) {
-    c = mix(c, vec3(0.93, 0.82, 0.62) * light * base, uCastle.z);
+  if (uCastle.z < 0.5) {
+    c = mix(c, vec3(0.93, 0.82, 0.62) * light * base, uCastle.w);
   } else {
     // Obsidian: almost no diffuse, so what reads is the sun's highlight,
     // kept whatever the weather so the castle always looks polished, and
@@ -702,7 +707,7 @@ void main(){
     float spec = pow(max(dot(nor, normalize(sun_dir - rd)), 0.0), 40.0);
     float fresnel = 0.15 + 0.85 * pow(1.0 - max(dot(nor, -rd), 0.0), 2.0);
     c = mix(c, vec3(0.03, 0.03, 0.04) * light * base
-               + spec * vec3(0.9, 0.85, 0.75) + fresnel * sky * 0.8, uCastle.z);
+               + spec * vec3(0.9, 0.85, 0.75) + fresnel * sky * 0.8, uCastle.w);
   }
   o = vec4(mix(c, sky, clamp(tc * tc * FOG, 0.0, 1.0)), 1.0);
 }`;
@@ -753,18 +758,20 @@ export function drawRainbow(balance) {
 }
 
 /**
- * One castle, where the simulation says it stands. Where they stand is the
- * simulation's to say: this takes a screen x on the bow's foot line, and the
- * shader's own FOOT is the screen y of that line. Keep the two in step.
- * @param {number} x on the bow's foot line, in screen units
+ * One castle, where the simulation says it stands. Position is the herd's:
+ * x across the screen and y for depth, and the shader does the rest — a
+ * castle deeper in the field draws smaller and hazier of its own accord.
+ * @param {number} x in screen units
+ * @param {number} y depth, the herd's: NEAR_Y at the front row, FAR_Y at the
+ *   horizon
  * @param {number} side 0 sandstone, 1 obsidian
  * @param {number} claim 0…1, how much of that stone has come in: 0 is the
  *   bare grey of a castle nobody holds
  * @param {number} balance
  */
-export function drawCastle(x, side, claim, balance) {
+export function drawCastle(x, y, side, claim, balance) {
     gl.useProgram(_castleProg);
-    _castleU({ uRes: [width, height], uBalance: balance, uCastle: [x, side, claim] });
+    _castleU({ uRes: [width, height], uBalance: balance, uCastle: [x, y, side, claim] });
     fullscreen();
 }
 
