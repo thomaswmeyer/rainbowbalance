@@ -54,8 +54,35 @@ size, so a field of veterans is visibly a field of veterans. Balance — the one
 the bow and the castles read — is who has more fighters alive, smoothed. The
 player's verb is god mode: a touch strikes down the unicorn nearest to it.
 
-Next, in order: unclaimed castles to fight over, capture, what ends a run,
-deaths with some ceremony, unicorn classes beyond the fighter, then sound.
+Castles change hands, which is what a fighter with nothing in front of it
+walks off to do. There are three: one at each foot of the bow, held from the
+first frame, and one standing unclaimed between them. What moves a claim is
+who is standing on the castle — every fighter within reach presses with its
+size, so a veteran counts for more than a recruit, and only the difference
+between the two sides tells, so a castle with as many defenders on it as
+attackers is held however big the crowd. Past three recruits' worth a crowd
+does no more, or a side that is already winning would take a castle in the
+second it arrived. Taking a held one is two jobs, and that is what makes it
+worth fighting over: the claim on it has to be broken first, which leaves it
+nobody's and silent, and only then can a claim of your own be built up to
+full — breaking goes twice as fast as building. A castle spawns at the rate
+of the claim on it, so one being broken falls quiet well before it changes
+hands, and it is no place to heal at until its claim is full again. All of
+that is on the field to read: a castle nobody holds is bare grey stone, and
+the claim on one is how much of its holder's sandstone or obsidian has come
+in, so a castle changing hands bleaches and then takes the other colour on.
+Taken, it goes up in the same white shower a promotion does.
+
+That has a consequence worth writing down: a side that loses a castle loses
+the spawns it needed to take one back, so a board left to itself is decided
+inside a minute. Keeping it level is the player's job, and that is now the
+game. It is also why `npm run sim`'s long run plays the player, badly — a
+smite on the leading side once a second while it is three fighters ahead —
+since otherwise every number it collects comes from the first minute of a
+run that is already over.
+
+Next, in order: what ends a run, deaths with some ceremony, unicorn classes
+beyond the fighter, then sound.
 
 The clouds are a volumetric march ported close to Valentin Galea's
 [XtBXDw](https://www.shadertoy.com/view/XtBXDw) (MIT), tuned by hand, on its
@@ -67,8 +94,10 @@ nothing is copied from it, and the blade march itself is gone: the blade field
 is sampled once as a texture on the ground. Rain falls under the clouds:
 that began as a bug in how the horizon sky was sampled and was kept. A
 castle stands at each foot of the bow, the sunicorns' in sandstone and the
-rainicorns' in obsidian: one signed distance field, marched only inside its
-bounding sphere, built the way the buildings in dr2's
+rainicorns' in obsidian, and a third between them in whatever stone belongs
+to whoever holds it: one signed distance field, marched only inside its
+bounding sphere, drawn once per castle at a screen x the simulation hands it,
+built the way the buildings in dr2's
 [WtjSzR](https://www.shadertoy.com/view/WtjSzR) are (CC BY-NC-SA, nothing
 copied). `?b=0.5` opens the dev page with the balance frozen at that value.
 The dev page shows the frame rate and the counts under the clock, and takes
@@ -79,11 +108,11 @@ the values as constants, "copy GLSL" to get them back. Restore `src/debug.js`
 from there and give the lines their ranges back to tune again.
 
 ```
-[build]  7666 / 13312 bytes — 5646 free (42.4%)
-  esbuild    15248 B
-  terser     14775 B  (-3%)
-  roadroller  7626 B  (-48%)
-  glsl       11265 B  (-72% of 39787 B raw)
+[build]  7805 / 13312 bytes — 5507 free (41.4%)
+  esbuild    22008 B
+  terser     20605 B  (-6%)
+  roadroller 10167 B  (-51%)
+  glsl       12522 B  (-71% of 42915 B raw)
 ```
 
 ## Layout
@@ -94,8 +123,8 @@ from there and give the lines their ranges back to tune again.
 | `src/rainbow.js` | three passes: the world (sky, clouds, hills, grass), a castle, the bow — one number in |
 | `src/unicorn.js` | one signed-distance unicorn, instanced — draws the herd it is handed |
 | `src/sparks.js` | the burst a unicorn goes out in, instanced dots in its own colours |
-| `src/sim.js` | the fight: castles spawn, fighters pair off and fight, balance is who is left |
-| `scripts/sim_test.js` | the fight headless — unit tests on hand-built situations, then a long run checked for invariants |
+| `src/sim.js` | the fight: castles spawn and are captured, fighters pair off and fight, balance is who is left |
+| `scripts/sim_test.js` | the fight headless — unit tests on hand-built situations, then a long run checked for invariants, with a crude player keeping it alive |
 | `src/main.js` | boot, fixed-step loop, the page and clock, god mode, and the depth-ordered draw of herd, castles and bow |
 | `src/debug.js` | frame rate under the clock, and the `?b=` and `?off=` URL switches. Never ships |
 | `scripts/build.js` | esbuild → shader-minifier-js → terser → Roadroller → zopfli zip, with the budget gate. The page is a skeleton; `main.js` makes the markup so it is packed, not just deflated |
@@ -147,7 +176,8 @@ from there and give the lines their ranges back to tune again.
 
 ## What is left
 
-- [ ] Unclaimed castles, capture, and what ends a run.
+- [ ] What ends a run. Losing every castle is the obvious answer and is
+      already reachable; nothing acts on it yet.
 - [ ] Unicorn classes beyond the fighter.
 - [ ] Procedural music, tied to the balance state — melody in while level,
       detuning as it frays.

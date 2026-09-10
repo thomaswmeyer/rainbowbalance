@@ -16,6 +16,11 @@
  * real speed, checking the invariants every half second and collecting the
  * numbers a design question actually turns on: how long is a fight, how often
  * do two die in the same instant, how far does a side run away with it.
+ * It plays the player too, badly: since castles can be taken, a board left to
+ * itself is over inside a minute — a side that loses a castle loses the
+ * spawns it needed to take one back — and a run that is over measures
+ * nothing. So the harness smites the leading side when the board tilts far
+ * enough, which is the game's one verb used the way the game asks for it.
  *
  *   npm run sim              # both, with the numbers
  *   npm run sim -- 3600      # a longer end-to-end run
@@ -72,6 +77,33 @@ function run(n) {
     }
 }
 
+/** Step n times with the castles spawning as they would in the game. */
+function play(n) {
+    for (let i = 0; i < n; i++) sim.step(STEP);
+}
+
+/** The castles by where they stand: the sunicorns', the middle, the rainicorns'. */
+const [SUN_CASTLE, MID_CASTLE, RAIN_CASTLE] = sim.castles;
+
+/**
+ * Put unicorns of one side on a castle, close enough to press their claim.
+ * They are spread along the castle's line so that separating them does not
+ * shove any of them out of the capture radius.
+ * @param {typeof MID_CASTLE} c
+ * @param {number} side
+ * @param {number} n
+ * @param {number} [lvl] veterancy, which is what weighs a claim
+ */
+const on = (c, side, n, lvl = 0) => Array.from({ length: n }, (_, i) => ({
+    _x: c._x + (i - (n - 1) / 2) * 0.03,
+    _y: c._y,
+    _side: side,
+    _lvl: lvl,
+    _scale: 0.5 * (1 + 0.25 * lvl),
+    _hp: 1e6,
+    _max: 1e6,
+}));
+
 /** How far into each other a pair stands, as a fraction of the footprint. */
 function overlap(a, b) {
     const w = (a._s + b._s) * 0.5;
@@ -115,12 +147,17 @@ function units() {
     }
 
     // One of its own standing in the way is walked around, not through: it
-    // is a marching sunicorn and a sunicorn parked in its path.
+    // is a marching sunicorn and a sunicorn parked in its path. The middle
+    // castle is handed to the sunicorns first, or the pair have arrived
+    // where they were going before either has to get past the other.
     {
         const [a, b] = stage([
             { _x: -0.3, _y: -0.2, _side: 0 },
             { _x: 0.0, _y: -0.2, _side: 0 },
         ]);
+        MID_CASTLE._side = 0;
+        MID_CASTLE._own = true;
+        MID_CASTLE._cap = T.CAP;
         const y0 = a._y;
         run(300);
         ok('a unicorn walks around one of its own that is in the way',
@@ -249,6 +286,167 @@ function units() {
 }
 
 // ---------------------------------------------------------------------------
+// Capture
+// ---------------------------------------------------------------------------
+
+/**
+ * The castles change hands, and everything about that is a rule worth
+ * pinning down: what a claim costs, who presses one, what a castle does
+ * while it is being taken, and where a fighter goes because of it.
+ */
+function capture() {
+    say('\n[sim] capture');
+
+    // Nobody's castle, one recruit standing on it. The claim comes up at a
+    // known rate, and until it is full the castle is nobody's and spawns
+    // nothing.
+    {
+        stage(on(MID_CASTLE, 0, 1));
+        run(60);
+        ok('standing on an unclaimed castle claims it',
+            MID_CASTLE._side === 0 && MID_CASTLE._cap > 0,
+            `side ${MID_CASTLE._side}, claim ${MID_CASTLE._cap.toFixed(2)}`);
+        ok('and it spawns nothing while the claim is part made',
+            !MID_CASTLE._own, `it is spawning at ${MID_CASTLE._cap.toFixed(1)} of ${T.CAP}`);
+
+        let took = 0;
+        while (!MID_CASTLE._own && took < 60 * 120) { run(1); took++; }
+        const want = T.CAP / T.TAKE;
+        ok('a full claim takes the castle', MID_CASTLE._own && MID_CASTLE._side === 0,
+            `still ${MID_CASTLE._cap.toFixed(1)} of ${T.CAP} after ${(took / 60).toFixed(1)}s`);
+        ok('and a lone recruit takes as long over it as it should',
+            Math.abs(took / 60 - want) < want * 0.1,
+            `${(took / 60).toFixed(1)}s against ${want.toFixed(1)}s`);
+        ok('a castle taken is reported once', sim.captured.length === 1 && sim.captured[0] === MID_CASTLE,
+            `${sim.captured.length} reported`);
+    }
+
+    // Only the difference between the two sides tells: an even crowd holds
+    // everything where it is, however big it is.
+    {
+        stage([...on(MID_CASTLE, 0, 3), ...on(MID_CASTLE, 1, 3)]);
+        run(60 * 20);
+        ok('an even crowd on a castle takes nothing',
+            !MID_CASTLE._own && MID_CASTLE._cap < T.CAP * 0.25,
+            `claim ${MID_CASTLE._cap.toFixed(1)} of ${T.CAP} to side ${MID_CASTLE._side}`);
+    }
+
+    // Size is the weight, so one veteran outpresses one recruit.
+    {
+        stage([...on(MID_CASTLE, 0, 1, 4), ...on(MID_CASTLE, 1, 1)]);
+        run(60 * 10);
+        ok('a veteran presses a claim harder than a recruit',
+            MID_CASTLE._side === 0 && MID_CASTLE._cap > 1,
+            `claim ${MID_CASTLE._cap.toFixed(1)} to side ${MID_CASTLE._side}`);
+    }
+
+    // A crowd past the cap does no more than the cap: what a mob buys is a
+    // fight it wins, not a castle it takes on arrival.
+    {
+        stage(on(MID_CASTLE, 0, T.MOB));
+        run(60);
+        const few = MID_CASTLE._cap;
+        stage(on(MID_CASTLE, 0, T.MOB * 3));
+        run(60);
+        ok('a crowd past the cap presses no harder', Math.abs(MID_CASTLE._cap - few) < 0.05,
+            `${T.MOB} pressed ${few.toFixed(2)}, ${T.MOB * 3} pressed ${MID_CASTLE._cap.toFixed(2)}`);
+        ok('and the cap is what the tuning says it is',
+            Math.abs(few - T.TAKE * T.MOB) < 0.05,
+            `${few.toFixed(2)} in a second, against ${(T.TAKE * T.MOB).toFixed(2)}`);
+    }
+
+    // Taking a held castle is two jobs: break the claim on it, which leaves
+    // it nobody's and silent, and only then build one of your own.
+    {
+        stage(on(SUN_CASTLE, 1, T.MOB));
+        ok('a castle at the start of a run is held and spawning',
+            SUN_CASTLE._own && SUN_CASTLE._side === 0 && SUN_CASTLE._cap === T.CAP,
+            `side ${SUN_CASTLE._side}, claim ${SUN_CASTLE._cap}`);
+        let broke = -1, sideWhenBroken = 99, took = -1;
+        for (let i = 0; i < 60 * 60; i++) {
+            run(1);
+            if (broke < 0 && !SUN_CASTLE._own) { broke = i / 60; sideWhenBroken = SUN_CASTLE._side; }
+            if (broke >= 0 && took < 0 && SUN_CASTLE._own) { took = i / 60; break; }
+        }
+        ok('a held castle is broken before it can be claimed', broke >= 0 && took > broke,
+            `broken at ${broke.toFixed(1)}s, taken at ${took.toFixed(1)}s`);
+        ok('and while it is broken it is nobody\'s', sideWhenBroken === -1,
+            `it went straight to side ${sideWhenBroken}`);
+        ok('and then it is the attackers\'', SUN_CASTLE._side === 1 && SUN_CASTLE._own,
+            `side ${SUN_CASTLE._side}, claim ${SUN_CASTLE._cap.toFixed(1)}`);
+        ok('breaking a claim goes faster than making one', broke < took - broke,
+            `${broke.toFixed(1)}s to break, ${(took - broke).toFixed(1)}s to claim`);
+    }
+
+    // A castle nobody holds spawns nothing at all, and one that is held
+    // spawns at the rate of the claim on it: a castle being broken falls
+    // quiet before it changes hands.
+    {
+        stage([]);
+        for (const c of sim.castles) c._t = 1e9;
+        SUN_CASTLE._side = -1; SUN_CASTLE._own = false; SUN_CASTLE._cap = 0; SUN_CASTLE._t = 0.01;
+        play(60 * 5);
+        ok('a castle that is nobody\'s spawns nothing', sim.herd.length === 0,
+            `${sim.herd.length} came out of it`);
+
+        stage([]);
+        for (const c of sim.castles) c._t = 1e9;
+        SUN_CASTLE._t = 0.01;
+        play(6);
+        ok('and one that is held spawns', sim.herd.length === 1,
+            `${sim.herd.length} came out of it`);
+
+        stage([]);
+        for (const c of sim.castles) c._t = 1e9;
+        SUN_CASTLE._t = 10;
+        SUN_CASTLE._cap = T.CAP / 2;
+        play(60);
+        ok('a castle whose claim is half broken spawns half as fast',
+            Math.abs(10 - SUN_CASTLE._t - 0.5) < 0.02,
+            `a second took ${(10 - SUN_CASTLE._t).toFixed(3)}s off the spawn`);
+    }
+
+    // Where a fighter with nothing to fight walks: the nearest castle its
+    // side does not hold outright, which is what takes both sides to the
+    // middle and what brings one back to a claim it left half made.
+    {
+        const [a] = stage([{ _x: 0.3, _y: MID_CASTLE._y, _side: 0 }]);
+        MID_CASTLE._side = 0; MID_CASTLE._own = false; MID_CASTLE._cap = T.CAP / 2;
+        run(60);
+        ok('a fighter goes back to finish a claim its side left half made', a._x < 0.29,
+            `it walked to ${a._x.toFixed(3)} from 0.300`);
+
+        const [b] = stage([{ _x: 0.3, _y: MID_CASTLE._y, _side: 0 }]);
+        MID_CASTLE._side = 0; MID_CASTLE._own = true; MID_CASTLE._cap = T.CAP;
+        run(60);
+        ok('and past one its side holds, to the next one that is not theirs', b._x > 0.31,
+            `it walked to ${b._x.toFixed(3)} from 0.300`);
+    }
+
+    // A castle that cannot spawn cannot heal anyone either.
+    {
+        const [a] = stage([{ _x: SUN_CASTLE._x, _y: SUN_CASTLE._y, _side: 0, _hp: 1, _rest: true }]);
+        SUN_CASTLE._own = false;
+        SUN_CASTLE._cap = 1;
+        run(1);
+        ok('a castle whose claim is not full is no home to heal at', !a._rest,
+            'it settled in to heal at a castle that is not properly its side\'s');
+    }
+
+    // A run starts from the same board every time.
+    {
+        MID_CASTLE._side = 1; MID_CASTLE._own = true; MID_CASTLE._cap = T.CAP;
+        SUN_CASTLE._side = -1; SUN_CASTLE._own = false; SUN_CASTLE._cap = 0;
+        sim.reset();
+        ok('reset puts the castles back the way a run starts',
+            SUN_CASTLE._side === 0 && SUN_CASTLE._own && SUN_CASTLE._cap === T.CAP
+            && MID_CASTLE._side === -1 && !MID_CASTLE._own && MID_CASTLE._cap === 0
+            && RAIN_CASTLE._side === 1 && RAIN_CASTLE._own,
+            sim.castles.map((c) => `${c._side}:${c._cap}${c._own ? '*' : ''}`).join(' '));
+    }
+}
+
+// ---------------------------------------------------------------------------
 // End to end
 // ---------------------------------------------------------------------------
 
@@ -272,6 +470,11 @@ function invariants(t) {
                 on.map((o) => `          by ${show(o)} eng ${o._eng} rest ${o._rest}`).join('\n'));
         }
     }
+    for (const c of sim.castles) {
+        if (c._cap < -1e-9 || c._cap > T.CAP + 1e-9) bad.push(`claim of ${c._cap} on a castle`);
+        if (c._side < 0 && (c._own || c._cap > 0)) bad.push(`nobody's castle with a claim of ${c._cap}`);
+        if (c._own && c._side < 0) bad.push('a castle spawning for nobody');
+    }
     if (bad.length) {
         failed++;
         console.error(`  FAIL  at ${t.toFixed(2)}s: ${bad[0]}` +
@@ -284,7 +487,7 @@ function e2e() {
     say(`\n[sim] end to end — ${seconds}s`);
     sim.reset();
     const st = {
-        deaths: 0, together: 0, promotions: 0, worst: 0, broke: 0,
+        deaths: 0, together: 0, promotions: 0, worst: 0, broke: 0, taken: 0, smitten: 0, decided: -1,
         /** @type {number[]} */ balances: [], /** @type {number[]} */ fights: [],
         /** @type {Map<object, number>} */ since: new Map(),
     };
@@ -298,6 +501,28 @@ function e2e() {
         sim.fallen.length = 0;
         st.promotions += sim.promoted.length;
         sim.promoted.length = 0;
+        st.taken += sim.captured.length;
+        sim.captured.length = 0;
+
+        // The player, once a second, and only while one side is three fighters
+        // ahead: its best, struck down where it stands. A heavier hand than
+        // this holds the board level by keeping it empty, which measures as
+        // little as a wipeout does; a lighter one lets the run end.
+        if (n % 60 === 0) {
+            let sun = 0, rain = 0;
+            for (const u of sim.herd) if (u._hp > 0) u._side ? rain++ : sun++;
+            // Not in the first seconds, when the board is empty because
+            // nothing has spawned yet.
+            if (t > 10 && (!sun || !rain) && st.decided < 0) st.decided = t;
+            if (Math.abs(sun - rain) >= 3) {
+                const side = sun > rain ? 0 : 1;
+                let best = null;
+                for (const u of sim.herd) {
+                    if (u._side === side && u._hp > 0 && (!best || u._lvl > best._lvl)) best = u;
+                }
+                if (best) { sim.smite(best._x, best._y - best._s * 0.4); st.smitten++; }
+            }
+        }
 
         for (const u of sim.herd) {
             if (u._eng && !st.since.has(u)) st.since.set(u, t);
@@ -325,12 +550,19 @@ function e2e() {
     row('alive at the end', `${sun} sunicorns v ${live.length - sun} rainicorns`);
     row('top level', Math.max(0, ...live.map((u) => u._lvl)));
     row('balance |b| > 0.8', `${pinned} of ${st.balances.length} samples`);
+    row('smitten by the harness', st.smitten);
+    row('castles taken', st.taken);
+    row('a side first wiped out', st.decided < 0 ? 'never' : `${st.decided.toFixed(0)}s`);
+    row('castles at the end', sim.castles
+        .map((c) => (c._side < 0 ? 'nobody' : c._side ? 'rainicorn' : 'sunicorn')
+            + (c._own ? '' : ` (claim ${(c._cap / T.CAP * 100) | 0}%)`)).join(', '));
     row('worst overlap seen', `${(st.worst * 100).toFixed(0)}% of a footprint`);
 }
 
 // ---------------------------------------------------------------------------
 
 units();
+capture();
 e2e();
 console.log(failed
     ? `\n[sim] ${failed} failed, ${passed} passed`

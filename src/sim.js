@@ -13,20 +13,24 @@
  * lunge, each of which may miss. That is what keeps two evenly matched
  * unicorns from draining each other smoothly and dying in the same instant.
  *
- * With no enemy in sight a fighter walks toward the nearest enemy castle,
- * which is what brings the two sides into contact, and is where capture will
- * happen when there is capture.
+ * With no enemy in sight a fighter walks toward the nearest castle that is
+ * not its own, which is what brings the two sides into contact, and is how a
+ * castle changes hands: standing on one is what takes it.
  *
  * Positions are in the space the rainbow and the unicorn shader use: x in
  * screen units, y from the front row up to the horizon, and a unicorn's size
- * follows its y. The castles stand at the bow's feet, at FOOT.
+ * follows its y. The castles stand on the line of the bow's feet, at FOOT:
+ * one under each foot and one between them.
  *
  * Balance — the one number the sky, the bow and the castles read — is who
  * has more fighters alive, smoothed so the weather does not flicker with
  * every death.
  */
 
-/** Where the castles stand: the bow's feet. Keep in step with rainbow.js. */
+/**
+ * Where the castles stand: the bow's feet, and the unclaimed one between
+ * them. Keep in step with rainbow.js, which places them from the same line.
+ */
 const FOOT = -0.24;
 const FOOT_X = 0.6965;
 
@@ -69,6 +73,31 @@ const LONG = 1.25, DEEP = 0.625;
 const HIT = 0.65, DMG = 1.5;
 /** Radians a second the neck lunges while fighting: one swing a second. */
 const LUNGE = 6.2832;
+/**
+ * Capture, after the planets in Lord of the Swarm. A castle is held by a
+ * claim worth CAP points, and what moves that claim is whoever is standing
+ * within CAP_R of it: each fighter presses with its size, a recruit counting
+ * one and a veteran more, and only the difference between the two sides
+ * tells. A castle with as many defenders on it as attackers is held, however
+ * big the crowd.
+ *
+ * Taking one is two jobs, and that is the whole of why it is slow enough to
+ * fight over. The claim on a held castle has to be broken first — at nothing
+ * the castle belongs to nobody and spawns nothing — and only then can the
+ * attackers build a claim of their own back up to full. Breaking is the
+ * faster of the two. A raid driven off before its claim is full leaves the
+ * castle standing empty for whoever comes back for it.
+ */
+export const CAP = 20;
+const CAP_R = 0.16;
+/** Points a recruit adds a second claiming, and takes off a held castle. */
+const TAKE = 0.75, BREAK = 1.5;
+/**
+ * Recruits' worth of pressure past which a crowd does no more. Without it a
+ * side that is already winning takes a castle in the second it arrives, and
+ * the fight for one is over before it can be fought.
+ */
+const MOB = 3;
 
 /**
  * @typedef {object} Unicorn
@@ -95,12 +124,25 @@ const LUNGE = 6.2832;
 export const herd = [];
 
 /**
- * The castles: where they stand, whose they are (0, 1, or -1 for nobody's),
- * and the time to their next spawn.
+ * @typedef {object} Castle
+ * @property {number} _x
+ * @property {number} _y
+ * @property {number} _from whose it is at the start of a run, for reset
+ * @property {number} _side whose it is now: 0, 1, or −1 for nobody's
+ * @property {number} _cap the claim on it, 0…CAP
+ * @property {boolean} _own the claim is full, so it spawns
+ * @property {number} _t seconds to its next spawn
+ */
+
+/**
+ * The castles: one at each foot of the bow, held from the first frame, and
+ * one standing unclaimed between them for the two sides to meet over.
+ * @type {Castle[]}
  */
 export const castles = [
-    { _x: -FOOT_X, _y: FOOT, _side: 0, _t: 1 },
-    { _x: FOOT_X, _y: FOOT, _side: 1, _t: 1 },
+    { _x: -FOOT_X, _y: FOOT, _from: 0, _side: 0, _cap: CAP, _own: true, _t: 1 },
+    { _x: 0, _y: FOOT, _from: -1, _side: -1, _cap: 0, _own: false, _t: 1 },
+    { _x: FOOT_X, _y: FOOT, _from: 1, _side: 1, _cap: CAP, _own: true, _t: 1 },
 ];
 
 /** −1 rainicorns ahead … +1 sunicorns ahead, smoothed. */
@@ -110,6 +152,8 @@ export let balance = 0;
 export const fallen = [];
 /** Who came up a level this step, likewise. */
 export const promoted = [];
+/** Which castles came up to a full claim this step, likewise. */
+export const captured = [];
 
 let seed = 7;
 const rnd = () => (seed = (seed * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff;
@@ -121,7 +165,8 @@ const rnd = () => (seed = (seed * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff
  * __DEBUG__ at all, the harness gets the real thing.
  */
 export const TUNE = typeof __DEBUG__ === 'undefined' || __DEBUG__
-    ? { HP, HURT, HEAL, LOOK, CROWD, LONG, DEEP, HIT, DMG, REACH, MAX, NEAR_Y, FAR_Y }
+    ? { HP, HURT, HEAL, LOOK, CROWD, LONG, DEEP, HIT, DMG, REACH, MAX, NEAR_Y, FAR_Y,
+        SPAWN, SCALE0, CAP, CAP_R, TAKE, BREAK, MOB }
     : null;
 const sizeAt = (y) => NEAR_S + (FAR_S - NEAR_S) * ((y - NEAR_Y) / (FAR_Y - NEAR_Y));
 
@@ -132,8 +177,14 @@ export function reset() {
     herd.length = 0;
     fallen.length = 0;
     promoted.length = 0;
+    captured.length = 0;
     balance = 0;
-    for (const c of castles) c._t = 1;
+    for (const c of castles) {
+        c._side = c._from;
+        c._own = c._from >= 0;
+        c._cap = c._own ? CAP : 0;
+        c._t = 1;
+    }
 }
 
 /**
@@ -192,12 +243,14 @@ function seek(un) {
 
 /**
  * The nearest castle of this unicorn's own side, or null if it has none left.
+ * One its side is still working its claim up on is no home: a castle that
+ * cannot spawn cannot heal anyone either.
  * @param {Unicorn} un
  */
 function home(un) {
     let best = null, bd = Infinity;
     for (const c of castles) {
-        if (c._side !== un._side) continue;
+        if (c._side !== un._side || !c._own) continue;
         const d = (c._x - un._x) ** 2 + (c._y - un._y) ** 2;
         if (d < bd) { bd = d; best = c; }
     }
@@ -205,18 +258,68 @@ function home(un) {
 }
 
 /**
- * The nearest castle this unicorn does not own — where it goes when there is
- * nothing in sight to fight.
+ * The nearest castle this unicorn's side does not hold outright — where it
+ * goes when there is nothing in sight to fight. An unclaimed one counts, and
+ * so does one of its own that the side is still working a claim up on: that
+ * is what sends both sides to the middle of the field, and what brings them
+ * back to finish a claim they walked away from.
  * @param {Unicorn} un
  */
 function foeHome(un) {
     let best = null, bd = Infinity;
     for (const c of castles) {
-        if (c._side === un._side) continue;
+        if (c._side === un._side && c._own) continue;
         const d = (c._x - un._x) ** 2 + (c._y - un._y) ** 2;
         if (d < bd) { bd = d; best = c; }
     }
     return best;
+}
+
+/**
+ * The claims on the castles, one step. What moves a claim is who is standing
+ * on the castle: each living fighter within CAP_R presses with its size, and
+ * only the difference between the two sides counts, so an evenly matched
+ * crowd holds everything where it is.
+ *
+ * A claim held by the other side is broken first and built afterwards — the
+ * castle passes through belonging to nobody, where it spawns nothing — so
+ * taking one off a side that is still spawning into it is the work of two
+ * separate stretches of standing there.
+ * @param {number} dt seconds
+ */
+function capture(dt) {
+    for (const c of castles) {
+        let sun = 0, rain = 0;
+        for (const un of herd) {
+            if (un._hp <= 0) continue;
+            if ((un._x - c._x) ** 2 + (un._y - c._y) ** 2 > CAP_R * CAP_R) continue;
+            // Size is the weight: a veteran presses harder than a recruit,
+            // the same way it hits harder.
+            const w = un._scale / SCALE0;
+            if (un._side) rain += w; else sun += w;
+        }
+        const lead = sun - rain;
+        if (!lead) continue;
+        const side = lead > 0 ? 0 : 1, force = Math.min(MOB, Math.abs(lead));
+        if (c._side >= 0 && c._side !== side) {
+            // Breaking someone else's claim. At nothing the castle is
+            // nobody's, and stops spawning until a claim is full again.
+            c._cap -= BREAK * force * dt;
+            if (c._cap <= 0) { c._cap = 0; c._side = -1; c._own = false; }
+        } else {
+            // Building one's own: on an unclaimed castle, or back up on one
+            // of its own that an enemy left half broken.
+            c._side = side;
+            c._cap = Math.min(CAP, c._cap + TAKE * force * dt);
+            if (c._cap >= CAP && !c._own) {
+                c._own = true;
+                // The new garrison is not the old one: the wait for the
+                // first spawn starts here.
+                c._t = SPAWN;
+                captured.push(c);
+            }
+        }
+    }
 }
 
 /**
@@ -224,9 +327,13 @@ function foeHome(un) {
  * @param {number} dt seconds
  */
 export function step(dt) {
+    capture(dt);
+
     for (const c of castles) {
-        if (c._side < 0) continue;
-        c._t -= dt;
+        if (!c._own) continue;
+        // A castle spawns at the rate of the claim on it, so one that is
+        // being broken falls quiet a while before it changes hands.
+        c._t -= dt * c._cap / CAP;
         if (c._t <= 0 && herd.length < MAX) { spawn(c); c._t = SPAWN; }
     }
 
@@ -274,8 +381,9 @@ export function step(dt) {
         if (!rest) un._rest = false;
         if (!un._foe && !un._rest) aim(un, seek(un));
 
-        // Its foe, or the castle it is resting at, or the enemy's castle.
-        const goal = un._foe || rest || foeHome(un) || castles[1 - un._side];
+        // Its foe, or the castle it is resting at, or the nearest castle its
+        // side does not hold. With nothing left to take it walks home.
+        const goal = un._foe || rest || foeHome(un) || home(un) || castles[1];
         const dx = goal._x - un._x, dy = goal._y - un._y;
         const d = Math.hypot(dx, dy);
         // Where to stop, and from how close the horns connect: a little

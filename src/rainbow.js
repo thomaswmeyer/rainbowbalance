@@ -465,17 +465,24 @@ void main(){
 
 /**
  * A castle, as a pass of its own: main.js draws one per castle, in depth
- * order with the bow and the herd. uFoot says which: 0 the sunicorns' at the
- * bow's left foot, sandstone; 1 the rainicorns' at the right, obsidian.
- * Fragments that miss the castle, or that a hill is in front of, discard.
- * The ground and camera code is the world shader's, repeated: two template
- * literals cannot share it, and the packer folds the repeat away.
+ * order with the bow and the herd. uCastle says which and whose: where it
+ * stands along the bow's foot line, the stone of whichever side holds it —
+ * sandstone for the sunicorns, obsidian for the rainicorns — and how much
+ * of a claim there is on it, which is how much of that stone shows. A castle
+ * nobody holds is bare grey, so a castle changing hands can be read off the
+ * field at a glance. Fragments that miss the castle, or that a hill is in
+ * front of, discard. The ground and camera code is the world shader's,
+ * repeated: two template literals cannot share it, and the packer folds the
+ * repeat away.
  */
 export const CASTLE_FS = g`#version 300 es
 precision highp float;
 out vec4 o;
 uniform vec2 uRes;
-uniform float uBalance, uFoot;
+uniform float uBalance;
+// Where this castle stands on the foot line in screen x, whose stone it is
+// built of, and how much of a claim is on it: 0 is bare unclaimed stone.
+uniform vec3 uCastle;
 
 const int CASTLE_ON = 1;
 
@@ -484,10 +491,6 @@ const float FOV     = 30.0;       // half-angle, degrees; the world's
 const float FRONT_SOFT = 0.3046;  // the world's
 const float SHADE   = 0.975;      // the ground's, so castle and grass agree under cloud
 const float FOG     = 0.00022;    // the ground's
-// The bow's centre and primary radius, which with FOOT below place the
-// castles. Keep in step with BOW_FS.
-const vec2  CENTRE = vec2(0.0, -0.31);
-const float R1 = 0.70;
 
 const float HILL_AMP     = 4.56;  // height of the hills
 const float HILL_FREQ    = 0.01719;  // size of the hills: smaller is wider
@@ -650,10 +653,12 @@ void main(){
   vec3 rd = normalize(vec3(-p.x, p.y - HORIZON, -0.5 / tan(radians(FOV))));
   vec3 ro = vec3(0.0, terrain(vec2(0.0)) + EYE, 0.0);
 
-  // Where the ray through the bow's foot meets the terrain, by a few rounds
-  // of dropping a plumb line from the last guess. Screen left is world +x.
-  float sx = uFoot < 0.5 ? 1.0 : -1.0;
-  vec3 fd = normalize(vec3(sx * sqrt(R1 * R1 - (FOOT - CENTRE.y) * (FOOT - CENTRE.y)), FOOT - HORIZON, -0.5 / tan(radians(FOV))));
+  // Where the ray through this castle's place on the foot line meets the
+  // terrain, by a few rounds of dropping a plumb line from the last guess.
+  // Screen left is world +x, so the screen x comes in negated. The
+  // simulation says where each castle stands, which is what lets one stand
+  // between the bow's feet and not only under them.
+  vec3 fd = normalize(vec3(-uCastle.x, FOOT - HORIZON, -0.5 / tan(radians(FOV))));
   float tf = EYE / -fd.y;
   for (int i = 0; i < 3; i++) tf = (ro.y - terrain((ro + fd * tf).xz)) / -fd.y;
   vec3 cp = ro + fd * tf * CASTLE_NEAR;
@@ -684,16 +689,20 @@ void main(){
   float up = clamp((p.y - HORIZON) / 0.8, 0.0, 1.0);
   vec3 sky = mix(vec3(0.72, 0.85, 0.97), vec3(0.22, 0.48, 0.90), up);
 
-  vec3 c;
-  if (uFoot < 0.5) {
-    c = vec3(0.93, 0.82, 0.62) * light * base;
+  // Nobody's castle is bare grey stone, and the claim on it is how much of
+  // the holder's stone has come in: one being taken bleaches as the claim
+  // is broken and takes the other side's colour on as the new one is made.
+  vec3 c = vec3(0.52, 0.52, 0.55) * light * base;
+  if (uCastle.y < 0.5) {
+    c = mix(c, vec3(0.93, 0.82, 0.62) * light * base, uCastle.z);
   } else {
     // Obsidian: almost no diffuse, so what reads is the sun's highlight,
     // kept whatever the weather so the castle always looks polished, and
     // the sky mirrored in it, strongest at grazing angles.
     float spec = pow(max(dot(nor, normalize(sun_dir - rd)), 0.0), 40.0);
     float fresnel = 0.15 + 0.85 * pow(1.0 - max(dot(nor, -rd), 0.0), 2.0);
-    c = vec3(0.03, 0.03, 0.04) * light * base + spec * vec3(0.9, 0.85, 0.75) + fresnel * sky * 0.8;
+    c = mix(c, vec3(0.03, 0.03, 0.04) * light * base
+               + spec * vec3(0.9, 0.85, 0.75) + fresnel * sky * 0.8, uCastle.z);
   }
   o = vec4(mix(c, sky, clamp(tc * tc * FOG, 0.0, 1.0)), 1.0);
 }`;
@@ -707,18 +716,11 @@ export function initRainbow() {
     _bowProg = program(FULLSCREEN_VS, BOW_FS);
     _bowU = uniforms(_bowProg, ['uRes', 'uBalance']);
     _castleProg = program(FULLSCREEN_VS, CASTLE_FS);
-    _castleU = uniforms(_castleProg, ['uRes', 'uBalance', 'uFoot']);
+    _castleU = uniforms(_castleProg, ['uRes', 'uBalance', 'uCastle']);
 }
 
 /** The fragment sources by pass, for the debug panel's feature switches. */
 export const SOURCES = { world: FS, bow: BOW_FS, castle: CASTLE_FS };
-
-/**
- * Where the castles stand, as the depth main.js sorts by: the screen y of
- * the bow's foot line, which is where their bases sit. Keep FOOT in step
- * with the shaders.
- */
-export const FOOT = -0.24;
 
 /**
  * Dev only: recompile one pass from a variant of its source, for the debug
@@ -733,7 +735,7 @@ export function recompile(pass, src) {
         _bowU = uniforms(_bowProg, ['uRes', 'uBalance']);
     } else if (pass === 'castle') {
         _castleProg = program(FULLSCREEN_VS, src);
-        _castleU = uniforms(_castleProg, ['uRes', 'uBalance', 'uFoot']);
+        _castleU = uniforms(_castleProg, ['uRes', 'uBalance', 'uCastle']);
     } else {
         _prog = program(FULLSCREEN_VS, src);
         _u = uniforms(_prog, ['uRes', 'uTime', 'uBalance']);
@@ -751,13 +753,18 @@ export function drawRainbow(balance) {
 }
 
 /**
- * One castle.
- * @param {number} k 0 the sunicorns', 1 the rainicorns'
+ * One castle, where the simulation says it stands. Where they stand is the
+ * simulation's to say: this takes a screen x on the bow's foot line, and the
+ * shader's own FOOT is the screen y of that line. Keep the two in step.
+ * @param {number} x on the bow's foot line, in screen units
+ * @param {number} side 0 sandstone, 1 obsidian
+ * @param {number} claim 0…1, how much of that stone has come in: 0 is the
+ *   bare grey of a castle nobody holds
  * @param {number} balance
  */
-export function drawCastle(k, balance) {
+export function drawCastle(x, side, claim, balance) {
     gl.useProgram(_castleProg);
-    _castleU({ uRes: [width, height], uBalance: balance, uFoot: k });
+    _castleU({ uRes: [width, height], uBalance: balance, uCastle: [x, side, claim] });
     fullscreen();
 }
 

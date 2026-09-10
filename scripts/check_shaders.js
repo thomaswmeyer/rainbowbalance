@@ -65,13 +65,19 @@ const attribsOf = (vs) =>
         .map(([, loc, type]) => ({ loc: +loc, width: WIDTHS[type] }))
         .sort((a, b) => a.loc - b.loc);
 
-/** Uniform values to sweep. Time is fixed so both renders see the same frame. */
+/**
+ * Uniform values to sweep. Time is fixed so both renders see the same frame.
+ * uCastle is the castle pass's: where one stands on the bow's foot line, the
+ * stone of whoever holds it, and how much of a claim there is on it. Both
+ * stones and a castle in the middle held by nobody are all worth a case,
+ * since each is a branch of its own in the shader.
+ */
 const CASES = [
-    { uTime: 3.0, uBalance: 0.0, uIntegrity: 1.0 },
-    { uTime: 3.0, uBalance: 0.75, uIntegrity: 0.35 },
-    { uTime: 7.5, uBalance: -0.4, uIntegrity: 0.7 },
-    { uTime: 11.0, uBalance: 1.0, uIntegrity: 0.0 },
-    { uTime: 0.25, uBalance: -1.0, uIntegrity: 0.5 },
+    { uTime: 3.0, uBalance: 0.0, uIntegrity: 1.0, uCastle: [-0.6965, 0, 1] },
+    { uTime: 3.0, uBalance: 0.75, uIntegrity: 0.35, uCastle: [0.6965, 1, 1] },
+    { uTime: 7.5, uBalance: -0.4, uIntegrity: 0.7, uCastle: [0, 0, 0] },
+    { uTime: 11.0, uBalance: 1.0, uIntegrity: 0.0, uCastle: [0, 1, 0.5] },
+    { uTime: 0.25, uBalance: -1.0, uIntegrity: 0.5, uCastle: [-0.6965, 0, 0.5] },
 ];
 
 async function loadPuppeteer() {
@@ -159,7 +165,10 @@ const results = await page.evaluate(async (pairs, cases, tolerance) => {
         gl.useProgram(prog);
         const set = (n, v) => {
             const l = gl.getUniformLocation(prog, n);
-            if (l) Array.isArray(v) ? gl.uniform2f(l, v[0], v[1]) : gl.uniform1f(l, v);
+            if (!l) return;
+            if (!Array.isArray(v)) gl.uniform1f(l, v);
+            else if (v.length === 2) gl.uniform2f(l, v[0], v[1]);
+            else gl.uniform3f(l, v[0], v[1], v[2]);
         };
         set('uRes', [320, 240]);
         for (const k in values) set(k, values[k]);

@@ -12,7 +12,7 @@
  */
 
 import { initGl, resize, setTime } from './gl.js';
-import { initRainbow, drawRainbow, drawBow, drawCastle, recompile, SOURCES, FOOT } from './rainbow.js';
+import { initRainbow, drawRainbow, drawBow, drawCastle, recompile, SOURCES } from './rainbow.js';
 import { initUnicorns, drawUnicorns } from './unicorn.js';
 import * as sim from './sim.js';
 import { initSparks, burst, shower, stepSparks, drawSparks } from './sparks.js';
@@ -42,6 +42,10 @@ function step(dt) {
     sim.fallen.length = 0;
     for (const un of sim.promoted) shower(un._x, un._y, un._s);
     sim.promoted.length = 0;
+    // A castle taken gets the same white shower a promotion does, at the
+    // size of the castle rather than of a unicorn.
+    for (const c of sim.captured) shower(c._x, c._y, 0.1);
+    sim.captured.length = 0;
     stepSparks(dt);
     if (!state._manual) state._balance = sim.balance;
 }
@@ -104,24 +108,23 @@ function showClock() {
 // --- drawing ----------------------------------------------------------------
 
 /**
- * The castles, with the depth each stands at: the screen y of its base.
- * More will come; anything here is drawn in depth order with the herd.
- */
-const castles = [
-    { _k: 0, _y: FOOT },
-    { _k: 1, _y: FOOT },
-];
-
-/**
  * Back to front, with no depth buffer: the world first, then the herd and
  * the castles interleaved by depth, with the bow just behind the castles so
- * it lies over the far herd and under the near one and the walls.
+ * it lies over the far herd and under the near one and the walls. The
+ * castles are the simulation's, drawn where it says they stand and in the
+ * stone of whoever holds them: a castle nobody holds is bare grey, and a
+ * part-made claim is part of the way to its holder's stone.
  * @param {number} balance
  */
 function drawScene(balance) {
     drawRainbow(balance);
-    const items = castles.map((c) => ({ _y: c._y, _draw: () => drawCastle(c._k, balance) }));
-    items.push({ _y: Math.max(...castles.map((c) => c._y)) + 1e-3, _draw: () => drawBow(balance) });
+    const items = sim.castles.map((c) => ({
+        _y: c._y,
+        // Nobody's castle shows no stone of either side, so which side's it
+        // would have been does not matter; 0 keeps the branch cheap.
+        _draw: () => drawCastle(c._x, Math.max(c._side, 0), c._cap / sim.CAP, balance),
+    }));
+    items.push({ _y: Math.max(...sim.castles.map((c) => c._y)) + 1e-3, _draw: () => drawBow(balance) });
     items.sort((a, b) => b._y - a._y);
     let i = 0;
     for (const it of items) { i = drawUnicorns(sim.herd, i, it._y); it._draw(); }
