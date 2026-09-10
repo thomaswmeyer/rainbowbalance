@@ -49,7 +49,11 @@ export function initGl(canvas) {
     }));
     if (!gl) return false;
     gl.enable(gl.BLEND);
-    gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+    // Premultiplied alpha. The unicorn shader composites a dozen parts into one
+    // accumulator before it writes anything, and premultiplied is the form that
+    // comes out of that for free — straight alpha would need a divide per pixel
+    // to undo. Every pass that writes alpha < 1 must premultiply its colour.
+    gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
     return true;
 }
 

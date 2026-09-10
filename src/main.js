@@ -13,6 +13,7 @@
 
 import { initGl, resize, setTime } from './gl.js';
 import { initRainbow, drawRainbow } from './rainbow.js';
+import { initUnicorns, stepUnicorns, drawUnicorns } from './unicorn.js';
 
 // --- the balance ------------------------------------------------------------
 
@@ -39,17 +40,21 @@ let _drift = 0;
  * @param {number} dt seconds
  */
 function step(dt) {
-    if (state._manual) return;
-    state._elapsed += dt;
+    // Driving balance by hand freezes the wander, not the world — the swarms
+    // are the thing you are scrubbing the slider to look at.
+    if (!state._manual) {
+        state._elapsed += dt;
 
-    // Placeholder for the swarm: a wander that re-aims every few seconds and
-    // gets more violent the longer the run lasts. The real version of this is
-    // two spawn rates and a heuristic AI, and it will drive the same variable.
-    const pressure = 0.35 + Math.min(state._elapsed / 90, 1) * 0.65;
-    _drift += (Math.random() - 0.5) * dt * 2;
-    _drift *= 0.985;
-    _target = Math.max(-1, Math.min(1, _target + _drift * dt * pressure * 3));
-    state._balance += (_target - state._balance) * dt * 1.6;
+        // Placeholder for the swarm: a wander that re-aims every few seconds and
+        // gets more violent the longer the run lasts. The real version of this is
+        // two spawn rates and a heuristic AI, and it will drive the same variable.
+        const pressure = 0.35 + Math.min(state._elapsed / 90, 1) * 0.65;
+        _drift += (Math.random() - 0.5) * dt * 2;
+        _drift *= 0.985;
+        _target = Math.max(-1, Math.min(1, _target + _drift * dt * pressure * 3));
+        state._balance += (_target - state._balance) * dt * 1.6;
+    }
+    stepUnicorns(dt, state._balance);
 }
 
 /**
@@ -78,6 +83,7 @@ if (!initGl(canvas)) {
         '<p style="color:#eee;font:16px sans-serif;padding:2em">This game needs WebGL2.</p>';
 } else {
     initRainbow();
+    initUnicorns();
 
     addEventListener('pointerdown', (e) => nudge(e.clientX / innerWidth));
 
@@ -96,5 +102,6 @@ if (!initGl(canvas)) {
         setTime(t);
         resize(canvas);
         drawRainbow(state._balance);
+        drawUnicorns();
     });
 }

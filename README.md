@@ -27,16 +27,23 @@ not in that loop; it only runs for the build.
 
 ## Where it stands
 
-The rainbow is in. The simulation is not: `balance` is driven by a placeholder
-wander, and the player's whole verb is a click that pulls the board back
-toward level. The debug panel's slider drives the bow by hand, and `?b=0.5`
-opens the dev page in that mode at a given balance.
+The rainbow is in, and so are the unicorns. The simulation is not: `balance` is
+driven by a placeholder wander, and the player's whole verb is a click that
+pulls the board back toward level. The debug panel's slider drives both the bow
+and the swarms by hand, and `?b=0.5` opens the dev page in that mode at a given
+balance.
+
+The swarms press on a front line that balance moves, so the herd and the
+weather never disagree about who is winning. Every unicorn is the same animal
+for now — the build constants are frozen in `unicorn.js`, named and used
+exactly where a per-instance value would go, so giving them diverse
+measurements later is a move from constant to attribute and nothing else.
 
 ```
-[build]  2716 / 13312 bytes — 10596 free (79.6%)
-  esbuild     4563 B
-  terser      4210 B  (-8%)
-  roadroller  3196 B  (-24%)
+[build]  5539 / 13312 bytes — 7773 free (58.4%)
+  esbuild    13749 B
+  terser     13321 B  (-3%)
+  roadroller  7035 B  (-47%)
 ```
 
 ## Layout
@@ -45,6 +52,7 @@ opens the dev page in that mode at a given balance.
 |---|---|
 | `src/gl.js` | WebGL2 context, programs, uniforms, the fullscreen triangle, instanced quad `Batch` |
 | `src/rainbow.js` | sky, clouds, ground and both bows — one fragment shader, one number in |
+| `src/unicorn.js` | one signed-distance unicorn, instanced — the swarms, and where they stand |
 | `src/main.js` | boot, fixed-step loop, and the balance |
 | `src/debug.js` | scrub `balance` by hand. Never ships |
 | `scripts/build.js` | esbuild → GLSL squeeze → terser → Roadroller → zopfli zip, with the budget gate |

@@ -49,11 +49,23 @@ export function minifyGlslRegex(src) {
         out.push(line + ' ');
     }
 
+    // `++` and `--` that are adjacent in the source are one operator and have
+    // to survive; two signs that only become adjacent because the space between
+    // them was removed are two, and leaving them glued makes a third. Source
+    // adjacency is the only thing that tells those apart, and stripping the
+    // spaces destroys it — so record it first and put them back at the end.
+    // Without this, `for (int i = 0; i < n; i++)` minifies to `i+ +` and the
+    // shader does not compile, which the build never notices because the build
+    // does not have a GL context. `npm run check` is what catches it.
+    const INC = '\u0001', DEC = '\u0002';
+
     return out.join('')
         .replace(/\s+/g, (m) => (m.includes('\n') ? '\n' : ' '))
+        .replaceAll('++', INC).replaceAll('--', DEC)
         .replace(/\s*([{}();,=<>+\-*/%?:[\]!&|])\s*/g, '$1')
         // Removing a space can glue two operators into a third: `a - -b`.
         .replace(/([+\-])([+\-])/g, '$1 $2')
+        .replaceAll(INC, '++').replaceAll(DEC, '--')
         .replace(/\n\s*/g, '\n')
         .trim();
 }

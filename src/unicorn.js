@@ -1,0 +1,412 @@
+/**
+ * The unicorns — one signed-distance animal, drawn once per instance.
+ *
+ * There is no geometry and no texture: the quad is a window, and everything
+ * inside it is the fragment shader solving the same distance field with a
+ * different phase. That buys three things this game needs. The silhouette is
+ * resolution-independent, so the same code draws a hero at 400px and a
+ * skirmisher at 30px. The gallop is a number, so a swarm costs one draw call
+ * and five floats per animal. And nothing has to be authored — there is no
+ * sprite sheet to blow the budget.
+ *
+ * What keeps it from looking like a stick figure is worth stating, because
+ * every constant below is in service of it:
+ *
+ *   - Three masses, not one. Barrel, chest and rump are separate ellipses
+ *     joined with a smooth minimum, so the outline swells and narrows the way
+ *     an animal does. A single capsule body is the giveaway.
+ *   - Parts have different thicknesses. The neck is thick at the base and thin
+ *     at the throat; legs are thinner than the barrel; the head is longer than
+ *     it is tall and carries its own muzzle.
+ *   - The legs bend. Knee back on the front pair, hock forward on the hind,
+ *     both driven off the same phase with a quarter-cycle between them.
+ *   - It is lit. Screen-space derivatives of the distance give a 2D normal for
+ *     free, and inflating it toward the middle of the shape turns a flat fill
+ *     into something with a body.
+ *
+ * The build is constant for now — every unicorn is the same animal. The
+ * constants are named and used exactly where a per-instance value would be
+ * used instead, so giving the swarm diverse measurements later means moving
+ * them into the instance data and the `parts` signature, and nothing else.
+ *
+ * Instance data, five floats:
+ *
+ *   aBody.xy   where the hooves stand, in the same units the rainbow uses
+ *   aBody.z    scale, signed by which way it faces (negative looks left)
+ *   aBody.w    gallop phase, radians
+ *   aSide      0 sunicorn (warm, pale), 1 rainicorn (goth)
+ */
+
+import { g, program, uniforms, gl, time, width, height, Batch } from './gl.js';
+
+// ---------------------------------------------------------------------------
+// The build. Body units: the barrel is 2·L long.
+// ---------------------------------------------------------------------------
+// Tuned on the bench, then frozen. FEET below has to agree with these — it is
+// the only one the vertex shader needs, and GLSL constants cannot be shared
+// across two shader stages without a uniform, so it is written out.
+
+const VS = g`#version 300 es
+layout(location = 0) in vec4 aBody;
+layout(location = 1) in float aSide;
+uniform vec2 uRes;
+out vec2 vP;
+out float vPhase, vSide, vOw, vFlip;
+
+// The quad in body units: wide enough for the tail behind and the muzzle in
+// front, tall enough for the horn above and the hooves at full stride.
+const vec2 BOX = vec2(1.64, 1.44);
+const vec2 BOX_MID = vec2(0.0, 0.12);
+// How far below the body's origin the hooves reach: H * 0.35 + LEG + 0.03.
+const float FEET = 0.4695;
+// Outline width, in pixels rather than body units, so it stays a line at every
+// size instead of thickening with the animal.
+const float OUTLINE = 1.5;
+
+void main(){
+  // gl.js exports QUAD_CORNER for exactly this, but concatenating it would
+  // split this shader across two tagged templates, and both the GLSL minifier
+  // and the equivalence check want one whole translation unit per template.
+  // One line is cheaper than that seam.
+  vec2 c = (vec2(float(gl_VertexID & 1), float((gl_VertexID >> 1) & 1)) - 0.5)
+         * BOX + BOX_MID;
+  float s = abs(aBody.z);
+  // Facing is the sign of the scale. The box is symmetric about x, so
+  // mirroring the local coordinate is enough — the quad itself does not move.
+  vFlip = sign(aBody.z);
+  vP = vec2(c.x * vFlip, c.y);
+  vPhase = aBody.w;
+  vSide = aSide;
+  vOw = OUTLINE / (uRes.y * s);
+  // The same space the rainbow works in: y is -0.5…0.5, x scales with aspect.
+  vec2 w = aBody.xy + vec2(0.0, FEET * s) + c * s;
+  gl_Position = vec4(2.0 * w * vec2(uRes.y / uRes.x, 1.0), 0.0, 1.0);
+}`;
+
+const FS = g`#version 300 es
+precision highp float;
+in vec2 vP;
+in float vPhase, vSide, vOw, vFlip;
+out vec4 o;
+uniform float uTime;
+
+// Its own copy, because a second program cannot share the rainbow's.
+vec3 hsv(float h, float s, float v){
+  vec3 k = clamp(abs(mod(h * 6.0 + vec3(0.0, 4.0, 2.0), 6.0) - 3.0) - 1.0, 0.0, 1.0);
+  return v * mix(vec3(1.0), k, s);
+}
+
+const float L = 0.300;        // barrel half-length
+const float H = 0.170;        // barrel half-depth
+const float NECK_A = 0.960;   // radians up from horizontal
+const float NECK_L = 0.380;
+const float HEAD = 1.00;
+const float LEG = 0.380;
+const float MANE = 1.00;
+const float STRIDE = 0.90;    // swing of the gallop; 0 stands still
+const float SHADE = 0.80;     // how much the light is allowed to model it
+
+float ell(vec2 p, vec2 r){ return (length(p / r) - 1.0) * min(r.x, r.y); }
+
+// Tapered capsule: radius r1 at a, r2 at b. Not an exact distance — the taper
+// makes the gradient shorter than unit — but close enough to shade and to
+// antialias, and exact enough that nothing here needs more.
+float seg(vec2 p, vec2 a, vec2 b, float r1, float r2){
+  vec2 pa = p - a, ba = b - a;
+  float h = clamp(dot(pa, ba) / dot(ba, ba), 0.0, 1.0);
+  return length(pa - ba * h) - mix(r1, r2, h);
+}
+
+float smin(float a, float b, float k){
+  float h = clamp(0.5 + 0.5 * (b - a) / k, 0.0, 1.0);
+  return mix(b, a, h) - k * h * (1.0 - h);
+}
+
+mat2 rot(float a){ float c = cos(a), s = sin(a); return mat2(c, s, -s, c); }
+
+// Every part comes back separately so each can take its own colour and its own
+// place in the stack. They are all solved in one bobbing, pitching frame, the
+// eye included — an eye computed outside it stays nailed to the screen while
+// the head moves under it.
+struct U {
+  float torso;      // the body with no legs at all
+  float body;       // torso, neck, head, and the near hind leg blended in
+  float front;      // the near front leg alone, cut to outside the torso
+  float frontEdge;  // the same before the cut, which is what the outline follows
+  float farBack, farFront;
+  float hoofFarBack, hoofFarFront, hoofBack, hoofFront;
+  float tail, tailU, mane, maneU, horn, eye, glint;
+};
+
+U parts(vec2 p, float ph, float t){
+  U u;
+
+  // Suspension: the whole animal rises between strides and pitches with it.
+  p.y -= 0.035 * STRIDE * sin(ph + 0.6);
+  p = rot(0.06 * STRIDE * sin(ph)) * p;
+
+  // Three masses, not one sausage.
+  float torso = ell(p, vec2(L, H));
+  torso = smin(torso, ell(p - vec2(L * 0.6, 0.0), vec2(H * 0.85, H * 0.9)), 0.08);
+  torso = smin(torso, ell(p - vec2(-L * 0.62, 0.03), vec2(H * 0.95, H)), 0.08);
+
+  // Neck, thick at the base.
+  vec2 nd = vec2(cos(NECK_A), sin(NECK_A));
+  vec2 nb = vec2(L * 0.7, H * 0.3);
+  vec2 ne = nb + nd * NECK_L;
+  torso = smin(torso, seg(p, nb, ne, H * 0.6, H * 0.36), 0.06);
+
+  // Head longer than tall, tilted down, with a separate muzzle and one ear.
+  vec2 hc = ne + vec2(0.04, 0.0) * HEAD;
+  torso = smin(torso, ell(rot(0.3) * (p - hc), vec2(0.115, 0.08) * HEAD), 0.03);
+  vec2 mz = hc + vec2(0.12, -0.04) * HEAD;
+  torso = smin(torso, ell(p - mz, vec2(0.06, 0.05) * HEAD), 0.03);
+  vec2 et = hc + vec2(-0.05, 0.06) * HEAD;
+  torso = smin(torso, seg(p, et, et + vec2(-0.03, 0.09) * HEAD, 0.024 * HEAD, 0.005), 0.015);
+
+  vec2 hb = hc + vec2(0.025, 0.07) * HEAD;
+  u.horn = seg(p, hb, hb + vec2(0.07, 0.17) * HEAD, 0.022 * HEAD, 0.001);
+  vec2 ec = hc + vec2(0.045, 0.012) * HEAD;
+  float er = 0.016 * HEAD;
+  u.eye = length(p - ec) - er;
+  u.glint = length(p - ec - er * vec2(0.35, 0.35)) - er * 0.35;
+
+  // Legs: two capsules each, the knee bending back on the front pair and the
+  // hock forward on the hind. Each leg blends into the torso and into nothing
+  // else, so a pair crossing mid-stride passes rather than pooling into one
+  // fat shape where the fillets meet.
+  u.body = torso; u.frontEdge = torso;
+  u.farBack = u.farFront = u.hoofFarBack = u.hoofFarFront = 1e3;
+  u.hoofBack = u.hoofFront = 1e3;
+  for (int i = 0; i < 4; i++) {
+    bool front = i < 2, near = (i & 1) == 0;
+    float off = front ? (near ? 0.0 : 0.8) : (near ? 3.1 : 3.9);
+    float a = STRIDE * 0.6 * sin(ph + off) + (front ? 0.0 : -0.15);
+    float lift = max(0.0, sin(ph + off + 1.3)) * STRIDE;
+    vec2 hip = front ? vec2(L * 0.5, -H * 0.35) : vec2(-L * 0.6, -H * 0.3);
+    float hl = LEG * 0.5;
+    vec2 knee = hip + hl * vec2(sin(a), -cos(a));
+    float a2 = a + (front ? -1.3 : 1.0) * lift;
+    vec2 hf = knee + hl * vec2(sin(a2), -cos(a2));
+    float ru = front ? H * 0.32 : H * 0.42, rl = H * 0.19;
+    float d = smin(seg(p, hip, knee, ru, rl * 1.1), seg(p, knee, hf, rl, rl * 0.85), 0.02);
+    float hv = ell(p - hf + vec2(0.0, 0.01), vec2(rl * 1.25, rl * 0.85));
+    if (near && front) { u.frontEdge = smin(torso, d, 0.035); u.hoofFront = hv; }
+    else if (near)     { u.body = smin(torso, d, 0.035); u.hoofBack = hv; }
+    else if (front)    { u.farFront = d; u.hoofFarFront = hv; }
+    else               { u.farBack = d; u.hoofFarBack = hv; }
+  }
+  // The near front leg is drawn as its own layer over the barrel, so its
+  // coverage is cut back to what lies outside the torso. The outline still
+  // follows the uncut shape, or it would retrace the barrel's own edge.
+  u.front = max(u.frontEdge, -torso);
+  u.torso = torso;
+  u.body = min(u.body, u.frontEdge);
+
+  // Tail: two tapered segments through a wave, from the top of the rump.
+  vec2 tb = vec2(-L * 0.9, H * 0.45);
+  vec2 tm = tb + vec2(-0.16, 0.02 + 0.05 * sin(t * 3.0));
+  vec2 te = tm + vec2(-0.17, -0.16 + 0.06 * sin(t * 3.0 + 1.0));
+  vec2 tp = p - vec2(0.0, 0.03 * sin(p.x * 12.0 + t * 6.0));
+  u.tail = min(seg(tp, tb, tm, 0.035 * MANE, 0.075 * MANE),
+               seg(tp, tm, te, 0.075 * MANE, 0.025 * MANE));
+  vec2 tv = te - tb;
+  u.tailU = clamp(dot(tp - tb, tv) / dot(tv, tv), 0.0, 1.0);
+
+  // Mane: a wavy capsule riding the top edge of the neck, plus a forelock.
+  vec2 nn = vec2(-nd.y, nd.x);
+  vec2 mb = nb + nn * H * 0.5 + vec2(-0.03, 0.0);
+  vec2 me = ne + nn * H * 0.32 + vec2(-0.04, 0.03);
+  vec2 mv = me - mb;
+  float mh = clamp(dot(p - mb, mv) / dot(mv, mv), 0.0, 1.0);
+  vec2 mp = p - nn * (0.025 * sin(mh * 14.0 - t * 6.0) + 0.015);
+  float rm = MANE * (0.05 + 0.02 * sin(mh * 22.0 + t * 5.0));
+  u.mane = min(seg(mp, mb, me, rm * 0.7, rm * 1.1),
+               ell(p - (hc + vec2(-0.03, 0.085) * HEAD), vec2(0.055, 0.035) * HEAD * MANE));
+  u.maneU = mh;
+  return u;
+}
+
+// Composite, premultiplied, so the accumulator can start empty and the whole
+// animal lands on the sky in one blend.
+vec4 put(vec4 acc, float cov, vec3 col){
+  return vec4(col, 1.0) * cov + acc * (1.0 - cov);
+}
+
+// One part: filled inside d, with a line of width vOw just inside its edge.
+vec4 part(vec4 acc, float d, float ow, vec3 fill, vec3 line){
+  float aa = max(fwidth(d), 1e-6);
+  return put(acc, smoothstep(aa, -aa, d), mix(line, fill, smoothstep(aa, -aa, d + ow)));
+}
+
+// Sunicorns get the whole spectrum. Rainicorns get violet through crimson,
+// dimmer, with black combed through it.
+vec3 hair(float u, float t){
+  vec3 sun = hsv(fract(0.95 + u * 0.45 + t * 0.03), 0.7, 1.0);
+  vec3 rain = hsv(0.70 + u * 0.25 + 0.03 * sin(t), 0.85, 0.72)
+            * (0.7 + 0.3 * smoothstep(-0.2, 0.6, sin(u * 70.0 + t)));
+  return mix(sun, rain, vSide);
+}
+
+// Screen-space derivatives of the distance are a 2D normal for nothing. Tilt
+// it up toward the middle of the shape and light it from the upper left; the
+// dark side takes a rim light, without which a black unicorn is a hole.
+vec3 shade(float d, vec3 bodyC, vec3 shadeC, vec3 rimC){
+  vec2 gd = vec2(dFdx(d), dFdy(d));
+  // Undo the mirror, or a unicorn facing left is lit from the wrong side.
+  vec2 n = gd / max(length(gd), 1e-7) * vec2(vFlip, 1.0);
+  float e = 1.0 - clamp(-d / (H * 0.8), 0.0, 1.0);
+  e *= e;
+  vec3 N = normalize(vec3(n * e, 1.0 - 0.75 * e));
+  float lit = 0.55 + 0.45 * dot(N, normalize(vec3(-0.5, 0.75, 0.6)));
+  float rim = pow(max(dot(N, normalize(vec3(-0.6, 0.8, 0.1))), 0.0), 6.0);
+  return mix(shadeC, bodyC, smoothstep(0.3, 0.9, mix(1.0, lit, SHADE)))
+       + rimC * rim * SHADE;
+}
+
+void main(){
+  vec2 p = vP;
+  float t = uTime;
+  U u = parts(p, vPhase, t);
+  float ow = vOw;
+
+  vec3 bodyC  = mix(vec3(0.99, 0.95, 0.88), vec3(0.19, 0.16, 0.25), vSide);
+  vec3 shadeC = mix(vec3(0.82, 0.62, 0.60), vec3(0.05, 0.04, 0.08), vSide);
+  vec3 line   = mix(vec3(0.26, 0.13, 0.18), vec3(0.02, 0.01, 0.04), vSide);
+  vec3 rimC   = mix(vec3(0.0), vec3(0.50, 0.40, 0.72), vSide);
+  vec3 farC   = mix(shadeC, bodyC, 0.45);
+  vec3 hoofC  = mix(line * 1.6, vec3(0.0), vSide);
+  vec3 eyeC   = mix(line * 0.6, vec3(0.92, 0.12, 0.45), vSide);
+  vec3 hornC  = mix(vec3(1.0, 0.86, 0.5), vec3(0.80, 0.78, 0.88), vSide)
+              * (0.85 + 0.15 * sin(dot(p, vec2(0.38, 0.92)) * 90.0));
+
+  // The shadow it stands in, before anything else and outside the bob, so the
+  // animal rises off the ground rather than dragging the shadow with it.
+  vec4 c = vec4(0.0);
+  float sd = ell(p + vec2(0.0, 0.4695), vec2(0.5, 0.05));
+  c = put(c, 0.22 * smoothstep(0.03, -0.03, sd), vec3(0.0));
+
+  // Back to front. Each hoof goes down with its own leg rather than after the
+  // pair, or a hind hoof swinging through paints over the front leg it should
+  // be passing behind. Far legs are flat and a shade darker, which is all the
+  // depth a sprite this size needs; within each depth the front leg covers the
+  // hind one, so both pairs cross the same way.
+  c = part(c, u.farBack, ow, farC, line);
+  c = part(c, u.hoofFarBack, 0.0, hoofC, line);
+  c = part(c, u.farFront, ow, farC, line);
+  c = part(c, u.hoofFarFront, 0.0, hoofC, line);
+  c = part(c, u.tail, ow, hair(u.tailU, t), line);
+  c = part(c, u.body, ow, shade(u.body, bodyC, shadeC, rimC), line);
+  c = part(c, u.hoofBack, 0.0, hoofC, line);
+
+  // The near front leg, painted only where it actually changes the silhouette,
+  // so it never retraces the barrel it stands against.
+  float aaF = max(fwidth(u.frontEdge), 1e-6);
+  c = put(c, smoothstep(aaF, -aaF, u.front)
+            * smoothstep(-0.5 * aaF, -3.0 * aaF, u.frontEdge - u.torso),
+          mix(line, shade(u.frontEdge, bodyC, shadeC, rimC),
+              smoothstep(aaF, -aaF, u.frontEdge + ow)));
+
+  c = part(c, u.hoofFront, 0.0, hoofC, line);
+  c = part(c, u.mane, ow * 0.7, hair(u.maneU, t + 2.0), line);
+  c = part(c, u.horn, ow * 0.7, hornC, line);
+  c = part(c, u.eye, 0.0, eyeC, line);
+  c = part(c, u.glint, 0.0, vec3(1.0), line);
+
+  if (c.a < 0.002) discard;
+  o = c;
+}`;
+
+// ---------------------------------------------------------------------------
+// The swarms
+// ---------------------------------------------------------------------------
+
+/**
+ * Placeholder for the simulation, the same way `balance` in main.js is a
+ * placeholder for the fight that will drive it. Two swarms press on a front
+ * line; balance says where the line sits, and everyone marches to keep their
+ * rank behind it. It moves for the same reason the weather does, so the herd
+ * and the sky never disagree about who is winning.
+ *
+ * Nothing spawns and nothing dies, so nobody pops in or out of existence while
+ * the number moves. When there is a real fight, this is what it replaces.
+ */
+const HERD = 26;
+
+/** How far from the middle the front line can be pushed. */
+const FRONT = 0.55;
+/** The ground band the swarms stand on, front row to the horizon. */
+const NEAR_Y = -0.44, FAR_Y = 0.15;
+/** How big a unicorn is at the front row and at the back. */
+const NEAR_S = 0.155, FAR_S = 0.038;
+
+/** @type {{_x:number,_y:number,_s:number,_side:number,_rank:number,_ph:number}[]} */
+const _herd = [];
+
+let _prog, _u, _batch;
+
+/** Compile the pass and lay the swarms out. Call once, after the context. */
+export function initUnicorns() {
+    _prog = program(VS, FS);
+    _u = uniforms(_prog, ['uRes', 'uTime']);
+    _batch = new Batch(_prog, [4, 1], HERD);
+
+    // A fixed layout, so a screenshot is comparable to the last one and the
+    // depth sort below can be done once instead of every frame.
+    let seed = 7;
+    const rnd = () => (seed = (seed * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff;
+
+    for (let i = 0; i < HERD; i++) {
+        const rank = (i >> 1) / (HERD >> 1);
+        const y = NEAR_Y + (FAR_Y - NEAR_Y) * (rnd() * 0.9 + rank * 0.1);
+        _herd.push({
+            _side: i & 1,                       // alternating, so both sides fill every depth
+            _rank: rank + rnd() * 0.12,
+            _y: y,
+            _s: NEAR_S + (FAR_S - NEAR_S) * ((y - NEAR_Y) / (FAR_Y - NEAR_Y)),
+            _x: 0,
+            _ph: rnd() * 6.283,
+        });
+    }
+    // Back to front: no depth buffer, so the draw order is the depth order.
+    _herd.sort((a, b) => b._y - a._y);
+    for (const un of _herd) un._x = _target(un, 0);
+}
+
+/**
+ * Where this unicorn wants to be, given the front line.
+ * @param {{_side:number,_rank:number}} un
+ * @param {number} balance
+ */
+function _target(un, balance) {
+    const front = balance * FRONT;
+    const back = 0.12 + un._rank * 1.0;
+    return un._side ? front + back : front - back;
+}
+
+/**
+ * One fixed step. They walk toward their rank and gallop while they do it, so
+ * a board that is holding steady settles and a board that is losing runs.
+ * @param {number} dt seconds
+ * @param {number} balance −1…+1
+ */
+export function stepUnicorns(dt, balance) {
+    for (const un of _herd) {
+        const vx = (_target(un, balance) - un._x) * 2.2;
+        un._x += vx * dt;
+        // A walk at rest, a gallop when the line is moving.
+        un._ph += dt * (2.5 + Math.min(Math.abs(vx) * 26, 12));
+    }
+}
+
+/** Draw every unicorn in one call. */
+export function drawUnicorns() {
+    _batch.clear();
+    for (const un of _herd) {
+        // Sunicorns march right, rainicorns left, so both face the front line.
+        _batch.push(un._x, un._y, un._side ? -un._s : un._s, un._ph, un._side);
+    }
+    gl.useProgram(_prog);
+    _u({ uRes: [width, height], uTime: time });
+    _batch.draw();
+}
