@@ -12,7 +12,7 @@
  */
 
 import { initGl, resize, setTime } from './gl.js';
-import { initRainbow, drawRainbow, recompile, FS } from './rainbow.js';
+import { initRainbow, drawRainbow, drawBow, drawCastle, recompile, SOURCES, FOOT } from './rainbow.js';
 import { initUnicorns, stepUnicorns, drawUnicorns } from './unicorn.js';
 
 // --- the balance ------------------------------------------------------------
@@ -74,6 +74,33 @@ export function reset() {
     state._balance = state._elapsed = _target = _drift = 0;
 }
 
+// --- drawing ----------------------------------------------------------------
+
+/**
+ * The castles, with the depth each stands at: the screen y of its base.
+ * More will come; anything here is drawn in depth order with the herd.
+ */
+const castles = [
+    { _k: 0, _y: FOOT },
+    { _k: 1, _y: FOOT },
+];
+
+/**
+ * Back to front, with no depth buffer: the world first, then the herd and
+ * the castles interleaved by depth, with the bow just behind the castles so
+ * it lies over the far herd and under the near one and the walls.
+ * @param {number} balance
+ */
+function drawScene(balance) {
+    drawRainbow(balance);
+    const items = castles.map((c) => ({ _y: c._y, _draw: () => drawCastle(c._k, balance) }));
+    items.push({ _y: Math.max(...castles.map((c) => c._y)) + 1e-3, _draw: () => drawBow(balance) });
+    items.sort((a, b) => b._y - a._y);
+    let i = 0;
+    for (const it of items) { i = drawUnicorns(i, it._y); it._draw(); }
+    drawUnicorns(i);
+}
+
 // --- boot -------------------------------------------------------------------
 
 const canvas = /** @type {HTMLCanvasElement} */ (document.getElementById('c'));
@@ -87,7 +114,7 @@ if (!initGl(canvas)) {
 
     addEventListener('pointerdown', (e) => nudge(e.clientX / innerWidth));
 
-    if (__DEBUG__) import('./debug.js').then((d) => d.initDebug(state, reset, FS, recompile));
+    if (__DEBUG__) import('./debug.js').then((d) => d.initDebug(state, reset, SOURCES, recompile));
 
     let last = 0, acc = 0;
     requestAnimationFrame(function frame(now) {
@@ -101,7 +128,6 @@ if (!initGl(canvas)) {
 
         setTime(t);
         resize(canvas);
-        drawRainbow(state._balance);
-        drawUnicorns();
+        drawScene(state._balance);
     });
 }

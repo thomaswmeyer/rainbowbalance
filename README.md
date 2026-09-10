@@ -67,11 +67,11 @@ as constants, "copy GLSL" to get them back. Restore `src/debug.js` from there
 and give the lines their ranges back to tune again.
 
 ```
-[build]  5629 / 13312 bytes — 7683 free (57.7%)
-  esbuild    13486 B
-  terser     13058 B  (-3%)
-  roadroller  7150 B  (-45%)
-  glsl       10042 B  (-73% of 37059 B raw)
+[build]  5976 / 13312 bytes — 7336 free (55.1%)
+  esbuild    15248 B
+  terser     14775 B  (-3%)
+  roadroller  7626 B  (-48%)
+  glsl       11265 B  (-72% of 39787 B raw)
 ```
 
 ## Layout
@@ -79,9 +79,9 @@ and give the lines their ranges back to tune again.
 | | |
 |---|---|
 | `src/gl.js` | WebGL2 context, programs, uniforms, the fullscreen triangle, instanced quad `Batch` |
-| `src/rainbow.js` | sky, clouds, hills, grass, castles and both bows — one fragment shader, one number in |
+| `src/rainbow.js` | three passes: the world (sky, clouds, hills, grass), a castle, the bow — one number in |
 | `src/unicorn.js` | one signed-distance unicorn, instanced — the swarms, and where they stand |
-| `src/main.js` | boot, fixed-step loop, and the balance |
+| `src/main.js` | boot, fixed-step loop, the balance, and the depth-ordered draw of herd, castles and bow |
 | `src/debug.js` | scrub `balance` by hand, switch features off. Never ships |
 | `scripts/build.js` | esbuild → shader-minifier-js → terser → Roadroller → zopfli zip, with the budget gate |
 | `scripts/glsl.js` | the shader minifier seam around shader-minifier-js |

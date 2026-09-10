@@ -20,10 +20,10 @@
 /**
  * @param {object} state
  * @param {() => void} reset
- * @param {string} shaderSrc the fragment shader
- * @param {(src: string) => void} recompile
+ * @param {Record<string, string>} sources the fragment shaders, by pass
+ * @param {(pass: string, src: string) => void} recompile
  */
-export function initDebug(state, reset, shaderSrc, recompile) {
+export function initDebug(state, reset, sources, recompile) {
     const el = document.createElement('div');
     el.style.cssText = 'position:fixed;left:8px;top:8px;padding:8px 10px;z-index:9;' +
         'background:#000a;color:#eee;font:12px/1.5 ui-monospace,monospace;border-radius:6px;' +
@@ -61,18 +61,21 @@ export function initDebug(state, reset, shaderSrc, recompile) {
     };
     tick();
 
-    // Feature switches: each `const int NAME_ON = 1` in the shader.
-    const features = [...shaderSrc.matchAll(/const int (\w+)_ON\s*=\s*1;/g)].map((m) => m[1]);
+    // Feature switches: each `const int NAME_ON = 1` in either shader.
+    const features = Object.values(sources).flatMap((src) =>
+        [...src.matchAll(/const int (\w+)_ON\s*=\s*1;/g)].map((m) => m[1]));
     const off = new Set((q.get('off') || '').split(',').filter(Boolean).map((f) => f.toUpperCase()));
     const fs = $('df');
     fs.innerHTML = features.map((f) =>
         `<label><input type=checkbox data-f=${f} ${off.has(f) ? '' : 'checked'}> ${f.toLowerCase()}</label> `).join('');
     fs.onchange = () => {
-        let src = shaderSrc;
-        for (const box of fs.querySelectorAll('input')) {
-            if (!box.checked) src = src.replace(new RegExp(`(const int ${box.dataset.f}_ON\\s*=\\s*)1;`), '$10;');
+        for (const pass in sources) {
+            let src = sources[pass];
+            for (const box of fs.querySelectorAll('input')) {
+                if (!box.checked) src = src.replace(new RegExp(`(const int ${box.dataset.f}_ON\\s*=\\s*)1;`), '$10;');
+            }
+            try { recompile(pass, src); } catch (e) { console.error(e); }
         }
-        try { recompile(src); } catch (e) { console.error(e); }
     };
     if (off.size) fs.onchange();
 }

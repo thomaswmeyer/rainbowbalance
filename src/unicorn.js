@@ -400,13 +400,25 @@ export function stepUnicorns(dt, balance) {
 }
 
 /** Draw every unicorn in one call. */
-export function drawUnicorns() {
+/**
+ * Draw the herd from index `from`, back to front, as far as the first animal
+ * whose depth is not behind `y`, and return that index — so main.js can draw
+ * something at depth y in between. The herd is sorted by depth once, at
+ * init; only x changes.
+ * @param {number} [from]
+ * @param {number} [y] screen y; everything with _y > y is drawn
+ * @returns {number}
+ */
+export function drawUnicorns(from = 0, y = -Infinity) {
     _batch.clear();
-    for (const un of _herd) {
+    let i = from;
+    for (; i < _herd.length && _herd[i]._y > y; i++) {
+        const un = _herd[i];
         // Sunicorns march right, rainicorns left, so both face the front line.
         _batch.push(un._x, un._y, un._side ? -un._s : un._s, un._ph, un._side);
     }
     gl.useProgram(_prog);
     _u({ uRes: [width, height], uTime: time });
     _batch.draw();
+    return i;
 }

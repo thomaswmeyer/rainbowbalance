@@ -93,7 +93,9 @@ for (const file of readdirSync(SRC).filter((f) => f.endsWith('.js'))) {
     for (const m of src.matchAll(SHADER_TEMPLATE)) {
         const body = m[1];
         if (/gl_Position/.test(body)) { vertexByFile.set(name, body); continue; }
-        shaders.push({ name, src: body });
+        // A second fragment shader in a file is named after the first.
+        const n = shaders.filter((s) => s.file === name).length;
+        shaders.push({ name: n ? `${name}${n + 1}` : name, file: name, src: body });
     }
 }
 
@@ -103,7 +105,7 @@ if (!sharedVertex) {
     process.exit(1);
 }
 for (const s of shaders) {
-    s.vs = vertexByFile.get(s.name) || sharedVertex;
+    s.vs = vertexByFile.get(s.file) || sharedVertex;
     s.attribs = attribsOf(s.vs);
     s.instances = CASES.map((c) => (INSTANCES[s.name] ? INSTANCES[s.name](c) : null));
     if (s.attribs.length && !INSTANCES[s.name]) {
