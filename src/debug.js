@@ -20,8 +20,9 @@
  * @param {() => void} reset unused now; kept so main.js need not care
  * @param {Record<string, string>} sources the fragment shaders, by pass
  * @param {(pass: string, src: string) => void} recompile
+ * @param {typeof import('./sim.js')} sim
  */
-export function initDebug(state, reset, sources, recompile) {
+export function initDebug(state, reset, sources, recompile, sim) {
     // ?b=0.5 freezes the balance wander at that balance, for screenshots.
     const q = new URLSearchParams(location.search);
     if (q.has('b')) {
@@ -39,7 +40,9 @@ export function initDebug(state, reset, sources, recompile) {
         frames++;
         const now = performance.now();
         if (now - since > 500) {
-            fps.textContent = Math.round(frames * 1000 / (now - since)) + ' fps';
+            let sun = 0, rain = 0;
+            for (const un of sim.herd) un._side ? rain++ : sun++;
+            fps.textContent = `${Math.round(frames * 1000 / (now - since))} fps · ${sun} v ${rain} · b ${state._balance.toFixed(2)}`;
             frames = 0; since = now;
         }
         requestAnimationFrame(tick);

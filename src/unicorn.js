@@ -35,6 +35,9 @@
  *   aBody.z    scale, signed by which way it faces (negative looks left)
  *   aBody.w    gallop phase, radians
  *   aSide      0 sunicorn (warm, pale), 1 rainicorn (goth)
+ *
+ * Who is where, and what they are doing, is sim.js's business; this file
+ * only draws what it is handed.
  */
 
 import { g, program, uniforms, gl, time, width, height, Batch } from './gl.js';
@@ -321,101 +324,32 @@ void main(){
 // The swarms
 // ---------------------------------------------------------------------------
 
-/**
- * Placeholder for the simulation, the same way `balance` in main.js is a
- * placeholder for the fight that will drive it. Two swarms press on a front
- * line; balance says where the line sits, and everyone marches to keep their
- * rank behind it. It moves for the same reason the weather does, so the herd
- * and the sky never disagree about who is winning.
- *
- * Nothing spawns and nothing dies, so nobody pops in or out of existence while
- * the number moves. When there is a real fight, this is what it replaces.
- */
-const HERD = 26;
-
-/** How far from the middle the front line can be pushed. */
-const FRONT = 0.55;
-/** The ground band the swarms stand on, front row to the horizon. */
-const NEAR_Y = -0.44, FAR_Y = 0.15;
-/** How big a unicorn is at the front row and at the back. */
-const NEAR_S = 0.155, FAR_S = 0.038;
-
-/** @type {{_x:number,_y:number,_s:number,_side:number,_rank:number,_ph:number}[]} */
-const _herd = [];
+import { MAX } from './sim.js';
 
 let _prog, _u, _batch;
 
-/** Compile the pass and lay the swarms out. Call once, after the context. */
+/** Compile the pass. Call once, after the context. */
 export function initUnicorns() {
     _prog = program(VS, FS);
     _u = uniforms(_prog, ['uRes', 'uTime']);
-    _batch = new Batch(_prog, [4, 1], HERD);
-
-    // A fixed layout, so a screenshot is comparable to the last one and the
-    // depth sort below can be done once instead of every frame.
-    let seed = 7;
-    const rnd = () => (seed = (seed * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff;
-
-    for (let i = 0; i < HERD; i++) {
-        const rank = (i >> 1) / (HERD >> 1);
-        const y = NEAR_Y + (FAR_Y - NEAR_Y) * (rnd() * 0.9 + rank * 0.1);
-        _herd.push({
-            _side: i & 1,                       // alternating, so both sides fill every depth
-            _rank: rank + rnd() * 0.12,
-            _y: y,
-            _s: NEAR_S + (FAR_S - NEAR_S) * ((y - NEAR_Y) / (FAR_Y - NEAR_Y)),
-            _x: 0,
-            _ph: rnd() * 6.283,
-        });
-    }
-    // Back to front: no depth buffer, so the draw order is the depth order.
-    _herd.sort((a, b) => b._y - a._y);
-    for (const un of _herd) un._x = _target(un, 0);
+    _batch = new Batch(_prog, [4, 1], MAX);
 }
 
-/**
- * Where this unicorn wants to be, given the front line.
- * @param {{_side:number,_rank:number}} un
- * @param {number} balance
- */
-function _target(un, balance) {
-    const front = balance * FRONT;
-    const back = 0.12 + un._rank * 1.0;
-    return un._side ? front + back : front - back;
-}
-
-/**
- * One fixed step. They walk toward their rank and gallop while they do it, so
- * a board that is holding steady settles and a board that is losing runs.
- * @param {number} dt seconds
- * @param {number} balance −1…+1
- */
-export function stepUnicorns(dt, balance) {
-    for (const un of _herd) {
-        const vx = (_target(un, balance) - un._x) * 2.2;
-        un._x += vx * dt;
-        // A walk at rest, a gallop when the line is moving.
-        un._ph += dt * (2.5 + Math.min(Math.abs(vx) * 26, 12));
-    }
-}
-
-/** Draw every unicorn in one call. */
 /**
  * Draw the herd from index `from`, back to front, as far as the first animal
  * whose depth is not behind `y`, and return that index — so main.js can draw
- * something at depth y in between. The herd is sorted by depth once, at
- * init; only x changes.
+ * something at depth y in between. The sim keeps the herd sorted by depth.
+ * @param {import('./sim.js').Unicorn[]} herd
  * @param {number} [from]
  * @param {number} [y] screen y; everything with _y > y is drawn
  * @returns {number}
  */
-export function drawUnicorns(from = 0, y = -Infinity) {
+export function drawUnicorns(herd, from = 0, y = -Infinity) {
     _batch.clear();
     let i = from;
-    for (; i < _herd.length && _herd[i]._y > y; i++) {
-        const un = _herd[i];
-        // Sunicorns march right, rainicorns left, so both face the front line.
-        _batch.push(un._x, un._y, un._side ? -un._s : un._s, un._ph, un._side);
+    for (; i < herd.length && herd[i]._y > y; i++) {
+        const un = herd[i];
+        _batch.push(un._x, un._y, un._face * un._s, un._ph, un._side);
     }
     gl.useProgram(_prog);
     _u({ uRes: [width, height], uTime: time });

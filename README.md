@@ -34,17 +34,15 @@ not in that loop; it only runs for the build.
 
 ## Where it stands
 
-The rainbow is in, and so are the unicorns. The simulation is not: `balance` is
-driven by a placeholder wander, and the player's whole verb is a click that
-pulls the board back toward level. The debug panel's slider drives both the bow
-and the swarms by hand, and `?b=0.5` opens the dev page in that mode at a given
-balance.
+The rainbow, the world and the herds are in, and the fight has begun.
+`sim.js` is the game: castles spawn fighters, a fighter seeks the nearest
+enemy nobody else has claimed and the two lock on each other, they close and
+fight horn to horn, and the loser is gone. Balance — the one number the sky,
+the bow and the castles read — is who has more fighters alive, smoothed. The
+player's verb is god mode: a touch strikes down the unicorn nearest to it.
 
-The swarms press on a front line that balance moves, so the herd and the
-weather never disagree about who is winning. Every unicorn is the same animal
-for now — the build constants are frozen in `unicorn.js`, named and used
-exactly where a per-instance value would go, so giving them diverse
-measurements later is a move from constant to attribute and nothing else.
+Next, in order: unclaimed castles to fight over, capture, what ends a run,
+deaths with some ceremony, unicorn classes beyond the fighter, then sound.
 
 The clouds are a volumetric march ported close to Valentin Galea's
 [XtBXDw](https://www.shadertoy.com/view/XtBXDw) (MIT), tuned by hand, on its
@@ -59,17 +57,16 @@ castle stands at each foot of the bow, the sunicorns' in sandstone and the
 rainicorns' in obsidian: one signed distance field, marched only inside its
 bounding sphere, built the way the buildings in dr2's
 [WtjSzR](https://www.shadertoy.com/view/WtjSzR) are (CC BY-NC-SA, nothing
-copied). The dev page shows
-the frame rate under the clock, and takes `?off=clouds,castle` to compile
-features out of the shaders, to see what each costs, and `?b=0.5` to freeze
-the balance for a screenshot. The slider panel that tuned the constants is in
-git history (commit 0e0063e): a slider per `const … // min max` line, "bake"
-to recompile with the values as constants, "copy GLSL" to get them back.
-Restore `src/debug.js` from there and give the lines their ranges back to
-tune again.
+copied). `?b=0.5` opens the dev page with the balance frozen at that value.
+The dev page shows the frame rate and the counts under the clock, and takes
+`?off=clouds,castle` to compile features out of the shaders, to see what each
+costs. The slider panel that tuned the constants is in git history (commit
+0e0063e): a slider per `const … // min max` line, "bake" to recompile with
+the values as constants, "copy GLSL" to get them back. Restore `src/debug.js`
+from there and give the lines their ranges back to tune again.
 
 ```
-[build]  6196 / 13312 bytes — 7116 free (53.5%)
+[build]  6465 / 13312 bytes — 6847 free (51.4%)
   esbuild    15248 B
   terser     14775 B  (-3%)
   roadroller  7626 B  (-48%)
@@ -82,8 +79,9 @@ tune again.
 |---|---|
 | `src/gl.js` | WebGL2 context, programs, uniforms, the fullscreen triangle, instanced quad `Batch` |
 | `src/rainbow.js` | three passes: the world (sky, clouds, hills, grass), a castle, the bow — one number in |
-| `src/unicorn.js` | one signed-distance unicorn, instanced — the swarms, and where they stand |
-| `src/main.js` | boot, fixed-step loop, the balance, and the depth-ordered draw of herd, castles and bow |
+| `src/unicorn.js` | one signed-distance unicorn, instanced — draws the herd it is handed |
+| `src/sim.js` | the fight: castles spawn, fighters pair off and fight, balance is who is left |
+| `src/main.js` | boot, fixed-step loop, the page and clock, god mode, and the depth-ordered draw of herd, castles and bow |
 | `src/debug.js` | frame rate under the clock, and the `?b=` and `?off=` URL switches. Never ships |
 | `scripts/build.js` | esbuild → shader-minifier-js → terser → Roadroller → zopfli zip, with the budget gate. The page is a skeleton; `main.js` makes the markup so it is packed, not just deflated |
 | `scripts/glsl.js` | the shader minifier seam around shader-minifier-js |
@@ -134,9 +132,8 @@ tune again.
 
 ## What is left
 
-- [ ] Sim: unicorns as instanced quads, castles, spawn waves, capture, the
-      heuristic AI. `Batch` in `gl.js` is there for it and is not yet used.
-- [ ] Replace the placeholder wander in `main.js:step` with that sim.
+- [ ] Unclaimed castles, capture, and what ends a run.
+- [ ] Deaths with some ceremony; unicorn classes beyond the fighter.
 - [ ] Procedural music, tied to the balance state — melody in while level,
       detuning as it frays.
 - [ ] Title, game-over and score, without shipping a font.
