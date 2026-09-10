@@ -548,6 +548,44 @@ function capture() {
             `a second took ${(10 - SUN_CASTLE._t).toFixed(3)}s off the spawn`);
     }
 
+    // The middle castle is an outpost, not a barracks. Taking it is worth
+    // having — the recruits, the ground half way to the last castle
+    // standing, and the denying of it — but at a home castle's rate it
+    // would double its holder's spawning as well.
+    {
+        stage([]);
+        for (const c of sim.castles) c._t = 1e9;
+        MID_CASTLE._side = 0;
+        MID_CASTLE._own = true;
+        MID_CASTLE._cap = T.CAP;
+        MID_CASTLE._t = SUN_CASTLE._t = 10;
+        play(60);
+        const outpost = 10 - MID_CASTLE._t, home = 10 - SUN_CASTLE._t;
+        // Half a home castle's rate at the outside, and whatever the tuning
+        // says besides: the bound is what makes this a test of the rule
+        // rather than of the constant agreeing with itself.
+        ok('the middle castle turns recruits out slower than a home castle',
+            Math.abs(home - 1) < 0.02 && outpost < home * 0.5
+            && Math.abs(outpost - T.OUTPOST) < 0.02,
+            `a second took ${outpost.toFixed(3)}s off the middle's spawn` +
+            ` against ${home.toFixed(3)}s off a home castle's`);
+
+        // And in recruits, over a minute of it. The whole field is handed to
+        // the sunicorns first so that nothing can change hands while they
+        // are counted.
+        const count = (castle) => {
+            stage([]);
+            for (const c of sim.castles) { c._side = 0; c._own = true; c._cap = T.CAP; c._t = 1e9; }
+            castle._t = 0.01;
+            play(60 * 60);
+            return sim.herd.length;
+        };
+        const outposts = count(MID_CASTLE), homes = count(SUN_CASTLE);
+        ok('and it turns out about that fraction of the recruits',
+            outposts < homes * 0.5 && Math.abs(outposts / homes - T.OUTPOST) < 0.05,
+            `${outposts} out of the middle against ${homes} out of a home castle`);
+    }
+
     // Where a fighter with nothing to fight walks: the nearest castle its
     // side does not hold outright, which is what takes both sides to the
     // middle and what brings one back to a claim it left half made.

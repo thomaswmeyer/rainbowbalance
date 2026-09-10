@@ -45,6 +45,20 @@ const FOOT_X = 0.6965;
  * line the bow's feet make.
  */
 const MID_Y = 0.02;
+/**
+ * What the middle castle turns recruits out at, against a home castle's
+ * rate. It is an outpost, not a barracks: at a home castle's rate it doubled
+ * its holder's spawning, from ground half a field closer to the last castle
+ * standing, with both corners of the triangle then marching on the third.
+ * A third of the rate is still worth taking — the recruits, the forward
+ * ground, and the denying of it — without being a second army.
+ *
+ * It is not what makes a run end quickly, and the measurement is worth
+ * keeping: with the middle spawning nothing at all, a run still ends eight
+ * seconds after the middle falls, because a claim takes half a minute of
+ * standing on a castle unopposed and by then the field is already won.
+ */
+const OUTPOST = 1 / 3;
 
 /** The ground band, front row to the horizon, and a unicorn's size across it. */
 export const NEAR_Y = -0.44, FAR_Y = 0.15;
@@ -156,6 +170,8 @@ export const herd = [];
  * @property {number} _side whose it is now: 0, 1, or −1 for nobody's
  * @property {number} _cap the claim on it, 0…CAP
  * @property {boolean} _own the claim is full, so it spawns
+ * @property {number} _rate how fast it turns recruits out, against a home
+ *   castle's rate
  * @property {number} _t seconds to its next spawn
  */
 
@@ -166,9 +182,9 @@ export const herd = [];
  * @type {Castle[]}
  */
 export const castles = [
-    { _x: -FOOT_X, _y: FOOT, _from: 0, _side: 0, _cap: CAP, _own: true, _t: 1 },
-    { _x: 0, _y: MID_Y, _from: -1, _side: -1, _cap: 0, _own: false, _t: 1 },
-    { _x: FOOT_X, _y: FOOT, _from: 1, _side: 1, _cap: CAP, _own: true, _t: 1 },
+    { _x: -FOOT_X, _y: FOOT, _from: 0, _side: 0, _cap: CAP, _own: true, _rate: 1, _t: 1 },
+    { _x: 0, _y: MID_Y, _from: -1, _side: -1, _cap: 0, _own: false, _rate: OUTPOST, _t: 1 },
+    { _x: FOOT_X, _y: FOOT, _from: 1, _side: 1, _cap: CAP, _own: true, _rate: 1, _t: 1 },
 ];
 
 /** −1 rainicorns ahead … +1 sunicorns ahead, smoothed. */
@@ -192,7 +208,7 @@ const rnd = () => (seed = (seed * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff
  */
 export const TUNE = typeof __DEBUG__ === 'undefined' || __DEBUG__
     ? { HP, HURT, HEAL, LOOK, CROWD, LONG, DEEP, HIT, DMG, REACH, MAX, NEAR_Y, FAR_Y,
-        SPAWN, SCALE0, CAP, CAP_R, TAKE, BREAK, MOB, LANE }
+        SPAWN, SCALE0, CAP, CAP_R, TAKE, BREAK, MOB, LANE, OUTPOST }
     : null;
 const sizeAt = (y) => NEAR_S + (FAR_S - NEAR_S) * ((y - NEAR_Y) / (FAR_Y - NEAR_Y));
 /**
@@ -374,9 +390,10 @@ export function step(dt) {
 
     for (const c of castles) {
         if (!c._own) continue;
-        // A castle spawns at the rate of the claim on it, so one that is
-        // being broken falls quiet a while before it changes hands.
-        c._t -= dt * c._cap / CAP;
+        // A castle spawns at its own rate, and at the rate of the claim on
+        // it besides, so one that is being broken falls quiet a while
+        // before it changes hands.
+        c._t -= dt * c._rate * c._cap / CAP;
         if (c._t <= 0 && herd.length < MAX) { spawn(c); c._t = SPAWN; }
     }
 

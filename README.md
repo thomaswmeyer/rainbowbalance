@@ -68,7 +68,12 @@ worth fighting over: the claim on it has to be broken first, which leaves it
 nobody's and silent, and only then can a claim of your own be built up to
 full — breaking goes twice as fast as building. A castle spawns at the rate
 of the claim on it, so one being broken falls quiet well before it changes
-hands, and it is no place to heal at until its claim is full again. All of
+hands, and it is no place to heal at until its claim is full again. The
+middle castle spawns at a third of a home castle's rate on top of that: it
+is an outpost, not a barracks. Held at the full rate it doubled its holder's
+spawning and put it half a field closer to the last castle standing, both
+corners of the triangle marching on the third, which is more than a castle
+in the middle of the ground ought to be worth. All of
 that is on the field to read: a castle nobody holds is bare grey stone, and
 the claim on one is how much of its holder's sandstone or obsidian has come
 in, so a castle changing hands bleaches and then takes the other colour on.
@@ -94,7 +99,15 @@ the wall stays spread along it instead of packing back onto the doorstep.
 
 Capture has a consequence worth writing down: a side that loses a castle
 loses the spawns it needed to take one back, so a board left to itself is
-decided inside a minute. Keeping it level is the player's job, and that is
+decided inside a minute. Which is not the same as capture deciding it. In
+an unattended run the middle falls at 43s with the field already standing
+12 against 2, and the last castle follows eight seconds later — and it still
+follows eight seconds later with the middle castle spawning nothing at all.
+A claim takes half a minute of standing on a castle unopposed, so completing
+one is a thing a side can only do once it has already won the field. Capture
+reads the game rather than deciding it, and the fight for the middle is
+either a permanent tug of war — with the sides held within two fighters of
+each other it was never once taken in ten minutes — or a formality. Keeping it level is the player's job, and that is
 now the game. It is also why `npm run sim`'s long run plays the player,
 badly — a smite on the leading side every second and a half while it is two
 fighters ahead, the lightest hand that keeps a run going — since otherwise
@@ -130,10 +143,10 @@ the values as constants, "copy GLSL" to get them back. Restore `src/debug.js`
 from there and give the lines their ranges back to tune again.
 
 ```
-[build]  7855 / 13312 bytes — 5457 free (41.0%)
-  esbuild    22122 B
-  terser     20693 B  (-6%)
-  roadroller 10229 B  (-51%)
+[build]  7880 / 13312 bytes — 5432 free (40.8%)
+  esbuild    22298 B
+  terser     20713 B  (-7%)
+  roadroller 10247 B  (-51%)
   glsl       12530 B  (-71% of 43179 B raw)
 ```
 
