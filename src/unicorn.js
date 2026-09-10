@@ -37,7 +37,8 @@
  *   aSide      0 sunicorn (warm, pale), 1 rainicorn (goth)
  *   aState.x   fighting, 0…1: the gallop fades out, the feet plant, and the
  *              neck swings down at the enemy with the phase
- *   aState.y   health, 0…1, for the bar over the horn
+ *   aState.y   health, 0…1, for the bar over the horn; 0 down to −1 is the
+ *              fade-out after death
  *
  * Who is where, and what they are doing, is sim.js's business; this file
  * only draws what it is handed.
@@ -334,7 +335,7 @@ void main(){
 
   // Health, over the horn, while it is hurt. It fills left to right on the
   // screen whichever way the animal faces.
-  if (vHp < 0.999) {
+  if (vHp > 0.0 && vHp < 0.999) {
     vec2 bp = vec2(p.x * vFlip, p.y - 0.78);
     vec2 bd = abs(bp) - vec2(0.24, 0.022);
     float box = max(bd.x, bd.y);
@@ -344,7 +345,8 @@ void main(){
   }
 
   if (c.a < 0.002) discard;
-  o = c;
+  // Below zero health is the fade-out: −1 is gone.
+  o = c * (vHp > 0.0 ? 1.0 : 1.0 + vHp);
 }`;
 
 // ---------------------------------------------------------------------------
@@ -376,7 +378,8 @@ export function drawUnicorns(herd, from = 0, y = -Infinity) {
     let i = from;
     for (; i < herd.length && herd[i]._y > y; i++) {
         const un = herd[i];
-        _batch.push(un._x, un._y, un._face * un._s, un._ph, un._side, un._fight, un._hp / HP);
+        _batch.push(un._x, un._y, un._face * un._s, un._ph, un._side, un._fight,
+            un._hp > 0 ? un._hp / HP : un._hp);
     }
     gl.useProgram(_prog);
     _u({ uRes: [width, height], uTime: time });

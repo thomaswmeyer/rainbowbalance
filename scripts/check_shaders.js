@@ -49,6 +49,8 @@ const OUTLIERS = 1e-5;
 const INSTANCES = {
     // x, y at the hooves; scale, signed by facing; phase; side; fighting; health.
     unicorn: (c) => [0, -0.14, 0.62, c.uTime * 1.7, c.uBalance > 0 ? 1 : 0, 0.6, 0.45],
+    // x, y; size; age; side; place on the mane's hue sweep.
+    sparks: (c) => [0, 0, 0.3, 0.3, c.uBalance > 0 ? 1 : 0, 0.5],
 };
 
 /** Component count of each GLSL type an attribute can have. */
@@ -92,10 +94,12 @@ for (const file of readdirSync(SRC).filter((f) => f.endsWith('.js'))) {
     const src = readFileSync(join(SRC, file), 'utf8');
     for (const m of src.matchAll(SHADER_TEMPLATE)) {
         const body = m[1];
+        // A fragment shader is drawn with the vertex shader last seen in its
+        // file, so a file may hold several pairs.
         if (/gl_Position/.test(body)) { vertexByFile.set(name, body); continue; }
         // A second fragment shader in a file is named after the first.
         const n = shaders.filter((s) => s.file === name).length;
-        shaders.push({ name: n ? `${name}${n + 1}` : name, file: name, src: body });
+        shaders.push({ name: n ? `${name}${n + 1}` : name, file: name, src: body, vs: vertexByFile.get(name) });
     }
 }
 
@@ -105,7 +109,7 @@ if (!sharedVertex) {
     process.exit(1);
 }
 for (const s of shaders) {
-    s.vs = vertexByFile.get(s.file) || sharedVertex;
+    s.vs = s.vs || sharedVertex;
     s.attribs = attribsOf(s.vs);
     s.instances = CASES.map((c) => (INSTANCES[s.name] ? INSTANCES[s.name](c) : null));
     if (s.attribs.length && !INSTANCES[s.name]) {

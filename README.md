@@ -38,7 +38,8 @@ The rainbow, the world and the herds are in, and the fight has begun.
 `sim.js` is the game: castles spawn fighters, a fighter seeks the nearest
 enemy nobody else has claimed and the two lock on each other, they close and
 fight horn to horn — feet planted, necks lunging, a health bar over the
-horn — and the loser is gone. Balance — the one number the sky,
+horn — and the loser fades out over half a second in a burst of sparks in
+its own colours. Balance — the one number the sky,
 the bow and the castles read — is who has more fighters alive, smoothed. The
 player's verb is god mode: a touch strikes down the unicorn nearest to it.
 
@@ -67,7 +68,7 @@ the values as constants, "copy GLSL" to get them back. Restore `src/debug.js`
 from there and give the lines their ranges back to tune again.
 
 ```
-[build]  6597 / 13312 bytes — 6715 free (50.4%)
+[build]  7069 / 13312 bytes — 6243 free (46.9%)
   esbuild    15248 B
   terser     14775 B  (-3%)
   roadroller  7626 B  (-48%)
@@ -81,6 +82,7 @@ from there and give the lines their ranges back to tune again.
 | `src/gl.js` | WebGL2 context, programs, uniforms, the fullscreen triangle, instanced quad `Batch` |
 | `src/rainbow.js` | three passes: the world (sky, clouds, hills, grass), a castle, the bow — one number in |
 | `src/unicorn.js` | one signed-distance unicorn, instanced — draws the herd it is handed |
+| `src/sparks.js` | the burst a unicorn goes out in, instanced dots in its own colours |
 | `src/sim.js` | the fight: castles spawn, fighters pair off and fight, balance is who is left |
 | `src/main.js` | boot, fixed-step loop, the page and clock, god mode, and the depth-ordered draw of herd, castles and bow |
 | `src/debug.js` | frame rate under the clock, and the `?b=` and `?off=` URL switches. Never ships |
@@ -134,7 +136,7 @@ from there and give the lines their ranges back to tune again.
 ## What is left
 
 - [ ] Unclaimed castles, capture, and what ends a run.
-- [ ] Deaths with some ceremony; unicorn classes beyond the fighter.
+- [ ] Unicorn classes beyond the fighter.
 - [ ] Procedural music, tied to the balance state — melody in while level,
       detuning as it frays.
 - [ ] Title, game-over and score, without shipping a font.

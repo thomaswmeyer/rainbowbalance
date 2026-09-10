@@ -45,8 +45,9 @@ const REACH = 0.7;
  * @property {number} _side 0 sunicorn, 1 rainicorn
  * @property {number} _face +1 looks right, -1 looks left
  * @property {number} _ph gallop phase
- * @property {number} _hp
+ * @property {number} _hp above 0 alive; 0 down to −1 is the half-second it fades out
  * @property {number} _fight 0…1, the fighting pose, eased so it does not snap
+ * @property {boolean} [_fell] reported to `fallen` already
  * @property {Unicorn|null} _foe
  */
 
@@ -64,6 +65,9 @@ export const castles = [
 
 /** −1 rainicorns ahead … +1 sunicorns ahead, smoothed. */
 export let balance = 0;
+
+/** Who fell this step, for main.js to make sparks of. Drained by the reader. */
+export const fallen = [];
 
 let seed = 7;
 const rnd = () => (seed = (seed * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff;
@@ -99,7 +103,7 @@ function spawn(castle) {
 function seek(un) {
     let best = null, bd = Infinity;
     for (const e of herd) {
-        if (e._side === un._side || (e._foe && e._foe !== un)) continue;
+        if (e._side === un._side || e._hp <= 0 || (e._foe && e._foe !== un)) continue;
         const d = (e._x - un._x) ** 2 + (e._y - un._y) ** 2;
         if (d < bd) { bd = d; best = e; }
     }
@@ -118,7 +122,18 @@ export function step(dt) {
     }
 
     for (const un of herd) {
-        if (un._hp <= 0) continue;
+        if (un._hp <= 0) {
+            // Fading out over half a second. The moment it fell it is
+            // reported, and whoever it was fighting is free to seek again.
+            if (!un._fell) {
+                un._fell = true;
+                fallen.push(un);
+                if (un._foe) { un._foe._foe = null; un._foe = null; }
+            }
+            un._hp -= dt * 2;
+            un._fight = Math.max(0, un._fight - dt * 4);
+            continue;
+        }
         if (!un._foe || un._foe._hp <= 0) {
             un._foe = seek(un);
             if (un._foe) un._foe._foe = un;
@@ -149,20 +164,14 @@ export function step(dt) {
         un._ph += dt * (fighting ? 6.3 : 2.5 + Math.min(v * 55, 12));
     }
 
-    // The fallen. Whoever was fighting them is free to seek again.
-    for (let i = herd.length; i--;) {
-        if (herd[i]._hp <= 0) {
-            const dead = herd[i];
-            for (const un of herd) if (un._foe === dead) un._foe = null;
-            herd.splice(i, 1);
-        }
-    }
+    // Gone once faded.
+    for (let i = herd.length; i--;) if (herd[i]._hp <= -1) herd.splice(i, 1);
 
     // Back to front, since the draw order is the depth order.
     herd.sort((a, b) => b._y - a._y);
 
     let sun = 0, rain = 0;
-    for (const un of herd) un._side ? rain++ : sun++;
+    for (const un of herd) if (un._hp > 0) un._side ? rain++ : sun++;
     const target = (sun - rain) / Math.max(sun + rain, 6);
     balance += (target - balance) * Math.min(1, dt * 1.5);
 }
@@ -175,6 +184,7 @@ export function step(dt) {
 export function smite(x, y) {
     let best = null, bd = 0.02;
     for (const un of herd) {
+        if (un._hp <= 0) continue;
         const d = (un._x - x) ** 2 + (un._y - (y + un._s * 0.4)) ** 2;
         if (d < bd) { bd = d; best = un; }
     }
