@@ -7,7 +7,7 @@
  * last, over everything, premultiplied.
  *
  * Instance data, six floats: x, y, size, age 0…1; side; u, a place along the
- * mane's hue sweep, or −1 for the body colour.
+ * mane's hue sweep, −1 for the body colour, or −2 for white.
  */
 
 import { g, program, uniforms, gl, time, width, height, Batch } from './gl.js';
@@ -46,6 +46,7 @@ vec3 hsv(float h, float s, float v){
 // The unicorn shader's mane colours, and its body colours with the
 // rainicorn's lifted out of the near-black, which does not read as a spark.
 vec3 colour(float u, float side, float t){
+  if (u < -1.5) return vec3(1.0);                 // a promotion's white shower
   if (u < 0.0) return mix(vec3(0.99, 0.95, 0.88), vec3(0.55, 0.40, 0.75), side);
   vec3 sun = hsv(fract(0.95 + u * 0.45 + t * 0.03), 0.7, 1.0);
   vec3 rain = hsv(0.70 + u * 0.25 + 0.03 * sin(t), 0.85, 0.9);
@@ -86,6 +87,28 @@ export function burst(x, y, s, side) {
             _s: (0.004 + Math.random() * 0.007) * k,
             _age: 0, _life: 0.5 + Math.random() * 0.5,
             _side: side, _u: i & 1 ? Math.random() : -1,
+        });
+    }
+}
+
+/**
+ * A unicorn comes up a level here: a white shower rising off it.
+ * @param {number} x
+ * @param {number} y at the hooves
+ * @param {number} s its size
+ */
+export function shower(x, y, s) {
+    const k = s / 0.155;
+    for (let i = 0; i < 24 && _sparks.length < CAP; i++) {
+        const a = Math.random() * 6.283;
+        _sparks.push({
+            _x: x + (Math.random() - 0.5) * 1.2 * s,
+            _y: y + Math.random() * 1.5 * s,
+            _vx: Math.cos(a) * 0.06 * k,
+            _vy: (0.22 + Math.random() * 0.3) * k,
+            _s: (0.003 + Math.random() * 0.005) * k,
+            _age: 0, _life: 0.7 + Math.random() * 0.5,
+            _side: 0, _u: -2,
         });
     }
 }

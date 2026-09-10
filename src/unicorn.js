@@ -353,7 +353,7 @@ void main(){
 // The swarms
 // ---------------------------------------------------------------------------
 
-import { MAX, HP } from './sim.js';
+import { MAX } from './sim.js';
 
 let _prog, _u, _batch;
 
@@ -379,7 +379,7 @@ export function drawUnicorns(herd, from = 0, y = -Infinity) {
     for (; i < herd.length && herd[i]._y > y; i++) {
         const un = herd[i];
         _batch.push(un._x, un._y, un._face * un._s, un._ph, un._side, un._fight,
-            un._hp > 0 ? un._hp / HP : un._hp);
+            un._hp > 0 ? un._hp / un._max : un._hp);
     }
     gl.useProgram(_prog);
     _u({ uRes: [width, height], uTime: time });

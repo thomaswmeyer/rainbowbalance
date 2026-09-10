@@ -15,7 +15,7 @@ import { initGl, resize, setTime } from './gl.js';
 import { initRainbow, drawRainbow, drawBow, drawCastle, recompile, SOURCES, FOOT } from './rainbow.js';
 import { initUnicorns, drawUnicorns } from './unicorn.js';
 import * as sim from './sim.js';
-import { initSparks, burst, stepSparks, drawSparks } from './sparks.js';
+import { initSparks, burst, shower, stepSparks, drawSparks } from './sparks.js';
 
 // --- the balance ------------------------------------------------------------
 
@@ -40,6 +40,8 @@ function step(dt) {
     sim.step(dt);
     for (const un of sim.fallen) burst(un._x, un._y, un._s, un._side);
     sim.fallen.length = 0;
+    for (const un of sim.promoted) shower(un._x, un._y, un._s);
+    sim.promoted.length = 0;
     stepSparks(dt);
     if (!state._manual) state._balance = sim.balance;
 }
