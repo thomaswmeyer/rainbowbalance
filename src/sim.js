@@ -9,6 +9,10 @@
  * in which case it finishes that fight first. So a unicorn can be jumped
  * from behind while it is busy, and two can gang up on one, but no more.
  *
+ * A fight is a sequence of swings, one a second, at the bottom of the neck's
+ * lunge, each of which may miss. That is what keeps two evenly matched
+ * unicorns from draining each other smoothly and dying in the same instant.
+ *
  * With no enemy in sight a fighter walks toward the nearest enemy castle,
  * which is what brings the two sides into contact, and is where capture will
  * happen when there is capture.
@@ -34,9 +38,9 @@ const NEAR_S = 0.155, FAR_S = 0.038;
 export const MAX = 64;
 /** Seconds between a castle's spawns. */
 const SPAWN = 2.2;
-/** Hit points at the first level, damage per second, walking speed. */
+/** Hit points at the first level, and walking speed in screen units. */
 const HP = 6;
-const DPS = 1.2, SPEED = 0.22;
+const SPEED = 0.22;
 /**
  * Veterancy. A unicorn starts at half size and wins its way up: every fight
  * it wins and then walks off to heal from earns it a level. A level adds a
@@ -55,6 +59,16 @@ const REACH = 0.7;
 const LOOK = 0.4;
 /** How many can set upon one unicorn at once. */
 const CROWD = 2;
+/**
+ * The ground a unicorn takes up, in its own lengths: as long as it is, half
+ * that deep. Nothing else stands in it — a unicorn that finds one in its way
+ * goes around in depth rather than through.
+ */
+const LONG = 1.25, DEEP = 0.625;
+/** A swing connects this often, and takes off this much when it does. */
+const HIT = 0.65, DMG = 1.5;
+/** Radians a second the neck lunges while fighting: one swing a second. */
+const LUNGE = 6.2832;
 
 /**
  * @typedef {object} Unicorn
@@ -99,9 +113,22 @@ export const promoted = [];
 
 let seed = 7;
 const rnd = () => (seed = (seed * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff;
+
+/**
+ * The tuning, for the headless harness to check itself against. The guard is
+ * what keeps it out of the build: esbuild replaces __DEBUG__ with false, so
+ * the whole object folds to null and goes. In Node, where nothing defines
+ * __DEBUG__ at all, the harness gets the real thing.
+ */
+export const TUNE = typeof __DEBUG__ === 'undefined' || __DEBUG__
+    ? { HP, HURT, HEAL, LOOK, CROWD, LONG, DEEP, HIT, DMG, REACH, MAX, NEAR_Y, FAR_Y }
+    : null;
 const sizeAt = (y) => NEAR_S + (FAR_S - NEAR_S) * ((y - NEAR_Y) / (FAR_Y - NEAR_Y));
 
 export function reset() {
+    // The same seed every time: a run is reproducible, which is what makes
+    // the headless harness worth anything.
+    seed = 7;
     herd.length = 0;
     fallen.length = 0;
     promoted.length = 0;
@@ -140,9 +167,13 @@ function spawn(castle) {
  */
 function aim(un, foe) {
     if (un._foe === foe) return;
-    if (un._foe) un._foe._att--;
+    // The count is of the living closing on the living, so a claim is only
+    // given back if the count actually holds it. Undoing one it never held —
+    // a unicorn that fell this step, or one whose target did — left a gap
+    // that let a fourth in past a cap of two.
+    if (un._foe && un._hp > 0 && un._foe._hp > 0) un._foe._att--;
     un._foe = foe;
-    if (foe) foe._att++;
+    if (foe && un._hp > 0 && foe._hp > 0) foe._att++;
 }
 
 /**
@@ -215,11 +246,11 @@ export function step(dt) {
                 // looking for the next fight.
                 for (const w of herd) {
                     if (w._foe !== un) continue;
-                    w._foe = null;
+                    aim(w, null);
                     w._eng = false;
                     if (w._hp > 0 && w._hp < w._max * HURT) w._rest = true;
                 }
-                un._foe = null;
+                aim(un, null);
             }
             un._hp -= dt * 2;
             un._fight = Math.max(0, un._fight - dt * 4);
@@ -251,26 +282,30 @@ export function step(dt) {
         // further out than the stop, so a pair that eases to a halt at the
         // stop is fighting by the time it gets there.
         const stop = un._foe ? REACH * (un._s + un._foe._s) : rest ? 0.012 : 0.08;
-        const fighting = un._foe && d < stop * 1.3;
+        // Once horn to horn it takes more than a shove from the crowd to
+        // break it off, or the pair spend the fight stepping in and out of
+        // range of each other.
+        const fighting = un._foe && d < stop * (un._eng ? 1.7 : 1.3);
         // Standing on the castle, unmolested: four times the healing, and no
-        // walking. Something to fight ends that, wherever it is standing.
-        const healing = rest && !un._foe && d <= stop;
+        // walking. The hold is roomier than the stop so that being shoved
+        // aside by another of its own does not send it walking back.
+        const healing = rest && !un._foe && d <= 0.07;
         let v = 0;
-        if (healing) {
-            // Squarely on it, rather than creeping the last hair toward it.
-            un._x = goal._x;
-            un._y = goal._y;
-        } else if (d > stop) {
+        if (d > stop) {
             v = SPEED * Math.min(1, (d - stop) / 0.05 + 0.15);
-            un._x += dx / d * v * dt;
-            un._y += dy / d * v * dt;
+            if (!un._foe && !rest) {
+                // Marching on a castle it cannot yet fight anyone at: it
+                // holds its own depth and walks across, rather than being
+                // funnelled onto the castle's exact line with everyone else.
+                un._x += Math.sign(dx) * v * dt;
+            } else {
+                un._x += dx / d * v * dt;
+                un._y += dy / d * v * dt;
+            }
         }
         // Horn to horn; and out of a fight, healing, four times as fast at home.
         un._eng = !!fighting;
-        if (fighting) {
-            un._foe._hp -= DPS * dt * (0.7 + 0.6 * rnd());
-            un._foe._hit = un;
-        } else un._hp = Math.min(un._max, un._hp + un._max / HEAL * dt * (healing ? 4 : 1));
+        if (!fighting) un._hp = Math.min(un._max, un._hp + un._max / HEAL * dt * (healing ? 4 : 1));
         // Whole again, at a castle it withdrew to: that is a level. It grows
         // into it over the next second and goes back to the fight.
         if (un._rest && un._hp >= un._max) {
@@ -295,11 +330,27 @@ export function step(dt) {
             let ph = un._ph % 6.2832;
             if (ph > 3.1416) ph -= 6.2832;
             un._ph = ph * Math.max(0, 1 - dt * 3);
+        } else if (fighting) {
+            // The blow lands at the bottom of the lunge, or misses there. A
+            // pair spawned with different phases swing out of step, which is
+            // most of why they no longer fall together.
+            const next = un._ph + dt * LUNGE;
+            if (Math.floor(next / 6.2832 - 0.5) > Math.floor(un._ph / 6.2832 - 0.5)
+                && rnd() < HIT) {
+                // Never past zero in one blow: zero is where the fade
+                // starts, and a blow that overshot it took the unicorn out
+                // of the herd before anyone noticed it had fallen.
+                un._foe._hp = Math.max(0, un._foe._hp - DMG * (0.75 + 0.5 * rnd()));
+                un._foe._hit = un;
+            }
+            un._ph = next;
         } else {
-            // A walk at rest, a gallop on the move; a lunge a second in a fight.
-            un._ph += dt * (fighting ? 6.3 : 2.5 + Math.min(v * 55, 12));
+            // A walk at rest, a gallop on the move.
+            un._ph += dt * (2.5 + Math.min(v * 55, 12));
         }
     }
+
+    separate();
 
     // Gone once faded.
     for (let i = herd.length; i--;) if (herd[i]._hp <= -1) herd.splice(i, 1);
@@ -314,6 +365,72 @@ export function step(dt) {
 }
 
 /**
+ * Nobody stands in anyone else's ground. The shove is in depth: a unicorn
+ * blocked head-on goes around rather than through, which is also the only
+ * direction that does not undo the walk it is making. One pinned at the
+ * edge of the band pushes the other twice as far, and a pair with no depth
+ * left to give gives way sideways.
+ */
+function separate() {
+    // Resolving one pair can push a unicorn into another, so it takes a few
+    // sweeps to settle. The last one gives way sideways instead: whatever a
+    // crowd could not solve by stepping aside in depth, it solves by
+    // spreading out along the field.
+    sweep(0); sweep(0); sweep(0); sweep(1);
+}
+
+/** @param {number} sideways */
+function sweep(sideways) {
+    for (let i = 0; i < herd.length; i++) {
+        const a = herd[i];
+        if (a._hp <= 0) continue;
+        for (let j = i + 1; j < herd.length; j++) {
+            const b = herd[j];
+            if (b._hp <= 0) continue;
+            const w = (a._s + b._s) * 0.5;
+            const oy = w * DEEP - Math.abs(b._y - a._y);
+            if (oy <= 0) continue;
+            const ox = w * LONG - Math.abs(b._x - a._x);
+            if (ox <= 0) continue;
+
+            if (sideways) {
+                // Only for what stepping aside could not solve. A pair that
+                // depth has already parted is left alone, or every meeting
+                // would end with both of them backing off as well.
+                if (oy < w * DEEP * 0.05) continue;
+                const sx = b._x === a._x ? (i & 1 ? 1 : -1) : Math.sign(b._x - a._x);
+                a._x -= sx * ox * 0.5;
+                b._x += sx * ox * 0.5;
+                continue;
+            }
+            // Away from each other in depth; a dead heat breaks on the index.
+            const dir = b._y === a._y ? (i & 1 ? 1 : -1) : Math.sign(b._y - a._y);
+            let da = -dir * oy * 0.5, db = dir * oy * 0.5;
+            // One of them pinned at the edge of the band pushes the other
+            // twice as far.
+            if (a._y + da < NEAR_Y || a._y + da > FAR_Y) { db -= da; da = 0; }
+            if (b._y + db < NEAR_Y || b._y + db > FAR_Y) { da -= db; db = 0; }
+            const ay = Math.min(FAR_Y, Math.max(NEAR_Y, a._y + da));
+            const by = Math.min(FAR_Y, Math.max(NEAR_Y, b._y + db));
+            // What the edge of the band ate, they give way sideways instead.
+            // This is what stops a crowd with no depth left to give from
+            // standing inside itself.
+            const left = oy - Math.abs(by - ay) + Math.abs(b._y - a._y);
+            a._y = ay;
+            b._y = by;
+            a._s = sizeAt(a._y) * a._scale;
+            b._s = sizeAt(b._y) * b._scale;
+            if (left > 0) {
+                const sx = b._x === a._x ? (i & 1 ? 1 : -1) : Math.sign(b._x - a._x);
+                const give = Math.min(left / (w * DEEP), 1) * ox * 0.5;
+                a._x -= sx * give;
+                b._x += sx * give;
+            }
+        }
+    }
+}
+
+/**
  * God mode: strike down the unicorn nearest the point, if one is near.
  * @param {number} x in the herd's units
  * @param {number} y
@@ -325,5 +442,5 @@ export function smite(x, y) {
         const d = (un._x - x) ** 2 + (un._y - (y + un._s * 0.4)) ** 2;
         if (d < bd) { bd = d; best = un; }
     }
-    if (best) best._hp = 0;
+    if (best) best._hp = 0;   // zero, not below: that is where the fade starts
 }

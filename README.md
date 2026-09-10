@@ -17,6 +17,7 @@ npm run dev      # http://localhost:8080 — raw ES modules, no build, debug pan
 npm run build    # → dist/index.html and dist/endlessrainbows.zip, size-gated
 npm run size     # the byte count on its own
 npm run check    # do the minified shaders render what the source rendered?
+npm run sim      # the fight, headless: unit tests, then ten minutes of play
 ```
 
 `check` needs a browser: `npm i -D puppeteer`, or the lighter
@@ -39,7 +40,9 @@ The rainbow, the world and the herds are in, and the fight has begun.
 enemy it can see that is not already set upon by two others and closes on it,
 and they fight horn to horn. Targeting is one-way — what makes it mutual is
 being hit, and a unicorn that is struck turns on whoever struck it unless it
-is already in a fight of its own — feet planted, necks lunging, a health bar over the
+is already in a fight of its own. A swing lands at the bottom of the neck's
+lunge and may miss. Nobody stands in anyone else's ground: a unicorn blocked
+in its path steps aside in depth to get by — feet planted, necks lunging, a health bar over the
 horn — and the loser fades out over half a second in a burst of sparks in
 its own colours. A winner left under half health withdraws to its
 nearest own castle, stands squarely on it healing four times as fast — it can be run down on
@@ -76,7 +79,7 @@ the values as constants, "copy GLSL" to get them back. Restore `src/debug.js`
 from there and give the lines their ranges back to tune again.
 
 ```
-[build]  7395 / 13312 bytes — 5917 free (44.4%)
+[build]  7666 / 13312 bytes — 5646 free (42.4%)
   esbuild    15248 B
   terser     14775 B  (-3%)
   roadroller  7626 B  (-48%)
@@ -92,6 +95,7 @@ from there and give the lines their ranges back to tune again.
 | `src/unicorn.js` | one signed-distance unicorn, instanced — draws the herd it is handed |
 | `src/sparks.js` | the burst a unicorn goes out in, instanced dots in its own colours |
 | `src/sim.js` | the fight: castles spawn, fighters pair off and fight, balance is who is left |
+| `scripts/sim_test.js` | the fight headless — unit tests on hand-built situations, then a long run checked for invariants |
 | `src/main.js` | boot, fixed-step loop, the page and clock, god mode, and the depth-ordered draw of herd, castles and bow |
 | `src/debug.js` | frame rate under the clock, and the `?b=` and `?off=` URL switches. Never ships |
 | `scripts/build.js` | esbuild → shader-minifier-js → terser → Roadroller → zopfli zip, with the budget gate. The page is a skeleton; `main.js` makes the markup so it is packed, not just deflated |

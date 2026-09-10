@@ -3,12 +3,13 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "description": "Endless Rainbows — a js13kGames 2026 entry (theme: Unicorns and Rainbows).",
+  "description": "Endless Rainbows \u2014 a js13kGames 2026 entry (theme: Unicorns and Rainbows).",
   "scripts": {
     "dev": "node scripts/dev_server.js",
     "build": "node scripts/build.js",
     "size": "node scripts/build.js --quiet",
-    "check": "node scripts/check_shaders.js"
+    "check": "node scripts/check_shaders.js",
+    "sim": "node scripts/sim_test.js"
   },
   "license": "MIT",
   "devDependencies": {
