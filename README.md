@@ -67,11 +67,11 @@ as constants, "copy GLSL" to get them back. Restore `src/debug.js` from there
 and give the lines their ranges back to tune again.
 
 ```
-[build]  3763 / 13312 bytes — 9549 free (71.7%)
-  esbuild     7762 B
-  terser      7499 B  (-3%)
-  roadroller  4656 B  (-38%)
-  glsl        5866 B  (-77% of 25022 B raw)
+[build]  5629 / 13312 bytes — 7683 free (57.7%)
+  esbuild    13486 B
+  terser     13058 B  (-3%)
+  roadroller  7150 B  (-45%)
+  glsl       10042 B  (-73% of 37059 B raw)
 ```
 
 ## Layout
@@ -83,7 +83,7 @@ and give the lines their ranges back to tune again.
 | `src/unicorn.js` | one signed-distance unicorn, instanced — the swarms, and where they stand |
 | `src/main.js` | boot, fixed-step loop, and the balance |
 | `src/debug.js` | scrub `balance` by hand, switch features off. Never ships |
-| `scripts/build.js` | esbuild → GLSL squeeze → terser → Roadroller → zopfli zip, with the budget gate |
+| `scripts/build.js` | esbuild → shader-minifier-js → terser → Roadroller → zopfli zip, with the budget gate |
 | `scripts/glsl.js` | the shader minifier seam around shader-minifier-js |
 | `scripts/check_shaders.js` | renders source vs minified shader and compares pixels |
 | `scripts/dev_server.js` | static files, no dependencies |
