@@ -37,7 +37,8 @@ not in that loop; it only runs for the build.
 The rainbow, the world and the herds are in, and the fight has begun.
 `sim.js` is the game: castles spawn fighters, a fighter seeks the nearest
 enemy nobody else has claimed and the two lock on each other, they close and
-fight horn to horn, and the loser is gone. Balance — the one number the sky,
+fight horn to horn — feet planted, necks lunging, a health bar over the
+horn — and the loser is gone. Balance — the one number the sky,
 the bow and the castles read — is who has more fighters alive, smoothed. The
 player's verb is god mode: a touch strikes down the unicorn nearest to it.
 
@@ -66,7 +67,7 @@ the values as constants, "copy GLSL" to get them back. Restore `src/debug.js`
 from there and give the lines their ranges back to tune again.
 
 ```
-[build]  6465 / 13312 bytes — 6847 free (51.4%)
+[build]  6597 / 13312 bytes — 6715 free (50.4%)
   esbuild    15248 B
   terser     14775 B  (-3%)
   roadroller  7626 B  (-48%)

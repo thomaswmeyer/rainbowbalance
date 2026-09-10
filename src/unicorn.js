@@ -33,8 +33,11 @@
  *
  *   aBody.xy   where the hooves stand, in the same units the rainbow uses
  *   aBody.z    scale, signed by which way it faces (negative looks left)
- *   aBody.w    gallop phase, radians
+ *   aBody.w    gallop phase, radians; the lunge phase while fighting
  *   aSide      0 sunicorn (warm, pale), 1 rainicorn (goth)
+ *   aState.x   fighting, 0…1: the gallop fades out, the feet plant, and the
+ *              neck swings down at the enemy with the phase
+ *   aState.y   health, 0…1, for the bar over the horn
  *
  * Who is where, and what they are doing, is sim.js's business; this file
  * only draws what it is handed.
@@ -52,9 +55,10 @@ import { g, program, uniforms, gl, time, width, height, Batch } from './gl.js';
 const VS = g`#version 300 es
 layout(location = 0) in vec4 aBody;
 layout(location = 1) in float aSide;
+layout(location = 2) in vec2 aState;
 uniform vec2 uRes;
 out vec2 vP;
-out float vPhase, vSide, vOw, vFlip;
+out float vPhase, vSide, vOw, vFlip, vFight, vHp;
 
 // The quad in body units: wide enough for the tail behind and the muzzle in
 // front, tall enough for the horn above and the hooves at full stride.
@@ -80,6 +84,8 @@ void main(){
   vP = vec2(c.x * vFlip, c.y);
   vPhase = aBody.w;
   vSide = aSide;
+  vFight = aState.x;
+  vHp = aState.y;
   vOw = OUTLINE / (uRes.y * s);
   // The same space the rainbow works in: y is -0.5…0.5, x scales with aspect.
   vec2 w = aBody.xy + vec2(0.0, FEET * s) + c * s;
@@ -89,7 +95,7 @@ void main(){
 const FS = g`#version 300 es
 precision highp float;
 in vec2 vP;
-in float vPhase, vSide, vOw, vFlip;
+in float vPhase, vSide, vOw, vFlip, vFight, vHp;
 out vec4 o;
 uniform float uTime;
 
@@ -141,38 +147,48 @@ struct U {
   float tail, tailU, mane, maneU, horn, eye, glint;
 };
 
-U parts(vec2 p, float ph, float t){
+U parts(vec2 p, float ph, float t, float fight){
   U u;
 
+  // Fighting: the stride fades out and the neck lunges down with the phase,
+  // from raised to level with the horn at the enemy, once a cycle.
+  float stride = STRIDE * (1.0 - fight);
+  float lunge = fight * (0.5 - 0.5 * cos(ph));
+
   // Suspension: the whole animal rises between strides and pitches with it.
-  p.y -= 0.035 * STRIDE * sin(ph + 0.6);
-  p = rot(0.06 * STRIDE * sin(ph)) * p;
+  // A lunge pitches it nose-down instead.
+  p.y -= 0.035 * stride * sin(ph + 0.6);
+  p = rot(0.06 * stride * sin(ph) - 0.08 * lunge) * p;
 
   // Three masses, not one sausage.
   float torso = ell(p, vec2(L, H));
   torso = smin(torso, ell(p - vec2(L * 0.6, 0.0), vec2(H * 0.85, H * 0.9)), 0.08);
   torso = smin(torso, ell(p - vec2(-L * 0.62, 0.03), vec2(H * 0.95, H)), 0.08);
 
-  // Neck, thick at the base.
-  vec2 nd = vec2(cos(NECK_A), sin(NECK_A));
+  // Neck, thick at the base. The lunge swings it down by SWING.
+  float swing = 1.1 * lunge;
+  vec2 nd = vec2(cos(NECK_A - swing), sin(NECK_A - swing));
   vec2 nb = vec2(L * 0.7, H * 0.3);
   vec2 ne = nb + nd * NECK_L;
   torso = smin(torso, seg(p, nb, ne, H * 0.6, H * 0.36), 0.06);
 
   // Head longer than tall, tilted down, with a separate muzzle and one ear.
+  // It turns with the neck: q is p in the head's frame, so the horn comes
+  // down to point at the enemy.
+  vec2 q = ne + rot(swing) * (p - ne);
   vec2 hc = ne + vec2(0.04, 0.0) * HEAD;
-  torso = smin(torso, ell(rot(0.3) * (p - hc), vec2(0.115, 0.08) * HEAD), 0.03);
+  torso = smin(torso, ell(rot(0.3) * (q - hc), vec2(0.115, 0.08) * HEAD), 0.03);
   vec2 mz = hc + vec2(0.12, -0.04) * HEAD;
-  torso = smin(torso, ell(p - mz, vec2(0.06, 0.05) * HEAD), 0.03);
+  torso = smin(torso, ell(q - mz, vec2(0.06, 0.05) * HEAD), 0.03);
   vec2 et = hc + vec2(-0.05, 0.06) * HEAD;
-  torso = smin(torso, seg(p, et, et + vec2(-0.03, 0.09) * HEAD, 0.024 * HEAD, 0.005), 0.015);
+  torso = smin(torso, seg(q, et, et + vec2(-0.03, 0.09) * HEAD, 0.024 * HEAD, 0.005), 0.015);
 
   vec2 hb = hc + vec2(0.025, 0.07) * HEAD;
-  u.horn = seg(p, hb, hb + vec2(0.07, 0.17) * HEAD, 0.022 * HEAD, 0.001);
+  u.horn = seg(q, hb, hb + vec2(0.07, 0.17) * HEAD, 0.022 * HEAD, 0.001);
   vec2 ec = hc + vec2(0.045, 0.012) * HEAD;
   float er = 0.016 * HEAD;
-  u.eye = length(p - ec) - er;
-  u.glint = length(p - ec - er * vec2(0.35, 0.35)) - er * 0.35;
+  u.eye = length(q - ec) - er;
+  u.glint = length(q - ec - er * vec2(0.35, 0.35)) - er * 0.35;
 
   // Legs: two capsules each, the knee bending back on the front pair and the
   // hock forward on the hind. Each leg blends into the torso and into nothing
@@ -184,8 +200,8 @@ U parts(vec2 p, float ph, float t){
   for (int i = 0; i < 4; i++) {
     bool front = i < 2, near = (i & 1) == 0;
     float off = front ? (near ? 0.0 : 0.8) : (near ? 3.1 : 3.9);
-    float a = STRIDE * 0.6 * sin(ph + off) + (front ? 0.0 : -0.15);
-    float lift = max(0.0, sin(ph + off + 1.3)) * STRIDE;
+    float a = stride * 0.6 * sin(ph + off) + (front ? 0.0 : -0.15);
+    float lift = max(0.0, sin(ph + off + 1.3)) * stride;
     vec2 hip = front ? vec2(L * 0.5, -H * 0.35) : vec2(-L * 0.6, -H * 0.3);
     float hl = LEG * 0.5;
     vec2 knee = hip + hl * vec2(sin(a), -cos(a));
@@ -225,7 +241,7 @@ U parts(vec2 p, float ph, float t){
   vec2 mp = p - nn * (0.025 * sin(mh * 14.0 - t * 6.0) + 0.015);
   float rm = MANE * (0.05 + 0.02 * sin(mh * 22.0 + t * 5.0));
   u.mane = min(seg(mp, mb, me, rm * 0.7, rm * 1.1),
-               ell(p - (hc + vec2(-0.03, 0.085) * HEAD), vec2(0.055, 0.035) * HEAD * MANE));
+               ell(q - (hc + vec2(-0.03, 0.085) * HEAD), vec2(0.055, 0.035) * HEAD * MANE));
   u.maneU = mh;
   return u;
 }
@@ -270,7 +286,7 @@ vec3 shade(float d, vec3 bodyC, vec3 shadeC, vec3 rimC){
 void main(){
   vec2 p = vP;
   float t = uTime;
-  U u = parts(p, vPhase, t);
+  U u = parts(p, vPhase, t, vFight);
   float ow = vOw;
 
   vec3 bodyC  = mix(vec3(0.99, 0.95, 0.88), vec3(0.19, 0.16, 0.25), vSide);
@@ -316,6 +332,17 @@ void main(){
   c = part(c, u.eye, 0.0, eyeC, line);
   c = part(c, u.glint, 0.0, vec3(1.0), line);
 
+  // Health, over the horn, while it is hurt. It fills left to right on the
+  // screen whichever way the animal faces.
+  if (vHp < 0.999) {
+    vec2 bp = vec2(p.x * vFlip, p.y - 0.78);
+    vec2 bd = abs(bp) - vec2(0.24, 0.022);
+    float box = max(bd.x, bd.y);
+    float aa = fwidth(box);
+    float fill = smoothstep(aa, -aa, bp.x - (-0.24 + 0.48 * vHp));
+    c = put(c, smoothstep(aa, -aa, box), mix(vec3(0.1, 0.05, 0.08), mix(vec3(0.9, 0.2, 0.15), vec3(0.3, 0.9, 0.3), vHp), fill));
+  }
+
   if (c.a < 0.002) discard;
   o = c;
 }`;
@@ -324,7 +351,7 @@ void main(){
 // The swarms
 // ---------------------------------------------------------------------------
 
-import { MAX } from './sim.js';
+import { MAX, HP } from './sim.js';
 
 let _prog, _u, _batch;
 
@@ -332,7 +359,7 @@ let _prog, _u, _batch;
 export function initUnicorns() {
     _prog = program(VS, FS);
     _u = uniforms(_prog, ['uRes', 'uTime']);
-    _batch = new Batch(_prog, [4, 1], MAX);
+    _batch = new Batch(_prog, [4, 1, 2], MAX);
 }
 
 /**
@@ -349,7 +376,7 @@ export function drawUnicorns(herd, from = 0, y = -Infinity) {
     let i = from;
     for (; i < herd.length && herd[i]._y > y; i++) {
         const un = herd[i];
-        _batch.push(un._x, un._y, un._face * un._s, un._ph, un._side);
+        _batch.push(un._x, un._y, un._face * un._s, un._ph, un._side, un._fight, un._hp / HP);
     }
     gl.useProgram(_prog);
     _u({ uRes: [width, height], uTime: time });

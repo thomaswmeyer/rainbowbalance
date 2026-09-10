@@ -47,8 +47,8 @@ const OUTLIERS = 1e-5;
  * every comparison, so the sample has to put something real on screen.
  */
 const INSTANCES = {
-    // x, y at the hooves; scale, signed by facing; gallop phase; side.
-    unicorn: (c) => [0, -0.14, 0.62, c.uTime * 1.7, c.uBalance > 0 ? 1 : 0],
+    // x, y at the hooves; scale, signed by facing; phase; side; fighting; health.
+    unicorn: (c) => [0, -0.14, 0.62, c.uTime * 1.7, c.uBalance > 0 ? 1 : 0, 0.6, 0.45],
 };
 
 /** Component count of each GLSL type an attribute can have. */

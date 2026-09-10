@@ -30,7 +30,10 @@ export const MAX = 64;
 /** Seconds between a castle's spawns. */
 const SPAWN = 2.2;
 /** Hit points, damage per second, and walking speed in screen units. */
-const HP = 3, DPS = 1.2, SPEED = 0.22;
+export const HP = 6;
+const DPS = 1.2, SPEED = 0.22;
+/** Out of a fight, a unicorn heals from nothing to full in this many seconds. */
+const HEAL = 30;
 /** How close, in the pair's size, two horns have to be to be fighting. */
 const REACH = 0.7;
 
@@ -43,6 +46,7 @@ const REACH = 0.7;
  * @property {number} _face +1 looks right, -1 looks left
  * @property {number} _ph gallop phase
  * @property {number} _hp
+ * @property {number} _fight 0…1, the fighting pose, eased so it does not snap
  * @property {Unicorn|null} _foe
  */
 
@@ -83,6 +87,7 @@ function spawn(castle) {
         _face: castle._side ? -1 : 1,
         _ph: rnd() * 6.283,
         _hp: HP,
+        _fight: 0,
         _foe: null,
     });
 }
@@ -134,11 +139,14 @@ export function step(dt) {
             un._y += dy / d * v * dt;
             un._s = sizeAt(un._y);
         }
-        // Horn to horn.
+        // Horn to horn; and out of a fight, healing.
         if (fighting) un._foe._hp -= DPS * dt * (0.7 + 0.6 * rnd());
+        else un._hp = Math.min(HP, un._hp + HP / HEAL * dt);
         if (Math.abs(dx) > 0.01) un._face = dx > 0 ? 1 : -1;
-        // A walk at rest, a gallop on the move; a jab in a fight.
-        un._ph += dt * (fighting ? 9 : 2.5 + Math.min(v * 55, 12));
+        // The pose eases into and out of the fight over a quarter second.
+        un._fight += ((fighting ? 1 : 0) - un._fight) * Math.min(1, dt * 6);
+        // A walk at rest, a gallop on the move; a lunge a second in a fight.
+        un._ph += dt * (fighting ? 6.3 : 2.5 + Math.min(v * 55, 12));
     }
 
     // The fallen. Whoever was fighting them is free to seek again.
