@@ -34,10 +34,12 @@ const HP = 6;
 const DPS = 1.2, SPEED = 0.22;
 /**
  * Veterancy. A unicorn starts at half size and wins its way up: every fight
- * it wins and then walks off to heal from earns it a level, and a level is
- * a quarter more size and half again the hit points. There is no ceiling.
+ * it wins and then walks off to heal from earns it a level. A level adds a
+ * quarter of a recruit's size and half a recruit's hit points — added, not
+ * compounded, so a veteran of ten fights is three and a half times a
+ * recruit rather than nine times one. There is no ceiling.
  */
-const SCALE0 = 0.5, GROW = 1.25, TOUGH = 1.5;
+const SCALE0 = 0.5, GROW = 0.25, TOUGH = 0.5;
 /** Out of a fight, a unicorn heals from nothing to full in this many seconds. */
 const HEAL = 30;
 /** Below this much health, a unicorn that wins a fight withdraws to heal. */
@@ -213,13 +215,13 @@ export function step(dt) {
         if (un._rest && un._hp >= un._max) {
             un._rest = false;
             un._lvl++;
-            un._max *= TOUGH;
+            un._max = HP * (1 + TOUGH * un._lvl);
             un._hp = un._max;
             promoted.push(un);
         }
-        // A quarter more size per level, taken on over a second.
-        const scale = SCALE0 * GROW ** un._lvl;
-        if (un._scale < scale) un._scale = Math.min(scale, un._scale + scale * (1 - 1 / GROW) * dt);
+        // A level's worth of size, taken on over a second.
+        const scale = SCALE0 * (1 + GROW * un._lvl);
+        if (un._scale < scale) un._scale = Math.min(scale, un._scale + SCALE0 * GROW * dt);
         un._s = sizeAt(un._y) * un._scale;
         if (!healing && Math.abs(dx) > 0.01) un._face = dx > 0 ? 1 : -1;
         // The fighting pose plants all four feet, which is also how a unicorn

@@ -41,8 +41,9 @@ fight horn to horn — feet planted, necks lunging, a health bar over the
 horn — and the loser fades out over half a second in a burst of sparks in
 its own colours. A winner left under half health withdraws to its
 nearest own castle, stands squarely on it healing four times as fast, and
-comes back a level up: a quarter bigger, half again the hit points, grown
-into over a second in a white shower of sparks. A recruit starts at half
+comes back a level up: a quarter of a recruit's size and half a recruit's
+hit points added — added, not compounded — grown into over a second in a
+white shower of sparks. A recruit starts at half
 size, so a field of veterans is visibly a field of veterans. Balance — the one number the sky,
 the bow and the castles read — is who has more fighters alive, smoothed. The
 player's verb is god mode: a touch strikes down the unicorn nearest to it.
@@ -72,7 +73,7 @@ the values as constants, "copy GLSL" to get them back. Restore `src/debug.js`
 from there and give the lines their ranges back to tune again.
 
 ```
-[build]  7306 / 13312 bytes — 6006 free (45.1%)
+[build]  7313 / 13312 bytes — 5999 free (45.1%)
   esbuild    15248 B
   terser     14775 B  (-3%)
   roadroller  7626 B  (-48%)
