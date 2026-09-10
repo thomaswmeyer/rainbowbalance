@@ -3,7 +3,8 @@
  * import that reaches this module is dead code by the time esbuild runs and
  * none of it ships — `npm run build` asserts that.
  *
- * A frame-rate readout under the clock, and two URL switches: `?b=0.5`
+ * A frame-rate readout under the clock, `window.sim` for poking at the
+ * simulation from the console, and two URL switches: `?b=0.5`
  * freezes the balance at a value, for screenshots, and `?off=clouds,castle`
  * compiles those features out of the shaders to see what each costs. The
  * features are `const int NAME_ON` constants in the shaders, so one that is
@@ -23,6 +24,8 @@
  * @param {typeof import('./sim.js')} sim
  */
 export function initDebug(state, reset, sources, recompile, sim) {
+    // The whole simulation, for poking at from the console or a script.
+    window.sim = sim;
     // ?b=0.5 freezes the balance wander at that balance, for screenshots.
     const q = new URLSearchParams(location.search);
     if (q.has('b')) {

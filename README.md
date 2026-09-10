@@ -35,12 +35,15 @@ not in that loop; it only runs for the build.
 ## Where it stands
 
 The rainbow, the world and the herds are in, and the fight has begun.
-`sim.js` is the game: castles spawn fighters, a fighter seeks the nearest
-enemy nobody else has claimed and the two lock on each other, they close and
-fight horn to horn — feet planted, necks lunging, a health bar over the
+`sim.js` is the game: castles spawn fighters, a fighter picks the nearest
+enemy it can see that is not already set upon by two others and closes on it,
+and they fight horn to horn. Targeting is one-way — what makes it mutual is
+being hit, and a unicorn that is struck turns on whoever struck it unless it
+is already in a fight of its own — feet planted, necks lunging, a health bar over the
 horn — and the loser fades out over half a second in a burst of sparks in
 its own colours. A winner left under half health withdraws to its
-nearest own castle, stands squarely on it healing four times as fast, and
+nearest own castle, stands squarely on it healing four times as fast — it can be run down on
+the way or at the gate, and turns and fights if it is — and
 comes back a level up: a quarter of a recruit's size and half a recruit's
 hit points added — added, not compounded — grown into over a second in a
 white shower of sparks. A recruit starts at half
@@ -73,7 +76,7 @@ the values as constants, "copy GLSL" to get them back. Restore `src/debug.js`
 from there and give the lines their ranges back to tune again.
 
 ```
-[build]  7313 / 13312 bytes — 5999 free (45.1%)
+[build]  7395 / 13312 bytes — 5917 free (44.4%)
   esbuild    15248 B
   terser     14775 B  (-3%)
   roadroller  7626 B  (-48%)

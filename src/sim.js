@@ -1,12 +1,17 @@
 /**
  * The simulation — the fight the player never commands.
  *
- * Castles spawn fighters. A fighter with no foe seeks the nearest enemy that
- * nobody else has claimed, and the two lock on each other: each is the
- * other's foe until one of them dies. They close, stand horn to horn, and
- * trade damage; the loser is gone and the winner seeks again. With no enemy
- * left to find, a fighter walks to the enemy's castle, which is where
- * capture will happen when there is capture.
+ * Castles spawn fighters. A fighter picks the nearest enemy it can see —
+ * within LOOK of it, and not already set upon by CROWD others — and closes
+ * on it. Targeting is one-way: being picked does not make the target pick
+ * back. What makes it mutual is being hit. A unicorn that takes a blow turns
+ * on whoever landed it, unless it is already horn to horn with someone else,
+ * in which case it finishes that fight first. So a unicorn can be jumped
+ * from behind while it is busy, and two can gang up on one, but no more.
+ *
+ * With no enemy in sight a fighter walks toward the nearest enemy castle,
+ * which is what brings the two sides into contact, and is where capture will
+ * happen when there is capture.
  *
  * Positions are in the space the rainbow and the unicorn shader use: x in
  * screen units, y from the front row up to the horizon, and a unicorn's size
@@ -46,6 +51,10 @@ const HEAL = 30;
 const HURT = 0.5;
 /** How close, in the pair's size, two horns have to be to be fighting. */
 const REACH = 0.7;
+/** How far a unicorn can see an enemy to pick it out. */
+const LOOK = 0.4;
+/** How many can set upon one unicorn at once. */
+const CROWD = 2;
 
 /**
  * @typedef {object} Unicorn
@@ -62,7 +71,10 @@ const REACH = 0.7;
  * @property {number} _fight 0…1, the fighting pose, eased so it does not snap
  * @property {boolean} [_fell] reported to `fallen` already
  * @property {boolean} [_rest] withdrawing to a friendly castle to heal
- * @property {Unicorn|null} _foe
+ * @property {Unicorn|null} _foe who it is closing on, one way
+ * @property {number} _att how many are closing on it
+ * @property {boolean} _eng horn to horn right now, so it will not be drawn off
+ * @property {Unicorn|null} _hit who landed a blow on it since its last step
  */
 
 /** @type {Unicorn[]} */
@@ -115,18 +127,32 @@ function spawn(castle) {
         _fight: 0,
         _rest: false,
         _foe: null,
+        _att: 0,
+        _eng: false,
+        _hit: null,
     });
 }
 
 /**
- * The nearest enemy that is free, or already paired with this one.
+ * Point `un` at `foe`, keeping the count of who is closing on whom right.
+ * @param {Unicorn} un
+ * @param {Unicorn|null} foe
+ */
+function aim(un, foe) {
+    if (un._foe === foe) return;
+    if (un._foe) un._foe._att--;
+    un._foe = foe;
+    if (foe) foe._att++;
+}
+
+/**
+ * The nearest enemy within sight that is not already set upon by CROWD.
  * @param {Unicorn} un
  */
 function seek(un) {
-    let best = null, bd = Infinity;
+    let best = null, bd = LOOK * LOOK;
     for (const e of herd) {
-        // One foe at a time, and nobody hunts a unicorn that has withdrawn.
-        if (e._side === un._side || e._hp <= 0 || e._rest || (e._foe && e._foe !== un)) continue;
+        if (e._side === un._side || e._hp <= 0 || e._att >= CROWD) continue;
         const d = (e._x - un._x) ** 2 + (e._y - un._y) ** 2;
         if (d < bd) { bd = d; best = e; }
     }
@@ -148,6 +174,21 @@ function home(un) {
 }
 
 /**
+ * The nearest castle this unicorn does not own — where it goes when there is
+ * nothing in sight to fight.
+ * @param {Unicorn} un
+ */
+function foeHome(un) {
+    let best = null, bd = Infinity;
+    for (const c of castles) {
+        if (c._side === un._side) continue;
+        const d = (c._x - un._x) ** 2 + (c._y - un._y) ** 2;
+        if (d < bd) { bd = d; best = c; }
+    }
+    return best;
+}
+
+/**
  * One fixed step.
  * @param {number} dt seconds
  */
@@ -158,6 +199,10 @@ export function step(dt) {
         if (c._t <= 0 && herd.length < MAX) { spawn(c); c._t = SPAWN; }
     }
 
+    // Who is closing on whom, counted afresh: the crowding rule reads it.
+    for (const un of herd) un._att = 0;
+    for (const un of herd) if (un._hp > 0 && un._foe && un._foe._hp > 0) un._foe._att++;
+
     for (const un of herd) {
         if (un._hp <= 0) {
             // Fading out over half a second. The moment it fell it is
@@ -165,29 +210,41 @@ export function step(dt) {
             if (!un._fell) {
                 un._fell = true;
                 fallen.push(un);
-                if (un._foe) {
-                    // Whoever it was fighting has won. A winner left under
-                    // HURT withdraws to a castle of its own rather than
-                    // looking for the next fight.
-                    const won = un._foe;
-                    won._foe = null;
-                    if (won._hp > 0 && won._hp < won._max * HURT) won._rest = true;
-                    un._foe = null;
+                // Everyone who was on it has won and is free. A winner left
+                // under HURT withdraws to a castle of its own rather than
+                // looking for the next fight.
+                for (const w of herd) {
+                    if (w._foe !== un) continue;
+                    w._foe = null;
+                    w._eng = false;
+                    if (w._hp > 0 && w._hp < w._max * HURT) w._rest = true;
                 }
+                un._foe = null;
             }
             un._hp -= dt * 2;
             un._fight = Math.max(0, un._fight - dt * 4);
             continue;
         }
-        // A unicorn that has withdrawn looks for no fight until it is whole.
+        // A target that has fallen frees it.
+        if (un._foe && un._foe._hp <= 0) aim(un, null);
+
+        // Struck: it turns on whoever landed the blow, unless it is already
+        // horn to horn with someone, in which case it finishes that fight.
+        // Answering a blow ignores the crowding cap — being set upon is not
+        // a choice — so a mobbed unicorn can briefly have three on it.
+        if (un._hit) {
+            if (un._hit._hp > 0 && !un._eng) aim(un, un._hit);
+            un._hit = null;
+        }
+
+        // A unicorn that has withdrawn looks for no fight until it is whole,
+        // but it answers one that comes to it.
         const rest = un._rest ? home(un) : null;
         if (!rest) un._rest = false;
-        if (!un._foe && !un._rest) {
-            un._foe = seek(un);
-            if (un._foe) un._foe._foe = un;
-        }
+        if (!un._foe && !un._rest) aim(un, seek(un));
+
         // Its foe, or the castle it is resting at, or the enemy's castle.
-        const goal = un._foe || rest || castles[1 - un._side];
+        const goal = un._foe || rest || foeHome(un) || castles[1 - un._side];
         const dx = goal._x - un._x, dy = goal._y - un._y;
         const d = Math.hypot(dx, dy);
         // Where to stop, and from how close the horns connect: a little
@@ -195,8 +252,9 @@ export function step(dt) {
         // stop is fighting by the time it gets there.
         const stop = un._foe ? REACH * (un._s + un._foe._s) : rest ? 0.012 : 0.08;
         const fighting = un._foe && d < stop * 1.3;
-        // Standing on the castle: four times the healing, and no walking.
-        const healing = rest && d <= stop;
+        // Standing on the castle, unmolested: four times the healing, and no
+        // walking. Something to fight ends that, wherever it is standing.
+        const healing = rest && !un._foe && d <= stop;
         let v = 0;
         if (healing) {
             // Squarely on it, rather than creeping the last hair toward it.
@@ -208,8 +266,11 @@ export function step(dt) {
             un._y += dy / d * v * dt;
         }
         // Horn to horn; and out of a fight, healing, four times as fast at home.
-        if (fighting) un._foe._hp -= DPS * dt * (0.7 + 0.6 * rnd());
-        else un._hp = Math.min(un._max, un._hp + un._max / HEAL * dt * (healing ? 4 : 1));
+        un._eng = !!fighting;
+        if (fighting) {
+            un._foe._hp -= DPS * dt * (0.7 + 0.6 * rnd());
+            un._foe._hit = un;
+        } else un._hp = Math.min(un._max, un._hp + un._max / HEAL * dt * (healing ? 4 : 1));
         // Whole again, at a castle it withdrew to: that is a level. It grows
         // into it over the next second and goes back to the fight.
         if (un._rest && un._hp >= un._max) {
