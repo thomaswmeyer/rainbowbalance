@@ -3,79 +3,57 @@
  * import that reaches this module is dead code by the time esbuild runs and
  * none of it ships — `npm run build` asserts that.
  *
- * Two jobs:
+ * A frame-rate readout under the clock, and two URL switches: `?b=0.5`
+ * freezes the balance at a value, for screenshots, and `?off=clouds,castle`
+ * compiles those features out of the shaders to see what each costs. The
+ * features are `const int NAME_ON` constants in the shaders, so one that is
+ * off is gone from the program, not skipped.
  *
- *   - scrubbing balance by hand, so the rainbow can be judged across its
- *     whole range before there is a game underneath it;
- *   - switching the shader's features off one at a time to see what each
- *     costs in frame rate. The switches are `const int NAME_ON` constants in
- *     the shader, so a feature that is off is gone from the program, not
- *     skipped. `?off=clouds,castle` sets them from the URL.
- *
- * The slider panel that tuned the shader's constants is in git history
- * (commit 0e0063e): a slider for every `const … // min max` line, "bake" to
+ * In git history: the balance scrubber and the feature checkboxes (02ed2de
+ * and before), and the slider panel that tuned the shader's constants
+ * (0e0063e): a slider for every `const … // min max` line, "bake" to
  * recompile with the values as constants, "copy GLSL" to get them back.
  */
 
 /**
  * @param {object} state
- * @param {() => void} reset
+ * @param {() => void} reset unused now; kept so main.js need not care
  * @param {Record<string, string>} sources the fragment shaders, by pass
  * @param {(pass: string, src: string) => void} recompile
  */
 export function initDebug(state, reset, sources, recompile) {
-    const el = document.createElement('div');
-    el.style.cssText = 'position:fixed;left:8px;top:8px;padding:8px 10px;z-index:9;' +
-        'background:#000a;color:#eee;font:12px/1.5 ui-monospace,monospace;border-radius:6px;' +
-        'user-select:none;min-width:230px';
-    el.innerHTML = `
-      <label><input type=checkbox id=dm> drive by hand</label><br>
-      balance <input type=range id=db min=-1 max=1 step=.01 value=0 style="width:130px"><br>
-      <span id=dr></span> <button id=dx>reset</button><br>
-      <span id=df></span>`;
-    document.body.appendChild(el);
-
-    const $ = (id) => el.querySelector('#' + id);
-    const manual = $('dm'), bal = $('db'), read = $('dr');
-
-    // ?b=0.5 starts in manual mode at that balance, for screenshots.
+    // ?b=0.5 freezes the balance wander at that balance, for screenshots.
     const q = new URLSearchParams(location.search);
     if (q.has('b')) {
-        manual.checked = state._manual = true;
-        bal.value = state._balance = +q.get('b');
+        state._manual = true;
+        state._balance = +q.get('b');
     }
 
-    manual.onchange = () => { state._manual = manual.checked; };
-    bal.oninput = () => { if (state._manual) state._balance = +bal.value; };
-    $('dx').onclick = reset;
-
-    let frames = 0, fps = 0, since = performance.now();
+    // Frame rate, under the clock, a third its size.
+    const fps = document.createElement('div');
+    fps.style.cssText = 'position:fixed;top:70px;right:12px;color:#fff;font:600 18px/1 system-ui,sans-serif;' +
+        'text-shadow:0 1px 3px #000c';
+    document.body.appendChild(fps);
+    let frames = 0, since = performance.now();
     const tick = () => {
         frames++;
         const now = performance.now();
-        if (now - since > 500) { fps = Math.round(frames * 1000 / (now - since)); frames = 0; since = now; }
-        if (!state._manual) bal.value = state._balance;
-        read.textContent =
-            `b ${state._balance.toFixed(2)}  ${state._elapsed.toFixed(1)}s  ${fps}fps`;
+        if (now - since > 500) {
+            fps.textContent = Math.round(frames * 1000 / (now - since)) + ' fps';
+            frames = 0; since = now;
+        }
         requestAnimationFrame(tick);
     };
     tick();
 
-    // Feature switches: each `const int NAME_ON = 1` in either shader.
-    const features = Object.values(sources).flatMap((src) =>
-        [...src.matchAll(/const int (\w+)_ON\s*=\s*1;/g)].map((m) => m[1]));
-    const off = new Set((q.get('off') || '').split(',').filter(Boolean).map((f) => f.toUpperCase()));
-    const fs = $('df');
-    fs.innerHTML = features.map((f) =>
-        `<label><input type=checkbox data-f=${f} ${off.has(f) ? '' : 'checked'}> ${f.toLowerCase()}</label> `).join('');
-    fs.onchange = () => {
-        for (const pass in sources) {
-            let src = sources[pass];
-            for (const box of fs.querySelectorAll('input')) {
-                if (!box.checked) src = src.replace(new RegExp(`(const int ${box.dataset.f}_ON\\s*=\\s*)1;`), '$10;');
-            }
+    // Feature switches, from the URL only: ?off=clouds,castle compiles those
+    // out of the shaders. Each is a `const int NAME_ON = 1` in a shader.
+    const off = (q.get('off') || '').split(',').filter(Boolean).map((f) => f.toUpperCase());
+    for (const pass in sources) {
+        let src = sources[pass];
+        for (const f of off) src = src.replace(new RegExp(`(const int ${f}_ON\\s*=\\s*)1;`), '$10;');
+        if (src !== sources[pass]) {
             try { recompile(pass, src); } catch (e) { console.error(e); }
         }
-    };
-    if (off.size) fs.onchange();
+    }
 }

@@ -125,13 +125,12 @@ const { firstLine, secondLine } = packer.makeDecoder();
 const packed = firstLine + secondLine;
 stages.push(['roadroller', packed.length]);
 
-// 5. One self-contained page. The canvas fills the viewport and nothing else
-//    is in the document, so there is no layout to speak of.
+// 5. One self-contained page. Nothing but the script is in it: main.js makes
+//    the canvas and the styling, so that they are packed rather than merely
+//    deflated. The body tag is there so document.body exists when it runs.
 if (packed.includes('</script')) fail('packed payload contains </script — it would end the tag early');
-const html = '<!doctype html><meta charset=utf-8><title>Endless Rainbows</title>'
-    + '<style>html,body{margin:0;height:100%;background:#05060d;overflow:hidden}'
-    + 'canvas{display:block;width:100%;height:100%;touch-action:none}</style>'
-    + '<canvas id=c></canvas><script>' + packed + '</script>';
+const html = '<!doctype html><meta charset=utf-8><title>Endless Rainbows</title><body><script>'
+    + packed + '</script>';
 writeFileSync(join(OUT, 'index.html'), html);
 
 // 6. Zip it, the way the submission will be zipped.

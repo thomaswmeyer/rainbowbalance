@@ -59,15 +59,17 @@ castle stands at each foot of the bow, the sunicorns' in sandstone and the
 rainicorns' in obsidian: one signed distance field, marched only inside its
 bounding sphere, built the way the buildings in dr2's
 [WtjSzR](https://www.shadertoy.com/view/WtjSzR) are (CC BY-NC-SA, nothing
-copied). The dev page has
-checkboxes that compile each feature out of the shader, to see what it costs.
-The slider panel that tuned the constants is in git history (commit 0e0063e):
-a slider per `const … // min max` line, "bake" to recompile with the values
-as constants, "copy GLSL" to get them back. Restore `src/debug.js` from there
-and give the lines their ranges back to tune again.
+copied). The dev page shows
+the frame rate under the clock, and takes `?off=clouds,castle` to compile
+features out of the shaders, to see what each costs, and `?b=0.5` to freeze
+the balance for a screenshot. The slider panel that tuned the constants is in
+git history (commit 0e0063e): a slider per `const … // min max` line, "bake"
+to recompile with the values as constants, "copy GLSL" to get them back.
+Restore `src/debug.js` from there and give the lines their ranges back to
+tune again.
 
 ```
-[build]  5976 / 13312 bytes — 7336 free (55.1%)
+[build]  6196 / 13312 bytes — 7116 free (53.5%)
   esbuild    15248 B
   terser     14775 B  (-3%)
   roadroller  7626 B  (-48%)
@@ -82,8 +84,8 @@ and give the lines their ranges back to tune again.
 | `src/rainbow.js` | three passes: the world (sky, clouds, hills, grass), a castle, the bow — one number in |
 | `src/unicorn.js` | one signed-distance unicorn, instanced — the swarms, and where they stand |
 | `src/main.js` | boot, fixed-step loop, the balance, and the depth-ordered draw of herd, castles and bow |
-| `src/debug.js` | scrub `balance` by hand, switch features off. Never ships |
-| `scripts/build.js` | esbuild → shader-minifier-js → terser → Roadroller → zopfli zip, with the budget gate |
+| `src/debug.js` | frame rate under the clock, and the `?b=` and `?off=` URL switches. Never ships |
+| `scripts/build.js` | esbuild → shader-minifier-js → terser → Roadroller → zopfli zip, with the budget gate. The page is a skeleton; `main.js` makes the markup so it is packed, not just deflated |
 | `scripts/glsl.js` | the shader minifier seam around shader-minifier-js |
 | `scripts/check_shaders.js` | renders source vs minified shader and compares pixels |
 | `scripts/dev_server.js` | static files, no dependencies |

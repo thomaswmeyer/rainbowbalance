@@ -1,10 +1,9 @@
 <!doctype html>
 <meta charset=utf-8>
 <title>Endless Rainbows — dev</title>
-<style>html,body{margin:0;height:100%;background:#05060d;overflow:hidden}
-canvas{display:block;width:100%;height:100%;touch-action:none}</style>
-<canvas id=c></canvas>
-<!-- Dev entry only: raw ES modules, no build step, debug panel on. The zip
-     that gets submitted is dist/index.html, built by `npm run build`. -->
+<!-- Dev entry only: raw ES modules, no build step, debug panel on. main.js
+     makes the page; this file is only the skeleton the build also emits.
+     The zip that gets submitted is dist/index.html, built by `npm run build`. -->
+<body>
 <script>window.__DEBUG__=true</script>
 <script type=module src=src/main.js></script>
