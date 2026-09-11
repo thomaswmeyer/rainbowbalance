@@ -63,7 +63,8 @@ function step(dt) {
 function smite(cx, cy) {
     if (sim.winner >= 0) { reset(); return; }
     // Pixels to the herd's units: the rainbow's space, y up, height 1.
-    sim.smite((cx - innerWidth / 2) / innerHeight, (innerHeight / 2 - cy) / innerHeight);
+    const x = (cx - innerWidth / 2) / innerHeight, y = (innerHeight / 2 - cy) / innerHeight;
+    if (power) sim.freeze(x, y); else sim.smite(x, y);
 }
 
 export function reset() {
@@ -88,8 +89,12 @@ document.body.innerHTML =
     + 'color:#fff;font:700 64px/1.3 system-ui,sans-serif;text-shadow:0 2px 8px #000e;'
     + 'background:#0006;cursor:pointer}#o i,#o b{display:block;font-style:normal}'
     + '#o i{font-size:96px;margin:.08em 0}#o b{font-size:28px;font-weight:400;opacity:.8}'
-    + '</style>'
-    + '<canvas id=c></canvas><div id=t></div><div id=o></div>';
+    + '#p{position:fixed;left:12px;top:12px;display:flex;gap:10px;user-select:none}'
+    + '#p b{width:64px;height:64px;display:grid;place-content:center;font-size:34px;'
+    + 'border-radius:14px;background:#0006;border:3px solid #fff3;cursor:pointer}'
+    + '#p b.on{background:#fff3;border-color:#fff}</style>'
+    + '<canvas id=c></canvas><div id=t></div>'
+    + '<div id=p><b>\u2728</b><b>\u2744\ufe0f</b></div><div id=o></div>';
 
 // --- the clock --------------------------------------------------------------
 
@@ -168,6 +173,26 @@ function drawScene(balance) {
     drawUnicorns(sim.herd, i);
     drawSparks();
 }
+
+// --- the two powers ---------------------------------------------------------
+
+/**
+ * Which of the god's hands is out: 0 strikes a unicorn down in a burst of
+ * sparks, 1 freezes it into a block of ice. The two buttons at the top left
+ * choose, and a touch anywhere else on the field uses what is chosen.
+ */
+let power = 0;
+const hands = /** @type {HTMLElement[]} */ ([...document.querySelectorAll('#p b')]);
+const paintHands = () => hands.forEach((el, i) => { el.className = i === power ? 'on' : ''; });
+hands.forEach((el, i) => {
+    el.onpointerdown = (e) => {
+        power = i;
+        paintHands();
+        // Choosing a hand is not using it on whatever is under the button.
+        e.stopPropagation();
+    };
+});
+paintHands();
 
 // --- the pace ---------------------------------------------------------------
 

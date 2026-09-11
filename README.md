@@ -54,7 +54,11 @@ hit points added — added, not compounded — grown into over a second in a
 white shower of sparks. A recruit starts at half
 size, so a field of veterans is visibly a field of veterans. Balance — the one number the sky,
 the bow and the castles read — is who has more fighters alive, smoothed. The
-player's verb is god mode: a touch strikes down the unicorn nearest to it.
+player's verbs are both god mode, chosen from the two buttons at the top left:
+a touch strikes the nearest unicorn down in a burst of sparks, or freezes it
+into a block of ice. Frozen, it stands there for twenty seconds doing nothing
+and taking nothing but damage, in the way of the fight but out of it, while
+the block melts off it from the top down.
 
 Castles change hands, which is what a fighter with nothing in front of it
 walks off to do. There are three: one at each foot of the bow, held from the
@@ -194,11 +198,11 @@ the values as constants, "copy GLSL" to get them back. Restore `src/debug.js`
 from there and give the lines their ranges back to tune again.
 
 ```
-[build]  8739 / 13312 bytes — 4573 free (34.4%)
-  esbuild    24351 B
-  terser     22756 B  (-7%)
-  roadroller 11279 B  (-50%)
-  glsl       12850 B  (-71% of 44380 B raw)
+[build]  9200 / 13312 bytes — 4112 free (30.9%)
+  esbuild    26110 B
+  terser     24438 B  (-6%)
+  roadroller 12035 B  (-51%)
+  glsl       13460 B  (-71% of 46911 B raw)
 ```
 
 ## Layout

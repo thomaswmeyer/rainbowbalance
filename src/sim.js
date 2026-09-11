@@ -79,6 +79,13 @@ const SPEED = 0.22;
  * recruit rather than nine times one. There is no ceiling.
  */
 const SCALE0 = 0.5, GROW = 0.25, TOUGH = 0.5;
+/**
+ * Ice. A unicorn caught by it is inside a block of it, and can do nothing at
+ * all until the block has gone: not walk, not fight, not heal, not even
+ * flinch. It can still be cut down where it stands, which is the point of
+ * it. The block melts from the top down over this many seconds.
+ */
+export const FREEZE = 20;
 /** Out of a fight, a unicorn heals from nothing to full in this many seconds. */
 const HEAL = 30;
 /** Below this much health, a unicorn that wins a fight withdraws to heal. */
@@ -155,6 +162,7 @@ const MOB = 3;
  * @property {number} _ph gallop phase
  * @property {number} _lane its own depth to walk a castle down at, so that a
  *   column marching on one arrives on a front rather than in single file
+ * @property {number} _ice seconds of the block left over it, 0 when free
  * @property {number} _ox where it stood when the last step ended, and
  * @property {number} _oy the same: the ground it covered since is what its
  *   legs are driven by, so a unicorn that is held still does not walk on the
@@ -234,7 +242,7 @@ const rnd = () => (seed = (seed * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff
  */
 export const TUNE = typeof __DEBUG__ === 'undefined' || __DEBUG__
     ? { HP, HURT, HEAL, LOOK, CROWD, LONG, DEEP, HIT, DMG, REACH, MAX, NEAR_Y, FAR_Y,
-        SPAWN, SCALE0, CAP, CAP_R, TAKE, BREAK, MOB, LANE, OUTPOST,
+        SPAWN, SCALE0, CAP, CAP_R, TAKE, BREAK, MOB, LANE, OUTPOST, FREEZE,
         CASTLE_W, NEAR_S, FAR_S, FOOT, SPEED }
     : null;
 const sizeAt = (y) => NEAR_S + (FAR_S - NEAR_S) * ((y - NEAR_Y) / (FAR_Y - NEAR_Y));
@@ -290,6 +298,7 @@ function spawn(castle) {
         _lane: (rnd() - 0.5) * LANE,
         _px: castle._x, _py: y,
         _ox: castle._x, _oy: y,
+        _ice: 0,
         _hp: HP,
         _max: HP,
         _lvl: 0,
@@ -467,6 +476,25 @@ export function step(dt) {
             un._fight = Math.max(0, un._fight - dt * 4);
             continue;
         }
+        // Under the ice: it does nothing and nothing of its own changes,
+        // beyond the block melting off it. It keeps whatever it was after,
+        // to take that up again when it is free.
+        if (un._ice > 0) {
+            un._ice -= dt;
+            un._eng = false;
+            un._fight += (1 - un._fight) * Math.min(1, dt * 6);
+            // The short way round to zero. Winding a phase of twenty down by
+            // thirds takes it through every lunge on the way, and a unicorn
+            // setting into the ice was throwing its neck up and down a dozen
+            // times on the way to standing still.
+            let ph = un._ph % 6.2832;
+            if (ph > 3.1416) ph -= 6.2832;
+            un._ph = ph * Math.max(0, 1 - dt * 4);
+            un._ox = un._x;
+            un._oy = un._y;
+            continue;
+        }
+
         // A target that has fallen frees it.
         if (un._foe && un._foe._hp <= 0) aim(un, null);
 
@@ -703,7 +731,7 @@ function separate(dt) {
  */
 function walls() {
     for (const un of herd) {
-        if (un._hp <= 0) continue;
+        if (un._hp <= 0 || un._ice > 0) continue;
         for (const c of castles) {
             if (un._rest && c._side === un._side) continue;
             const w = c._w * depthScale(c._y);
@@ -732,6 +760,8 @@ function sweep(sideways) {
         for (let j = i + 1; j < herd.length; j++) {
             const b = herd[j];
             if (b._hp <= 0) continue;
+            // A block of ice does not give way; whoever met it goes round.
+            if (a._ice > 0 && b._ice > 0) continue;
             const w = (a._s + b._s) * 0.5;
             const oy = w * DEEP - Math.abs(b._y - a._y);
             if (oy <= 0) continue;
@@ -752,9 +782,9 @@ function sweep(sideways) {
             const dir = b._y === a._y ? (i & 1 ? 1 : -1) : Math.sign(b._y - a._y);
             let da = -dir * oy * 0.5, db = dir * oy * 0.5;
             // One of them pinned at the edge of the band pushes the other
-            // twice as far.
-            if (a._y + da < NEAR_Y || a._y + da > FAR_Y) { db -= da; da = 0; }
-            if (b._y + db < NEAR_Y || b._y + db > FAR_Y) { da -= db; db = 0; }
+            // twice as far, and so does one under the ice.
+            if (a._ice > 0 || a._y + da < NEAR_Y || a._y + da > FAR_Y) { db -= da; da = 0; }
+            if (b._ice > 0 || b._y + db < NEAR_Y || b._y + db > FAR_Y) { da -= db; db = 0; }
             const ay = Math.min(FAR_Y, Math.max(NEAR_Y, a._y + da));
             const by = Math.min(FAR_Y, Math.max(NEAR_Y, b._y + db));
             // What the edge of the band ate, they give way sideways instead.
@@ -776,16 +806,33 @@ function sweep(sideways) {
 }
 
 /**
- * God mode: strike down the unicorn nearest the point, if one is near.
+ * The unicorn nearest a point, if one is near enough to mean it.
  * @param {number} x in the herd's units
  * @param {number} y
  */
-export function smite(x, y) {
+function nearest(x, y) {
     let best = null, bd = 0.02;
     for (const un of herd) {
         if (un._hp <= 0) continue;
         const d = (un._x - x) ** 2 + (un._y - (y + un._s * 0.4)) ** 2;
         if (d < bd) { bd = d; best = un; }
     }
+    return best;
+}
+
+/**
+ * God mode: freeze the unicorn nearest the point into a block of ice. It
+ * stands there, out of the fight but still in the way of it, until the block
+ * has melted off it.
+ * @param {number} x
+ * @param {number} y
+ */
+export function freeze(x, y) {
+    const un = nearest(x, y);
+    if (un) un._ice = FREEZE;
+}
+
+export function smite(x, y) {
+    const best = nearest(x, y);
     if (best) best._hp = 0;   // zero, not below: that is where the fade starts
 }

@@ -58,7 +58,7 @@ const OUTLIERS = 1e-5;
  */
 const INSTANCES = {
     // x, y at the hooves; scale, signed by facing; phase; side; fighting; health.
-    unicorn: (c) => [0, -0.14, 0.62, c.uTime * 1.7, c.uBalance > 0 ? 1 : 0, 0.6, 0.45],
+    unicorn: (c) => [0, -0.14, 0.62, c.uTime * 1.7, c.uBalance > 0 ? 1 : 0, 0.6, 0.45, 0.7],
     // x, y; size; age; side; place on the mane's hue sweep.
     sparks: (c) => [0, 0, 0.3, 0.3, c.uBalance > 0 ? 1 : 0, 0.5],
 };

@@ -397,6 +397,46 @@ function units() {
             `phase moved only ${(a._ph - ph).toFixed(3)} in half a second`);
     }
 
+    // The ice.
+    {
+        const [a, b] = stage([
+            { _x: 0, _y: -0.2, _side: 0 },
+            { _x: 0.05, _y: -0.2, _side: 1, _hp: 1e6, _max: 1e6 },
+        ]);
+        a._ice = T.FREEZE;
+        const x = a._x, y = a._y, hp = b._hp;
+        run(60 * 3);
+        ok('a unicorn under the ice does not move', Math.hypot(a._x - x, a._y - y) < 1e-9,
+            `it shifted ${Math.hypot(a._x - x, a._y - y).toFixed(4)}`);
+        ok('and does not fight back', b._hp === hp, `it took ${(hp - b._hp).toFixed(2)} off its enemy`);
+        ok('and is still cut down where it stands', a._hp < T.HP,
+            `it took no hurt at all under there`);
+    }
+    {
+        const [a] = stage([{ _x: 0, _y: -0.2, _side: 0 }]);
+        a._ice = T.FREEZE;
+        run(60 * (T.FREEZE - 1));
+        const still = a._ice > 0;
+        run(60 * 2);
+        ok('and the block melts off it in the time it should',
+            still && a._ice <= 0, `it had ${a._ice.toFixed(1)}s left`);
+    }
+    {
+        // It is in the way while it is under there: whoever meets it goes
+        // round, and the block itself does not budge.
+        const [a, b] = stage([
+            { _x: 0, _y: -0.2, _side: 0 },
+            { _x: -0.2, _y: -0.2, _side: 1, _hp: 1e6, _max: 1e6 },
+        ]);
+        a._ice = T.FREEZE;
+        const x = a._x, y = a._y;
+        run(60 * 4);
+        ok('and nothing shoves the block aside', Math.hypot(a._x - x, a._y - y) < 1e-9,
+            `the block moved ${Math.hypot(a._x - x, a._y - y).toFixed(4)}`);
+        ok('and nothing stands inside it', overlap(a, b) < TOUCH,
+            `${overlap(a, b).toFixed(2)} overlapping`);
+    }
+
     // A run ends when one side holds the lot.
     {
         stage([]);
