@@ -116,6 +116,18 @@ fighters ahead, the lightest hand that keeps a run going — since otherwise
 every number it collects comes from the first minute of a run that is
 already over.
 
+`f` buys another second of the fight for every second of watching — 2×, then
+3×, and up — `s` gives it back a step at a time down to a stop, and space
+plays or pauses at whatever pace was last set. The step is fixed, so a run
+watched fast is the same run.
+
+One clock runs here. The simulation is a fixed sixtieth of a second a step,
+and `state._elapsed` counts those, so it is game time: the clock in the corner
+shows it, it runs at whatever pace is set, and it stops when the game does.
+The shaders are handed the same number, so the clouds, the rain, the grass and
+the manes keep pace with the fight and stop with it. A paused frame is
+identical to the one before it, down to the pixel.
+
 A claim being made or broken shows as a bar over the castle, in the colour of
 whoever is making it. When one side holds every castle the run is over: the
 field stops where it stands, the clock holds at the time it took, and a touch
@@ -182,7 +194,7 @@ the values as constants, "copy GLSL" to get them back. Restore `src/debug.js`
 from there and give the lines their ranges back to tune again.
 
 ```
-[build]  8633 / 13312 bytes — 4679 free (35.1%)
+[build]  8739 / 13312 bytes — 4573 free (34.4%)
   esbuild    24351 B
   terser     22756 B  (-7%)
   roadroller 11279 B  (-50%)

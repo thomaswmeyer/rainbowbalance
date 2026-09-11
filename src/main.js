@@ -94,7 +94,7 @@ document.body.innerHTML =
 // --- the clock --------------------------------------------------------------
 
 const clock = /** @type {HTMLElement} */ (document.getElementById('t'));
-let _shown = -1;
+let _shown = -1, _shownPace = 1;
 
 /**
  * Seconds into the run as a clock that grows a field at a time: 11, then
@@ -124,12 +124,14 @@ function showWinner() {
     over.style.display = 'grid';
 }
 
-/** Rewrite the clock only when the second turns over. */
+/** Rewrite the clock only when the second turns over, or the pace changes. */
 function showClock() {
     const s = state._elapsed | 0;
-    if (s === _shown) return;
+    if (s === _shown && speed === _shownPace) return;
     _shown = s;
-    clock.textContent = formatClock(s);
+    _shownPace = speed;
+    clock.textContent = formatClock(s)
+        + (speed === 1 ? '' : speed ? ` ×${speed}` : ' ‖');
 }
 
 // --- drawing ----------------------------------------------------------------
@@ -167,6 +169,29 @@ function drawScene(balance) {
     drawSparks();
 }
 
+// --- the pace ---------------------------------------------------------------
+
+/**
+ * How many seconds of the fight a second of watching buys. 1 is real time, 0
+ * is paused, and anything above 1 is the same simulation run faster — the
+ * step is fixed, so the fight is identical however fast it is watched.
+ */
+let speed = 1;
+/** What to go back to when the pause comes off. */
+let played = 1;
+
+addEventListener('keydown', (e) => {
+    const k = e.key;
+    // f faster a step at a time, s slower the same way down to a stop, and
+    // space is play or pause at whatever pace was last set.
+    if (k === 'f' || k === 'F') speed = Math.max(speed, 1) + 1;
+    else if (k === 's' || k === 'S') speed = Math.max(0, speed - 1);
+    else if (k === ' ') speed = speed ? 0 : played;
+    else return;
+    if (speed) played = speed;
+    e.preventDefault();
+});
+
 // --- boot -------------------------------------------------------------------
 
 const canvas = /** @type {HTMLCanvasElement} */ (document.getElementById('c'));
@@ -189,12 +214,18 @@ if (!initGl(canvas)) {
         requestAnimationFrame(frame);
         const t = now / 1000;
         // A tab that was hidden comes back with a huge delta; stepping all of
-        // it would run the whole run in one frame.
-        acc = Math.min(acc + (last ? t - last : 0), 0.25);
+        // it would run the whole run in one frame. What speed does is buy
+        // more of the simulation with the same second of real time, so it
+        // multiplies the delta rather than the cap.
+        acc += Math.min(last ? t - last : 0, 0.25) * speed;
         last = t;
-        while (acc >= STEP) { step(STEP); acc -= STEP; }
+        // And a frame only ever runs so many steps, however far behind it is.
+        for (let n = 0; acc >= STEP && n < 300; n++) { step(STEP); acc -= STEP; }
 
-        setTime(t);
+        // The shaders run on the game's clock, not the wall's: the weather
+        // keeps pace with the fight, and stops with it. The one thing that
+        // does not is the rainbow's own colours, which are not time's.
+        setTime(state._elapsed);
         resize(canvas);
         drawScene(state._balance);
         showClock();
