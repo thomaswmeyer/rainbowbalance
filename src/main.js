@@ -36,8 +36,12 @@ export const state = {
  * @param {number} dt seconds
  */
 function step(dt) {
-    state._elapsed += dt;
-    sim.step(dt);
+    // Once a side holds every castle the field holds still, but whatever was
+    // in the air when it happened comes down.
+    if (sim.winner < 0) {
+        state._elapsed += dt;
+        sim.step(dt);
+    }
     for (const un of sim.fallen) burst(un._x, un._y, un._s, un._side);
     sim.fallen.length = 0;
     for (const un of sim.promoted) shower(un._x, un._y, un._s);
@@ -57,14 +61,17 @@ function step(dt) {
  * @param {number} cy
  */
 function smite(cx, cy) {
+    if (sim.winner >= 0) { reset(); return; }
     // Pixels to the herd's units: the rainbow's space, y up, height 1.
     sim.smite((cx - innerWidth / 2) / innerHeight, (innerHeight / 2 - cy) / innerHeight);
 }
 
 export function reset() {
     state._balance = state._elapsed = 0;
-    sim.reset();
+    // A fresh seed, or every run would be the one run.
+    sim.reset(Date.now() & 0x7fffffff);
 }
+
 
 // --- the page ---------------------------------------------------------------
 // Everything on the page is made here rather than in the HTML, so that it is
@@ -76,8 +83,13 @@ document.body.innerHTML =
     '<style>html,body{margin:0;height:100%;background:#05060d;overflow:hidden}'
     + 'canvas{display:block;width:100%;height:100%;touch-action:none}'
     + '#t{position:fixed;top:8px;right:12px;color:#fff;font:600 54px/1 system-ui,sans-serif;'
-    + 'text-shadow:0 1px 3px #000c}</style>'
-    + '<canvas id=c></canvas><div id=t></div>';
+    + 'text-shadow:0 1px 3px #000c}'
+    + '#o{position:fixed;inset:0;display:none;place-content:center;text-align:center;'
+    + 'color:#fff;font:700 64px/1.3 system-ui,sans-serif;text-shadow:0 2px 8px #000e;'
+    + 'background:#0006;cursor:pointer}#o i,#o b{display:block;font-style:normal}'
+    + '#o i{font-size:96px;margin:.08em 0}#o b{font-size:28px;font-weight:400;opacity:.8}'
+    + '</style>'
+    + '<canvas id=c></canvas><div id=t></div><div id=o></div>';
 
 // --- the clock --------------------------------------------------------------
 
@@ -95,6 +107,21 @@ function formatClock(s) {
     let i = 0;
     while (i < 3 && !f[i]) i++;
     return f.slice(i).map((v, j) => (j ? String(v).padStart(2, '0') : v)).join(':');
+}
+
+const over = /** @type {HTMLElement} */ (document.getElementById('o'));
+let _won = -2;
+
+/** The banner, once. A touch anywhere on it starts another run. */
+function showWinner() {
+    if (sim.winner === _won) return;
+    _won = sim.winner;
+    if (sim.winner < 0) { over.style.display = 'none'; return; }
+    // The time on its own line rather than in a sentence: it grows a field
+    // at a time, and "in 4" reads no better than "in 1:22:45:11" would.
+    over.innerHTML = (sim.winner ? 'RAINICORNS' : 'SUNICORNS') + ' HOLD THE FIELD'
+        + `<i>${formatClock(state._elapsed)}</i><b>touch to begin again</b>`;
+    over.style.display = 'grid';
 }
 
 /** Rewrite the clock only when the second turns over. */
@@ -121,8 +148,12 @@ function drawScene(balance) {
     const items = sim.castles.map((c) => ({
         _y: c._y,
         // Nobody's castle shows no stone of either side, so which side's it
-        // would have been does not matter; 0 keeps the branch cheap.
-        _draw: () => drawCastle(c._x, c._y, Math.max(c._side, 0), c._cap / sim.CAP, balance),
+        // would have been does not matter; 0 keeps the branch cheap. The
+        // claim only goes over a castle that is being fought for: full or
+        // empty and nobody is pressing one, so there is nothing to show.
+        _draw: () => drawCastle(c._x, c._y, Math.max(c._side, 0), c._cap / sim.CAP,
+            sim.winner < 0 && c._cap > 0 && c._cap < sim.CAP ? c._cap / sim.CAP : -1,
+            c._side, sim.depthAt(c._y), balance),
     }));
     // The bow belongs at the depth of its own feet, not at the deepest
     // castle's: it is drawn over the herd behind that line and under the
@@ -147,6 +178,7 @@ if (!initGl(canvas)) {
     initRainbow();
     initUnicorns();
     initSparks();
+    reset();
 
     addEventListener('pointerdown', (e) => smite(e.clientX, e.clientY));
 
@@ -166,5 +198,6 @@ if (!initGl(canvas)) {
         resize(canvas);
         drawScene(state._balance);
         showClock();
+        showWinner();
     });
 }

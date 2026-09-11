@@ -46,6 +46,11 @@ function inCastle(u, c) {
 const STEP = 1 / 60;
 const seconds = Number(process.argv[2]) || 600;
 const quiet = process.argv.includes('quiet');
+/** `npm run sim -- games 100` plays that many out to a finish and counts them. */
+const games = process.argv.includes('games')
+    ? Number(process.argv[process.argv.indexOf('games') + 1]) || 100 : 0;
+/** A game is called drawn after this long, so one that cannot end still ends. */
+const LIMIT = 900;
 
 let failed = 0, passed = 0;
 const say = (...a) => { if (!quiet) console.log(...a); };
@@ -314,6 +319,34 @@ function units() {
         const worst = Math.max(...sim.herd.map((u) => inCastle(u, c)));
         ok('a crowd driven onto a castle ends up around it', worst < 0.02,
             `${(worst * 100) | 0}% of one is still inside it`);
+    }
+
+    // A run ends when one side holds the lot.
+    {
+        stage([]);
+        run(1);
+        ok('a run with the castles as they start has no winner', sim.winner < 0,
+            `side ${sim.winner} has already won it`);
+    }
+    {
+        stage([]);
+        for (const c of sim.castles) { c._side = 1; c._own = true; c._cap = T.CAP; }
+        run(1);
+        ok('a side that holds every castle has won the run', sim.winner === 1,
+            `winner came out ${sim.winner}`);
+    }
+    {
+        stage([]);
+        for (const c of sim.castles) { c._side = 0; c._own = true; c._cap = T.CAP; }
+        run(1);
+        // One of them not yet fully claimed is one still being fought for.
+        sim.castles[1]._own = false;
+        sim.castles[1]._cap = T.CAP * 0.5;
+        const won = sim.winner;
+        sim.reset();
+        run(1);
+        ok('holding every castle but one is not winning it', won === 0 && sim.winner < 0,
+            `won ${won}, and after a reset ${sim.winner}`);
     }
 
     // Nothing in sight is nothing to fight.
@@ -662,6 +695,64 @@ function capture() {
 }
 
 // ---------------------------------------------------------------------------
+// A hundred games
+// ---------------------------------------------------------------------------
+
+/**
+ * Play games out, each off its own seed, and say who won them. Nothing
+ * interferes: no smiting, no hand on the scales. This is the question of
+ * whether the two sides are actually even, which watching one run cannot
+ * answer — and everything random in the simulation comes off one seed, so a
+ * hundred runs of the same seed would be one run counted a hundred times.
+ * @param {number} n
+ */
+function tournament(n) {
+    const wins = [0, 0];
+    const times = [[], []];
+    const first = [0, 0, 0];
+    let draws = 0, held = 0;
+    const began = process.hrtime.bigint();
+    for (let g = 0; g < n; g++) {
+        sim.reset(1 + g * 7919);
+        let t = 0, took = -1;
+        for (; t < LIMIT && sim.winner < 0; t += STEP) {
+            sim.step(STEP);
+            if (took < 0 && sim.captured.length) took = sim.captured[0]._side;
+            sim.fallen.length = sim.promoted.length = sim.captured.length = 0;
+        }
+        if (sim.winner < 0) draws++;
+        else { wins[sim.winner]++; times[sim.winner].push(t); }
+        first[took >= 0 ? took : 2]++;
+        if (took >= 0 && took === sim.winner) held++;
+    }
+    const real = Number(process.hrtime.bigint() - began) / 1e9;
+    const mean = (a) => (a.length ? a.reduce((x, y) => x + y, 0) / a.length : 0);
+    const all = [...times[0], ...times[1]].sort((a, b) => a - b);
+    const played = wins[0] + wins[1];
+
+    ok(`neither side wins every one of ${n} games`, wins[0] > 0 && wins[1] > 0,
+        `sunicorns ${wins[0]}, rainicorns ${wins[1]}, drawn ${draws}`);
+    // Even-ish is a band, not a point: a hundred fair games land inside
+    // 40–60 about nineteen times in twenty, so outside it is worth a look.
+    ok('and the two sides win about as often as each other',
+        played > 0 && Math.abs(wins[0] - wins[1]) <= 0.2 * played + 2,
+        `sunicorns ${wins[0]}, rainicorns ${wins[1]} of ${played} decided`);
+    if (quiet) return;
+    const row = (k, v) => console.log(`    ${k.padEnd(26)} ${v}`);
+    row('sunicorns won', `${wins[0]}`);
+    row('rainicorns won', `${wins[1]}`);
+    row(`drawn after ${LIMIT}s`, `${draws}`);
+    row('first castle taken by', `sunicorns ${first[0]}, rainicorns ${first[1]}, nobody ${first[2]}`);
+    row('and that side went on to win', `${held} of ${first[0] + first[1]}` +
+        ` (${(held / Math.max(first[0] + first[1], 1) * 100).toFixed(0)}%)`);
+    row('mean game', `${mean(all).toFixed(0)}s` +
+        ` (sunicorn wins ${mean(times[0]).toFixed(0)}s, rainicorn ${mean(times[1]).toFixed(0)}s)`);
+    row('shortest, longest', all.length ? `${all[0].toFixed(0)}s, ${all[all.length - 1].toFixed(0)}s` : '—');
+    row('median', all.length ? `${all[all.length >> 1].toFixed(0)}s` : '—');
+    row('real time', `${real.toFixed(2)}s for ${n}, ${(real / n * 1000).toFixed(0)}ms a game`);
+}
+
+// ---------------------------------------------------------------------------
 // End to end
 // ---------------------------------------------------------------------------
 
@@ -790,6 +881,14 @@ function e2e() {
 }
 
 // ---------------------------------------------------------------------------
+
+if (games) {
+    say(`\n[sim] ${games} games, each to a finish`);
+    tournament(games);
+    console.log(failed ? `\n[sim] ${failed} failed, ${passed} passed`
+        : `\n[sim] all ${passed} passed`);
+    process.exit(failed ? 1 : 0);
+}
 
 units();
 field();

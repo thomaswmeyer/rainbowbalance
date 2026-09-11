@@ -486,6 +486,10 @@ uniform float uBalance;
 // stone it is built of, and how much of a claim is on it: 0 is bare
 // unclaimed stone.
 uniform vec4 uCastle;
+// The claim being made or broken on it, as a bar over the wall: how full,
+// whose it is (−1 nobody's), and how big a thing the castle is at its depth.
+// A negative fill is no bar at all, which is a castle nobody is fighting for.
+uniform vec3 uBar;
 
 const int CASTLE_ON = 1;
 
@@ -650,6 +654,27 @@ vec3 castleNormal(vec3 p, vec3 cp, vec2 f){
 void main(){
   if (CASTLE_ON == 0) discard;
   vec2 p = (gl_FragCoord.xy - 0.5 * uRes) / uRes.y;
+
+  // The claim, over the castle. The simulation puts each castle at a place
+  // on the screen and the shader builds its ray from that same place, so
+  // the bar needs no projecting: it goes straight above uCastle.xy, at the
+  // castle's own size, and is drawn before the stone so a wall cannot hide
+  // it. Broken by one side and made by the other, it empties in the
+  // holder's colour and fills again in the taker's.
+  if (uBar.x >= 0.0) {
+    float n = uBar.z;
+    vec2 bp = p - vec2(uCastle.x, uCastle.y + 0.175 * n);
+    float box = max(abs(bp.x) - 0.075 * n, abs(bp.y) - 0.011 * n);
+    if (box < 0.0) {
+      float aa = fwidth(box);
+      float fill = smoothstep(aa, -aa, bp.x - (uBar.x * 2.0 - 1.0) * 0.075 * n);
+      vec3 col = uBar.y < -0.5 ? vec3(0.62, 0.62, 0.66)
+               : uBar.y < 0.5 ? vec3(1.00, 0.78, 0.35) : vec3(0.58, 0.58, 0.98);
+      o = vec4(mix(vec3(0.05, 0.04, 0.08), col, fill), 1.0);
+      return;
+    }
+  }
+
   float b = clamp(uBalance, -1.0, 1.0);
   float asp = uRes.x / uRes.y;
   vec3 rd = normalize(vec3(-p.x, p.y - HORIZON, -0.5 / tan(radians(FOV))));
@@ -721,7 +746,7 @@ export function initRainbow() {
     _bowProg = program(FULLSCREEN_VS, BOW_FS);
     _bowU = uniforms(_bowProg, ['uRes', 'uBalance']);
     _castleProg = program(FULLSCREEN_VS, CASTLE_FS);
-    _castleU = uniforms(_castleProg, ['uRes', 'uBalance', 'uCastle']);
+    _castleU = uniforms(_castleProg, ['uRes', 'uBalance', 'uCastle', 'uBar']);
 }
 
 /** The fragment sources by pass, for the debug panel's feature switches. */
@@ -740,7 +765,7 @@ export function recompile(pass, src) {
         _bowU = uniforms(_bowProg, ['uRes', 'uBalance']);
     } else if (pass === 'castle') {
         _castleProg = program(FULLSCREEN_VS, src);
-        _castleU = uniforms(_castleProg, ['uRes', 'uBalance', 'uCastle']);
+        _castleU = uniforms(_castleProg, ['uRes', 'uBalance', 'uCastle', 'uBar']);
     } else {
         _prog = program(FULLSCREEN_VS, src);
         _u = uniforms(_prog, ['uRes', 'uTime', 'uBalance']);
@@ -758,20 +783,20 @@ export function drawRainbow(balance) {
 }
 
 /**
- * One castle, where the simulation says it stands. Position is the herd's:
- * x across the screen and y for depth, and the shader does the rest — a
- * castle deeper in the field draws smaller and hazier of its own accord.
- * @param {number} x in screen units
- * @param {number} y depth, the herd's: NEAR_Y at the front row, FAR_Y at the
- *   horizon
- * @param {number} side 0 sandstone, 1 obsidian
- * @param {number} claim 0…1, how much of that stone has come in: 0 is the
- *   bare grey of a castle nobody holds
+ * One castle, and the claim on it if there is one being made or broken.
+ * @param {number} x on the field, in the herd's units
+ * @param {number} y
+ * @param {number} side whose stone it wears: 0 or 1
+ * @param {number} claim 0…1, how much of that stone has come in
+ * @param {number} bar 0…1 to show the claim over it, below 0 for no bar
+ * @param {number} who whose claim the bar is: −1, 0 or 1
+ * @param {number} scale how big a thing the castle is at its depth
  * @param {number} balance
  */
-export function drawCastle(x, y, side, claim, balance) {
+export function drawCastle(x, y, side, claim, bar, who, scale, balance) {
     gl.useProgram(_castleProg);
-    _castleU({ uRes: [width, height], uBalance: balance, uCastle: [x, y, side, claim] });
+    _castleU({ uRes: [width, height], uBalance: balance,
+        uCastle: [x, y, side, claim], uBar: [bar, who, scale] });
     fullscreen();
 }
 

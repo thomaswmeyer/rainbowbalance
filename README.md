@@ -18,6 +18,7 @@ npm run build    # → dist/index.html and dist/endlessrainbows.zip, size-gated
 npm run size     # the byte count on its own
 npm run check    # do the minified shaders render what the source rendered?
 npm run sim      # the fight, headless: unit tests, then ten minutes of play
+npm run sim -- games 100   # a hundred whole games, and who won them
 ```
 
 `check` needs a browser: `npm i -D puppeteer`, or the lighter
@@ -115,6 +116,16 @@ fighters ahead, the lightest hand that keeps a run going — since otherwise
 every number it collects comes from the first minute of a run that is
 already over.
 
+A claim being made or broken shows as a bar over the castle, in the colour of
+whoever is making it. When one side holds every castle the run is over: the
+field stops where it stands, the clock holds at the time it took, and a touch
+begins another.
+
+A hundred games play out headless in a second, which is how the two sides are
+known to be even — 2,463 against 2,537 over five thousand — and how the one
+thing that decides a run was found: whoever takes the first castle wins 99 of
+every 100.
+
 Next, in order: what ends a run, deaths with some ceremony, unicorn classes
 beyond the fighter, then sound.
 
@@ -144,11 +155,11 @@ the values as constants, "copy GLSL" to get them back. Restore `src/debug.js`
 from there and give the lines their ranges back to tune again.
 
 ```
-[build]  7964 / 13312 bytes — 5348 free (40.2%)
-  esbuild    22693 B
-  terser     21069 B  (-7%)
-  roadroller 10383 B  (-51%)
-  glsl       12530 B  (-71% of 43179 B raw)
+[build]  8435 / 13312 bytes — 4877 free (36.6%)
+  esbuild    23814 B
+  terser     22287 B  (-6%)
+  roadroller 11013 B  (-51%)
+  glsl       12850 B  (-71% of 44380 B raw)
 ```
 
 ## Layout

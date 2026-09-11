@@ -207,6 +207,13 @@ export const promoted = [];
 /** Which castles came up to a full claim this step, likewise. */
 export const captured = [];
 
+/**
+ * The side that holds every castle, with a full claim on each, or −1 while
+ * the run is still on. Nothing in the simulation reads it: it stops when
+ * main.js stops calling it, so the field holds still at the moment it was won.
+ */
+export let winner = -1;
+
 let seed = 7;
 const rnd = () => (seed = (seed * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff;
 
@@ -230,15 +237,23 @@ const sizeAt = (y) => NEAR_S + (FAR_S - NEAR_S) * ((y - NEAR_Y) / (FAR_Y - NEAR_
  * @param {number} y
  */
 const depthScale = (y) => sizeAt(y) / sizeAt(FOOT);
+/** The same, for main.js: how big to draw a thing standing at this depth. */
+export const depthAt = depthScale;
 
-export function reset() {
-    // The same seed every time: a run is reproducible, which is what makes
-    // the headless harness worth anything.
-    seed = 7;
+/**
+ * Start a run. The seed is the whole of what makes one run differ from
+ * another — everything random in here comes off it — so the same seed gives
+ * the same run, which is what makes the headless harness worth anything, and
+ * a fresh one gives a fresh game.
+ * @param {number} [s]
+ */
+export function reset(s = 7) {
+    seed = s;
     herd.length = 0;
     fallen.length = 0;
     promoted.length = 0;
     captured.length = 0;
+    winner = -1;
     balance = 0;
     for (const c of castles) {
         c._side = c._from;
@@ -398,6 +413,10 @@ function capture(dt) {
  */
 export function step(dt) {
     capture(dt);
+
+    // Every castle one side's, and every claim on them full: the run is over.
+    const first = castles[0]._side;
+    if (first >= 0 && castles.every((c) => c._side === first && c._own)) winner = first;
 
     for (const c of castles) {
         if (!c._own) continue;
