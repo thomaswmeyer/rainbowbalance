@@ -106,6 +106,15 @@ const LONG = 1.25, DEEP = 0.625;
  * castle is at, rather than lining up outside the very claim it came for.
  */
 const LANE = 0.2;
+/**
+ * A castle's half-width at the bow's feet, measured off the screen, and its
+ * ground is square: as deep as it is wide, where a unicorn's is half as deep
+ * as it is long. Like every other distance on the ground it is the castle's
+ * own size, so one deep in the field takes up less of it. Nothing stands in
+ * it but the garrison healing there — and a besieger shoved out of it is
+ * still well inside CAP_R, so it presses its claim from the wall.
+ */
+const CASTLE_W = 0.071;
 /** A swing connects this often, and takes off this much when it does. */
 const HIT = 0.65, DMG = 1.5;
 /** Radians a second the neck lunges while fighting: one swing a second. */
@@ -173,6 +182,7 @@ export const herd = [];
  * @property {number} _rate how fast it turns recruits out, against a home
  *   castle's rate
  * @property {number} _t seconds to its next spawn
+ * @property {number} _w half the ground it stands on, at the bow's feet
  */
 
 /**
@@ -182,9 +192,9 @@ export const herd = [];
  * @type {Castle[]}
  */
 export const castles = [
-    { _x: -FOOT_X, _y: FOOT, _from: 0, _side: 0, _cap: CAP, _own: true, _rate: 1, _t: 1 },
-    { _x: 0, _y: MID_Y, _from: -1, _side: -1, _cap: 0, _own: false, _rate: OUTPOST, _t: 1 },
-    { _x: FOOT_X, _y: FOOT, _from: 1, _side: 1, _cap: CAP, _own: true, _rate: 1, _t: 1 },
+    { _x: -FOOT_X, _y: FOOT, _from: 0, _side: 0, _cap: CAP, _own: true, _rate: 1, _t: 1, _w: CASTLE_W },
+    { _x: 0, _y: MID_Y, _from: -1, _side: -1, _cap: 0, _own: false, _rate: OUTPOST, _t: 1, _w: CASTLE_W },
+    { _x: FOOT_X, _y: FOOT, _from: 1, _side: 1, _cap: CAP, _own: true, _rate: 1, _t: 1, _w: CASTLE_W },
 ];
 
 /** −1 rainicorns ahead … +1 sunicorns ahead, smoothed. */
@@ -208,7 +218,8 @@ const rnd = () => (seed = (seed * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff
  */
 export const TUNE = typeof __DEBUG__ === 'undefined' || __DEBUG__
     ? { HP, HURT, HEAL, LOOK, CROWD, LONG, DEEP, HIT, DMG, REACH, MAX, NEAR_Y, FAR_Y,
-        SPAWN, SCALE0, CAP, CAP_R, TAKE, BREAK, MOB, LANE, OUTPOST }
+        SPAWN, SCALE0, CAP, CAP_R, TAKE, BREAK, MOB, LANE, OUTPOST,
+        CASTLE_W, NEAR_S, FAR_S, FOOT }
     : null;
 const sizeAt = (y) => NEAR_S + (FAR_S - NEAR_S) * ((y - NEAR_Y) / (FAR_Y - NEAR_Y));
 /**
@@ -459,6 +470,11 @@ export function step(dt) {
         // Where to stop, and from how close the horns connect: a little
         // further out than the stop, so a pair that eases to a halt at the
         // stop is fighting by the time it gets there.
+        // The doorstep is inside the castle's ground on purpose: a besieger
+        // walks at the gate, is put back out of the wall by walls(), and
+        // takes that depth for its lane. Stopping it outside the wall
+        // instead would have a big veteran standing beyond CAP_R, unable to
+        // press the claim it came for.
         const stop = un._foe ? REACH * (un._s + un._foe._s) : (rest ? 0.012 : 0.08) * near;
         // Once horn to horn it takes more than a shove from the crowd to
         // break it off, or the pair spend the fight stepping in and out of
@@ -551,8 +567,40 @@ function separate() {
     // Resolving one pair can push a unicorn into another, so it takes a few
     // sweeps to settle. The last one gives way sideways instead: whatever a
     // crowd could not solve by stepping aside in depth, it solves by
-    // spreading out along the field.
-    sweep(0); sweep(0); sweep(0); sweep(1);
+    // spreading out along the field. The castles are put in between, so a
+    // unicorn shoved into one is put back out before the next sweep.
+    sweep(0); walls(); sweep(0); walls(); sweep(0); sweep(1); walls();
+}
+
+/**
+ * Out of the castles. They do not move, so the unicorn gives all the ground,
+ * and it gives it the short way: whichever of depth and across is the less
+ * far to go. Always choosing depth would put a besieger that walked up to a
+ * gate at the castle's exact depth, whatever lane it marched in, and a
+ * column would arrive in single file after all. A unicorn healing at a
+ * castle of its own is the garrison and stands on it.
+ */
+function walls() {
+    for (const un of herd) {
+        if (un._hp <= 0) continue;
+        for (const c of castles) {
+            if (un._rest && c._side === un._side) continue;
+            const w = c._w * depthScale(c._y);
+            const ex = w + un._s * LONG * 0.5;
+            const ey = w + un._s * DEEP * 0.5;
+            const dx = un._x - c._x, dy = un._y - c._y;
+            const ox = ex - Math.abs(dx), oy = ey - Math.abs(dy);
+            if (ox <= 0 || oy <= 0) continue;
+            // The short way out, and out of the band is no way at all.
+            const y = un._y + (dy === 0 ? 1 : Math.sign(dy)) * oy;
+            if (oy <= ox && y >= NEAR_Y && y <= FAR_Y) {
+                un._y = y;
+                un._s = sizeAt(un._y) * un._scale;
+            } else {
+                un._x += (dx === 0 ? (un._x < c._x ? -1 : 1) : Math.sign(dx)) * ox;
+            }
+        }
+    }
 }
 
 /** @param {number} sideways */

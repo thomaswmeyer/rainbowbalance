@@ -32,6 +32,17 @@
 import * as sim from '../src/sim.js';
 
 const T = sim.TUNE;
+/** A castle's ground is its own size, like every distance on the field. */
+const sizeAt = (y) => T.NEAR_S + (T.FAR_S - T.NEAR_S) * ((y - T.NEAR_Y) / (T.FAR_Y - T.NEAR_Y));
+const depthScale = (y) => sizeAt(y) / sizeAt(T.FOOT);
+
+/** How far into a castle a unicorn stands, as a fraction of the footprint. */
+function inCastle(u, c) {
+    const w = c._w * depthScale(c._y);
+    const ex = w + u._s * T.LONG * 0.5, ey = w + u._s * T.DEEP * 0.5;
+    const ox = ex - Math.abs(u._x - c._x), oy = ey - Math.abs(u._y - c._y);
+    return ox > 0 && oy > 0 ? Math.min(ox / ex, oy / ey) : 0;
+}
 const STEP = 1 / 60;
 const seconds = Number(process.argv[2]) || 600;
 const quiet = process.argv.includes('quiet');
@@ -279,6 +290,30 @@ function units() {
         const on = sim.herd.filter((u) => u._foe === target).length;
         ok('no more than the cap choose one target', on <= T.CROWD,
             `${on} chose it, cap is ${T.CROWD}`);
+    }
+
+    // A castle is ground too: nothing stands in one but its own garrison.
+    {
+        const c = sim.castles[1];
+        const [a] = stage([{ _x: c._x, _y: c._y, _side: 0 }]);
+        run(60);
+        ok('a unicorn is put out of a castle it does not hold', inCastle(a, c) < 0.02,
+            `${(inCastle(a, c) * 100) | 0}% inside it — ${show(a)}`);
+    }
+    {
+        const c = sim.castles[0];
+        const [a] = stage([{ _x: c._x, _y: c._y, _side: 0, _rest: true, _hp: 1 }]);
+        run(60);
+        ok('but its own garrison heals standing on it',
+            Math.abs(a._x - c._x) < 0.05 && a._hp > 1, show(a));
+    }
+    {
+        const c = sim.castles[1];
+        stage(Array.from({ length: 12 }, (_, i) => ({ _x: c._x + 0.002 * i, _y: c._y, _side: 0 })));
+        run(180);
+        const worst = Math.max(...sim.herd.map((u) => inCastle(u, c)));
+        ok('a crowd driven onto a castle ends up around it', worst < 0.02,
+            `${(worst * 100) | 0}% of one is still inside it`);
     }
 
     // Nothing in sight is nothing to fight.
