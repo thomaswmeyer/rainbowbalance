@@ -121,6 +121,33 @@ whoever is making it. When one side holds every castle the run is over: the
 field stops where it stands, the clock holds at the time it took, and a touch
 begins another.
 
+A unicorn that is getting nowhere stands still with its four feet on the
+ground, and its legs are driven by the ground it covers rather than the speed
+it meant to walk at, so one held up by the crowd stops rather than walking on
+the spot. Horn to horn it holds its ground instead of walking at its foe every
+step, which is what stopped a fighting pair shuddering every time the crowd
+nudged them. A unicorn shoved away from where it was going waits a
+step rather than walking straight back into what shoved it, which is what a
+crowd pressing the last castle was doing thirteen times a second. A fighter takes the
+nearest enemy it can see, every step, unless it is already horn to horn with
+one — packed into a crowd it is forever carried away from whatever it first
+picked, and walking back across the press to reach that one rather than the
+one under its nose is how a fight becomes a crush of animals going past each
+other.
+
+Letting a crowd overlap a little and stopping on contact was tried, and it all
+but removed the shudder — but crowds packed tight, fights started half as
+often, and a game that took a minute took three. Drawing a unicorn a step or
+two behind where it stands was tried too, and halved what a dense crowd shows
+for nothing at all, but it is a coat of paint over the thing rather than the
+thing. Neither is in. `npm run
+sim` measures all of it: ground covered against ground gained, how often a
+unicorn doubles back, and the worst crowd eight games can throw up — what counts is the ground it covers,
+not whether it is trying, because a crowd at a gate walks into the wall and is
+pushed back out of it all day. `npm run sim` measures that directly — ground
+covered by a crowd that finished where it started, in unicorn-walks — for a
+garrison, a siege, and the endgame crowd of forty round the last castle.
+
 A hundred games play out headless in a second, which is how the two sides are
 known to be even — 2,463 against 2,537 over five thousand — and how the one
 thing that decides a run was found: whoever takes the first castle wins 99 of
@@ -155,10 +182,10 @@ the values as constants, "copy GLSL" to get them back. Restore `src/debug.js`
 from there and give the lines their ranges back to tune again.
 
 ```
-[build]  8435 / 13312 bytes — 4877 free (36.6%)
-  esbuild    23814 B
-  terser     22287 B  (-6%)
-  roadroller 11013 B  (-51%)
+[build]  8633 / 13312 bytes — 4679 free (35.1%)
+  esbuild    24351 B
+  terser     22756 B  (-7%)
+  roadroller 11279 B  (-50%)
   glsl       12850 B  (-71% of 44380 B raw)
 ```
 
