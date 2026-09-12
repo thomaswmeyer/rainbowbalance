@@ -137,28 +137,37 @@ const TAKE = 0.75, BREAK = 1.5;
 const MOB = 3;
 
 /**
- * The mage: one recruit in MAGE_EVERY comes out of the gate in a cape, up to
- * MAGES of them alive on a side, and it is the one unicorn here that never
- * fights horn to horn. It walks up to KEEP of the nearest enemy and holds
- * there, steps out of the way of a fight that is not about it, and every COOL
- * seconds freezes the nearest enemy within CAST of it for FREEZE seconds — a
- * unicorn that cannot walk, cannot swing and cannot heal, but is still a
+ * The mage: one recruit in MAGE_EVERY comes out of the gate in a cape, and it
+ * is the one unicorn here that never fights horn to horn. It walks where a
+ * fighter walks, stops as soon as the nearest enemy is within KEEP of it,
+ * gives ground to one that gets well inside that, and every COOL seconds
+ * freezes the nearest enemy within CAST for FREEZE seconds
+ * — a unicorn that cannot walk, cannot swing and cannot heal, but is still a
  * target and still stands in everyone's way.
  *
  * What it hands its side is not damage. It is a fight where one of the two is
- * not swinging back, which is worth about what a second fighter would be
- * worth and costs a fighter's place in the herd. So it is paid for elsewhere:
- * fewer hit points than a recruit, slower on its feet than what is coming for
- * it, and no veterancy at all, since a unicorn that never wins a fight never
- * walks off to heal from one. A mage left unguarded is run down, and one that
- * has been picked out cannot run: see `back` in the step for why not.
+ * not swinging back. What it costs is a fighter's place in the herd, and it
+ * never levels besides, a unicorn that never wins a fight never walking off
+ * to heal from one. That is all it costs today, and it is not enough: see the
+ * README for what a herd of them does to a run.
+ *
+ * It gives ground to anything that gets well inside KEEP. That is not settled
+ * yet: a mage freezes its pursuer every COOL seconds, which takes as much off
+ * the pursuer's speed as the frost lasts, so one that backs away the whole
+ * time outruns a fighter however slow it is and kites it off the field. What
+ * it is to do instead is a design question, not a bug to be patched around.
+ *
+ * One thing it does not do, having done it once: walk to a distance rather
+ * than to a place. Holding KEEP from something is a whole circle of places to
+ * stand, nothing pulls a unicorn shoved along that circle back to where it
+ * was, and the crowd squeezed mages out of the field one at a time. So it
+ * marches to the same castle a fighter would and simply stops short.
  *
  * CAST and KEEP are flat distances like LOOK, not ground to walk: how far a
  * unicorn can reach is not scaled by the depth it stands at, and a spell is
  * reach.
  */
-const MAGE_EVERY = 4, MAGES = 3;
-const MAGE_HP = 0.6, MAGE_V = 0.75;
+const MAGE_EVERY = 4, MAGE_V = 0.75, MARK = 1;
 const CAST = 0.3, KEEP = 0.19;
 export const COOL = 3.5, FREEZE = 1.6;
 
@@ -247,7 +256,7 @@ const rnd = () => (seed = (seed * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff
 export const TUNE = typeof __DEBUG__ === 'undefined' || __DEBUG__
     ? { HP, HURT, HEAL, LOOK, CROWD, LONG, DEEP, HIT, DMG, REACH, MAX, NEAR_Y, FAR_Y,
         SPAWN, SCALE0, CAP, CAP_R, TAKE, BREAK, MOB, LANE, OUTPOST,
-        MAGE_EVERY, MAGES, MAGE_HP, MAGE_V, CAST, KEEP, COOL, FREEZE }
+        MAGE_EVERY, MAGE_V, CAST, KEEP, COOL, FREEZE }
     : null;
 const sizeAt = (y) => NEAR_S + (FAR_S - NEAR_S) * ((y - NEAR_Y) / (FAR_Y - NEAR_Y));
 /**
@@ -287,17 +296,10 @@ function spawn(castle) {
     // proportionately less ground.
     const n = depthScale(castle._y);
     const y = Math.max(NEAR_Y, castle._y - (0.02 + rnd() * 0.06) * n);
-    // Whose turn it is to wear the cape, and whether its side has room for
-    // another. Counted rather than rolled: both sides get the same one
-    // recruit in four, and the run stays reproducible down to which of them
-    // it is. The cap is what stops a side turning into a herd of them: a mage
-    // is hard to get at — it stands behind its own line and backs away from
-    // what comes through it — so where a fighter's place in the herd comes
-    // free every few minutes, a mage's does not.
-    let mages = 0;
-    for (const u of herd) if (u._mage && u._hp > 0 && u._side === castle._side) mages++;
-    const mage = ++castle._n % MAGE_EVERY === 0 && mages < MAGES;
-    const hp = HP * (mage ? MAGE_HP : 1);
+    // Whose turn it is to wear the cape. Counted rather than rolled: both
+    // sides get the same one recruit in four, and the run stays reproducible
+    // down to which of them it is.
+    const mage = ++castle._n % MAGE_EVERY === 0;
     herd.push({
         _x: castle._x + (rnd() - 0.5) * 0.1 * n,
         _y: y, _s: sizeAt(y) * SCALE0,
@@ -305,8 +307,8 @@ function spawn(castle) {
         _face: castle._side ? -1 : 1,
         _ph: rnd() * 6.283,
         _lane: (rnd() - 0.5) * LANE,
-        _hp: hp,
-        _max: hp,
+        _hp: HP,
+        _max: HP,
         _lvl: 0,
         _scale: SCALE0,
         _fight: 0,
@@ -316,10 +318,7 @@ function spawn(castle) {
         _eng: false,
         _hit: null,
         _mage: mage,
-        // Half ready at the gate, so a mage walking into a fight it was
-        // spawned behind arrives with a spell rather than waiting out a whole
-        // cooldown in the open.
-        _cast: mage ? COOL * 0.5 : 0,
+        _cast: COOL,
         _froze: 0,
     });
 }
@@ -353,7 +352,11 @@ function seek(un, look, crowd) {
     let best = null, bd = look * look;
     for (const e of herd) {
         if (e._side === un._side || e._hp <= 0 || e._att >= crowd) continue;
-        const d = (e._x - un._x) ** 2 + (e._y - un._y) ** 2;
+        // A fighter picks the cape out of a crowd: a mage counts as MARK of
+        // its real distance away — nearer than it is, and seen from further
+        // off — so the one unicorn on the field that cannot fight back is the
+        // one most likely to be come for.
+        const d = ((e._x - un._x) ** 2 + (e._y - un._y) ** 2) * (e._mage ? MARK : 1);
         if (d < bd) { bd = d; best = e; }
     }
     return best;
@@ -513,42 +516,41 @@ export function step(dt) {
         if (!rest) un._rest = false;
         if (!un._mage && !un._foe && !un._rest) aim(un, seek(un, LOOK, CROWD));
 
-        // What a mage is walking to is a place to stand off its nearest
-        // enemy, not the enemy itself. It takes no target of its own: nobody
-        // is closing on anything, so nothing here touches who is set upon by
-        // whom.
-        // (MAX for the crowding cap is a cap no crowd can reach: it would
-        // take the whole herd on one unicorn.)
+        // What a mage has instead of a foe: the nearest enemy within a
+        // spell's length, which it freezes and keeps its distance from. It is
+        // not a target — nobody is closing on anything — so nothing here
+        // touches who is set upon by whom. (MAX for the crowding cap is a cap
+        // no crowd can reach: it would take the whole herd on one unicorn.)
         const mark = un._mage ? seek(un, CAST, MAX) : null;
+        // How far off that is, which is the only thing a mage's walk asks.
+        const hold = mark ? Math.hypot(mark._x - un._x, mark._y - un._y) : 1e9;
 
-        // Its foe, or its mark, or the castle it is resting at, or the
-        // nearest castle its side does not hold. With nothing left to take it
-        // walks home.
-        const goal = un._foe || mark || rest || foeHome(un) || home(un) || castles[1];
+        // Its foe, or the castle it is resting at, or the nearest castle its
+        // side does not hold. With nothing left to take it walks home. A mage
+        // walks where a fighter walks and stops short: it has to be going
+        // somewhere, or the crowd would squeeze it out of the field. Holding
+        // a distance from something is a whole circle of places to stand, and
+        // a unicorn shoved along that circle has nothing pulling it back.
+        const goal = un._foe || rest || foeHome(un) || home(un) || castles[1];
         // How large a thing that is to arrive at. A castle's doorstep, its
         // ground and the lanes across it are all its own size, so one deep in
         // the field is walked closer into and held tighter; a foe is measured
         // off the pair's own sizes instead, which already follow their depth.
-        const near = un._foe || mark ? 1 : depthScale(goal._y);
+        const near = un._foe ? 1 : depthScale(goal._y);
         // Marching on a castle it walks to its own lane, a little to one
         // side of the castle in depth, instead of at the castle's exact
         // depth. Every castle stands far enough inside the band for a lane
         // either side of it, so there is nothing to clamp.
-        const march = !un._foe && !mark && !rest;
+        const march = !un._foe && !rest;
         const dx = goal._x - un._x, dy = goal._y + (march ? un._lane * near : 0) - un._y;
         const d = Math.hypot(dx, dy);
+        // A mage walks no closer once it has something to cast at, and backs
+        // away from anything that gets well inside that.
+        const back = hold > 1e-6 && hold < KEEP * 0.75;
         // Where to stop, and from how close the horns connect: a little
         // further out than the stop, so a pair that eases to a halt at the
         // stop is fighting by the time it gets there.
-        const stop = un._foe ? REACH * (un._s + un._foe._s)
-            : mark ? KEEP : (rest ? 0.012 : 0.08) * near;
-        // A mage steps out of the way of a fight it is not part of. Once
-        // something has picked it out, though, it stands: it is the slower
-        // animal, so giving ground to what is coming for it would buy it
-        // nothing and — the two of them settling at the distance where a
-        // fighter eases off its approach — would walk the pair clean off the
-        // field, neither ever reaching the other.
-        const back = mark && !un._att && d > 1e-6 && d < KEEP * 0.75;
+        const stop = un._foe ? REACH * (un._s + un._foe._s) : (rest ? 0.012 : 0.08) * near;
         // Once horn to horn it takes more than a shove from the crowd to
         // break it off, or the pair spend the fight stepping in and out of
         // range of each other.
@@ -562,16 +564,27 @@ export function step(dt) {
         let v = 0;
         if (frost) {
             // Nothing. The frost is the whole of it.
-        } else if (d > stop) {
-            v = pace * Math.min(1, (d - stop) / 0.05 + 0.15);
-            un._x += dx / d * v * dt;
-            un._y += dy / d * v * dt;
         } else if (back) {
-            v = pace * 0.8;
-            un._x -= dx / d * v * dt;
+            // Away from the mark, not backwards along the way it was walking:
+            // what it is giving ground to is the enemy, not the castle.
+            v = pace;
+            un._x += (un._x - mark._x) / hold * v * dt;
             // Walking backwards is the one walk with nothing in front of it
             // to stop at, so the band has to.
-            un._y = Math.min(FAR_Y, Math.max(NEAR_Y, un._y - dy / d * v * dt));
+            un._y = Math.min(FAR_Y, Math.max(NEAR_Y,
+                un._y + (un._y - mark._y) / hold * v * dt));
+        } else if (d > stop && hold > KEEP) {
+            // Full speed the whole way, and never a step past the thing it is
+            // walking to. This used to ease off over the last little way
+            // instead, which meant nothing could catch anything that was
+            // backing away from it: the two settled at the distance where the
+            // pursuer's eased-off speed matched the pursued's, and the pair
+            // walked off the field together. Not overshooting the doorstep is
+            // what the ramp was actually for, and the clamp does that without
+            // slowing anyone down.
+            v = Math.min(pace, (d - stop) / dt);
+            un._x += dx / d * v * dt;
+            un._y += dy / d * v * dt;
         }
         // Shoved aside at the gate, it takes the depth it was shoved to for
         // its own rather than pushing back into the crowd. That is what lets

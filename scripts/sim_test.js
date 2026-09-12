@@ -643,77 +643,70 @@ function capture() {
 function mages() {
     say('\n[sim] the mage');
 
-    // One recruit in MAGE_EVERY, and never more than MAGES of them alive at
-    // once on a side. The cap is the load-bearing half: a mage is hard to get
-    // at, so without one a side turns into a herd of them that freezes
-    // everything and kills nothing.
+    // One recruit in MAGE_EVERY comes out in a cape, and they are counted
+    // rather than rolled, so both sides get the same share of them.
     {
         sim.reset();
-        // A home castle, spawning on its own, with nothing to walk to: only
-        // the sunicorns', so the count is one side's.
-        for (const c of sim.castles) if (c !== SUN_CASTLE) c._t = 1e9;
-        let sawMage = 0, most = 0;
-        for (let i = 0; i < 60 * 200; i++) {
+        for (let i = 0; i < 60 * 120; i++) {
             for (const c of sim.castles) if (c !== SUN_CASTLE) c._t = 1e9;
             sim.step(STEP);
-            const mages = sim.herd.filter((u) => u._mage && u._hp > 0).length;
-            most = Math.max(most, mages);
-            sawMage = Math.max(sawMage, mages);
         }
         const sun = sim.herd.filter((u) => !u._side);
         const capes = sun.filter((u) => u._mage).length;
-        ok('a castle turns out a mage now and then', sawMage > 0);
-        ok('and no more of them than the cap allows', most <= T.MAGES,
-            `${most} at once against a cap of ${T.MAGES}`);
-        ok('so a herd is mostly fighters however long it runs',
-            capes / sun.length < 1 / T.MAGE_EVERY,
+        ok('a castle turns out one recruit in MAGE_EVERY in a cape',
+            capes > 0 && Math.abs(capes / sun.length - 1 / T.MAGE_EVERY) < 0.1,
             `${capes} of ${sun.length} in capes`);
     }
 
-    // A mage walks to the length of its spell and stops there. A fighter in
-    // its place would have closed to horn range.
+    // A mage walks up to the length of its spell and stops there. A fighter
+    // in its place would have closed to horn range. The enemy is locked in a
+    // fight of its own so that it stays where it is put: one free to walk
+    // into the mage would be answered by the mage backing off, which is the
+    // next case rather than this one.
     {
-        const [m, e] = stage([
+        const [m, e, f] = stage([
             { _x: -0.5, _y: -0.2, _side: 0, _mage: true, _cast: 1e9 },
             { _x: 0.1, _y: -0.2, _side: 1, _hp: 1e6, _max: 1e6 },
+            { _x: 0.16, _y: -0.2, _side: 0, _hp: 1e6, _max: 1e6 },
         ]);
+        e._foe = f;
+        f._foe = e;
         run(60 * 12);
         const d = Math.hypot(e._x - m._x, e._y - m._y);
         ok('a mage closes to the length of its spell and no further',
             d > T.KEEP * 0.7 && d < T.CAST,
             `it stood ${d.toFixed(3)} off, for a stand-off of ${T.KEEP}`);
-        ok('and it takes no melee target on the way', m._foe === null && e._att === 0,
-            `foe ${m._foe ? 'set' : 'null'}, ${e._att} closing on the enemy`);
+        ok('and it takes no melee target on the way', m._foe === null,
+            'it had picked a foe');
     }
 
-    // A fight that comes near it but is not about it: it steps out of the way
-    // rather than joining in.
+    // Something inside the stand-off is backed away from, not met.
     {
-        const [m, e, f] = stage([
+        const [m] = stage([
             { _x: 0, _y: -0.2, _side: 0, _mage: true, _cast: 1e9 },
             { _x: 0.06, _y: -0.2, _side: 1, _hp: 1e6, _max: 1e6 },
-            { _x: 0.12, _y: -0.2, _side: 0, _hp: 1e6, _max: 1e6 },
         ]);
-        e._foe = f;
-        run(60);
-        ok('a mage steps out of a fight it is not part of', m._x < -0.02,
+        run(30);
+        ok('a mage gives ground to what is in its face', m._x < -0.02,
             `it gave ${(-m._x).toFixed(3)}`);
-        ok('and takes no part in it', m._foe === null && !m._eng);
+        ok('and takes no part in the fight', m._foe === null && !m._eng);
     }
 
-    // One that is about it, though, it stands for. Giving ground to what is
-    // coming for it would buy it nothing — it is the slower animal — and a
-    // pursuer eases off its approach as it arrives, so a mage that backed
-    // away from one would settle at that distance and lead it off the field.
+    // And is run down anyway, being the slower animal. This is the whole of
+    // what a mage costs its side, so it is worth a test of its own: a fighter
+    // walks at full speed right up to what it is walking to, and if it eased
+    // off as it arrived — as it used to — it would settle at the distance
+    // where its own speed matched the mage's and follow it off the field for
+    // ever without ever reaching it.
     {
         const [m, e] = stage([
             { _x: 0, _y: -0.2, _side: 0, _mage: true, _cast: 1e9 },
             { _x: 0.3, _y: -0.2, _side: 1, _hp: 1e6, _max: 1e6 },
         ]);
-        run(60 * 4);
-        ok('but it does not outrun what has picked it out', e._eng,
+        run(60 * 6);
+        ok('but a fighter runs it down all the same', e._eng,
             `they ended ${Math.hypot(e._x - m._x, e._y - m._y).toFixed(3)} apart`);
-        ok('and is run down, having nothing to fight back with', m._hp < T.HP,
+        ok('and it has nothing to fight back with', m._hp < T.HP,
             `the mage is on ${m._hp.toFixed(2)} of ${T.HP}`);
     }
 

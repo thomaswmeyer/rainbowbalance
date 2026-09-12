@@ -41,7 +41,10 @@ enemy it can see that is not already set upon by two others and closes on it,
 and they fight horn to horn. Targeting is one-way — what makes it mutual is
 being hit, and a unicorn that is struck turns on whoever struck it unless it
 is already in a fight of its own. A swing lands at the bottom of the neck's
-lunge and may miss. Nobody stands in anyone else's ground: a unicorn blocked
+lunge and may miss. Everything on the field walks at one speed and stops
+exactly where it is going rather than easing into the last inch of it — a
+walk that slowed as it arrived could never close on anything that was walking
+away from it, which is a thing the field now has on it. Nobody stands in anyone else's ground: a unicorn blocked
 in its path steps aside in depth to get by — feet planted, necks lunging, a health bar over the
 horn — and the loser fades out over half a second in a burst of sparks in
 its own colours. A winner left under half health withdraws to its
@@ -55,42 +58,37 @@ the bow and the castles read — is who has more fighters alive, smoothed. The
 player's verb is god mode: a touch strikes down the unicorn nearest to it.
 
 Not every recruit fights. One in four comes out of the gate in a cape and
-never goes horn to horn with anything: a mage walks up to the length of its
-spell, holds there, and every three and a half seconds freezes the nearest
-enemy within it — a unicorn that for a second and a half cannot walk, cannot
-swing and cannot heal, but is still a target, still presses whatever claim it
-was standing on, and still stands in everyone's way. What that hands a side is
-not damage. It is a fight where one of the two is not swinging back, and it is
-paid for: three fifths of a recruit's hit points, slower on its feet than what
-is coming for it, and no veterancy at all, since a unicorn that never wins a
-fight never walks off to heal from one and never comes back a level up. It
-steps out of the way of a fight it is not part of. One that has picked it out
-it stands for — it is the slower animal, and a fighter eases off its approach
-as it arrives, so a mage that gave ground to its own pursuer would settle at
-exactly the distance where those two speeds meet and lead it off the field for
-ever, neither one ever reaching the other. That was the first version, and the
-headless harness walked a pair of them to x −1.2 to prove it.
+never goes horn to horn with anything: a mage marches where a fighter
+marches, stops short as soon as the nearest enemy is within a spell's length,
+gives ground to anything that gets well inside that, and every three and a
+half seconds freezes the nearest enemy within reach for a second and a half —
+a unicorn that cannot walk, cannot swing and cannot heal, but is still a
+target, still presses whatever claim it was standing on, and still stands in
+everyone's way. What that hands a side is not damage. It is a fight where one
+of the two is not swinging back. What it costs is a fighter's place in the
+herd, and a mage never levels besides, a unicorn that never wins a fight
+never walking off to heal from one. It walks at three quarters of a fighter's
+pace, which is what lets anything that picks it out run it down.
 
-Three to a side is the whole of it, and the cap is what makes the mage a class
-rather than the army: past three the castle turns out a fighter instead.
-Without it a herd is mostly capes inside three minutes. A mage is hard to get
-at, standing off behind its own line, so where a fighter's place in the herd
-comes free every few minutes a mage's does not — and a field that freezes
-everything and kills nothing decides a run by running out of fighters, which
-is what it did. With the cap, ten minutes of play has six mages alive, forty
-of its five hundred and eighty deaths in capes, nine hundred spells, and a
-tenth of the living frozen at any moment. A fight is half a second longer than
-it was. The board is as level at thirty minutes as it was before any of this,
-and a crowd stands half a footprint inside itself where it used to stand a
-quarter: a mage backing out of a fight, and a pair frozen in one, are both
-ground that does not get out of its own way as quickly as it did.
+It stops short rather than holding a distance, and the difference is the
+whole of why it stays on the field: holding a spell's length from the nearest
+enemy is a circle of places to stand, so a mage shoved along that circle had
+nothing pulling it back, and the crowd squeezed mages out one at a time —
+out past x −2.7, with the fight they were casting into half a screen behind
+them.
 
-On the field a mage is a cape in a colour neither side wears — indigo on a
-sunicorn, ice on a rainicorn — flying with the stride, with the spell
-gathering as light on the horn as the cooldown comes round. A spell is a
-streak of frost laid from the horn to whatever it was aimed at, and what it
-lands on goes pale and crystalline until the frost lets go. None of it travels
-and none of it misses: the freeze has landed by the time the streak is drawn.
+Two things about the mage are not settled, and both are visible in
+`npm run sim`. A mage that gives ground freezes its pursuer every three and a
+half seconds, which takes more off that pursuer's speed than being slow takes
+off the mage's, so it kites a fighter off the field instead of being caught
+by it. And a mage dies less often than a fighter, standing as it does behind
+its own line, so ten minutes fills the herd with capes: sixty-odd alive of a
+ceiling of sixty-four, better than a third of them in capes, the fights down
+from about six hundred and ninety to three hundred, and a run that goes
+one-sided because there is nobody left doing the killing. Three mages to a
+side fixed the second of those, and so did having fighters pick the cape out
+of a crowd first. Neither is in. What a mage costs its side is a design
+question, and the answer to it is not a patch.
 
 Castles change hands, which is what a fighter with nothing in front of it
 walks off to do. There are three: one at each foot of the bow, held from the
@@ -181,10 +179,10 @@ the values as constants, "copy GLSL" to get them back. Restore `src/debug.js`
 from there and give the lines their ranges back to tune again.
 
 ```
-[build]  8455 / 13312 bytes — 4857 free (36.5%)
-  esbuild    24140 B
-  terser     22345 B  (-7%)
-  roadroller 11032 B  (-51%)
+[build]  8413 / 13312 bytes — 4899 free (36.8%)
+  esbuild    24094 B
+  terser     22305 B  (-7%)
+  roadroller 10984 B  (-51%)
   glsl       13321 B  (-71% of 46432 B raw)
 ```
 
@@ -262,6 +260,9 @@ from there and give the lines their ranges back to tune again.
 
 - [ ] What ends a run. Losing every castle is the obvious answer and is
       already reachable; nothing acts on it yet.
+- [ ] What a mage costs its side, so that a herd stops silting up with
+      them, and what it does about something walking in on it, so that it
+      stops kiting its pursuer off the field. Both are above, with numbers.
 - [ ] A class past the mage — something a side can answer one with.
 - [ ] Procedural music, tied to the balance state — melody in while level,
       detuning as it frays.
