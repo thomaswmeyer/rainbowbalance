@@ -58,13 +58,15 @@ const OUTLIERS = 1e-5;
  */
 const INSTANCES = {
     // x, y at the hooves; scale, signed by facing; phase; side; fighting;
-    // health; the cape, −1 for a fighter and 0…1 for how charged a mage's
-    // spell is; frost. The sweep has to reach both of the last two: a level
-    // board draws the fighter with no cape at all, and the rest draw a mage
-    // with its spell from part charged to about to go, half of them under a
-    // freeze.
+    // health; the block of ice over it; the cape, −1 for a fighter and 0…1
+    // for how charged a mage's spell is; a mage's frost. The sweep has to
+    // reach all three, and keep them apart while it does: the ice is drawn
+    // over the whole animal, so the one case that is under a block is the one
+    // case with no cape and no frost to hide.
     unicorn: (c) => [0, -0.14, 0.62, c.uTime * 1.7, c.uBalance > 0 ? 1 : 0, 0.6, 0.45,
-        c.uBalance ? Math.abs(c.uBalance) : -1, c.uIntegrity < 0.5 ? 1 - c.uIntegrity : 0],
+        c.uIntegrity > 0.8 ? 0.7 : 0,
+        c.uBalance ? Math.abs(c.uBalance) : -1,
+        c.uIntegrity < 0.5 ? 1 - c.uIntegrity : 0],
     // x, y; size; age; side; place on the mane's hue sweep, or one of the
     // three colours behind it: −1 the body, −2 a promotion's white, −3 the
     // frost of a spell.

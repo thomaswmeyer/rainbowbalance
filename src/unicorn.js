@@ -39,10 +39,14 @@
  *              neck swings down at the enemy with the phase
  *   aState.y   health, 0…1, for the bar over the horn; 0 down to −1 is the
  *              fade-out after death
- *   aState.z   the cape: −1 for a fighter, which has none, and 0…1 for a mage,
+ *   aState.z   the block of ice over it, 1 whole down to 0 gone: it melts
+ *              from the top, so this is how much of its height is left
+ *   aState.w   the cape: −1 for a fighter, which has none, and 0…1 for a mage,
  *              which is how charged the spell on its horn is. One float for
  *              both because the sign already says which animal this is
- *   aState.w   frost, 0…1: how much of a freeze is still on it
+ *   aFrost     a mage's frost, 0…1: how much of its freeze is still on it.
+ *              Not the same thing as the ice, and the two can both be on one
+ *              animal — the player's block over a unicorn a mage has frozen
  *
  * Who is where, and what they are doing, is sim.js's business; this file
  * only draws what it is handed.
@@ -61,9 +65,10 @@ const VS = g`#version 300 es
 layout(location = 0) in vec4 aBody;
 layout(location = 1) in float aSide;
 layout(location = 2) in vec4 aState;
+layout(location = 3) in float aFrost;
 uniform vec2 uRes;
 out vec2 vP;
-out float vPhase, vSide, vOw, vFlip, vFight, vHp, vCape, vFrost;
+out float vPhase, vSide, vOw, vFlip, vFight, vHp, vIce, vCape, vFrost;
 
 // The quad in body units: wide enough for the tail behind and the muzzle in
 // front, tall enough for the horn above and the hooves at full stride.
@@ -91,8 +96,9 @@ void main(){
   vSide = aSide;
   vFight = aState.x;
   vHp = aState.y;
-  vCape = aState.z;
-  vFrost = aState.w;
+  vIce = aState.z;
+  vCape = aState.w;
+  vFrost = aFrost;
   vOw = OUTLINE / (uRes.y * s);
   // The same space the rainbow works in: y is -0.5…0.5, x scales with aspect.
   vec2 w = aBody.xy + vec2(0.0, FEET * s) + c * s;
@@ -102,7 +108,7 @@ void main(){
 const FS = g`#version 300 es
 precision highp float;
 in vec2 vP;
-in float vPhase, vSide, vOw, vFlip, vFight, vHp, vCape, vFrost;
+in float vPhase, vSide, vOw, vFlip, vFight, vHp, vIce, vCape, vFrost;
 out vec4 o;
 uniform float uTime;
 
@@ -121,6 +127,13 @@ const float LEG = 0.380;
 const float MANE = 1.00;
 const float STRIDE = 0.90;    // swing of the gallop; 0 stands still
 const float SHADE = 0.80;     // how much the light is allowed to model it
+// The block of ice: half as wide as the quad, and tall enough to have the
+// horn inside it. Its foot is the ground the unicorn stands on.
+const float FEET = 0.4695;
+const float ICE_W = 0.62, ICE_H = 1.28;
+// How far the block runs back, and how far that carries it up the screen:
+// the same slant everything else on this field is seen at.
+const vec2 ICE_D = vec2(0.34, 0.21);
 
 float ell(vec2 p, vec2 r){ return (length(p / r) - 1.0) * min(r.x, r.y); }
 
@@ -139,6 +152,12 @@ float smin(float a, float b, float k){
 }
 
 mat2 rot(float a){ float c = cos(a), s = sin(a); return mat2(c, s, -s, c); }
+
+// Inside lo…hi, softly. Used for the flat faces of the block of ice, which
+// are quicker to build out of bands than out of a distance field.
+float band(float v, float lo, float hi, float aa){
+  return smoothstep(lo - aa, lo + aa, v) * smoothstep(hi + aa, hi - aa, v);
+}
 
 // Every part comes back separately so each can take its own colour and its own
 // place in the stack. They are all solved in one bobbing, pitching frame, the
@@ -407,6 +426,42 @@ void main(){
     c = put(c, smoothstep(aa, -aa, box), mix(vec3(0.1, 0.05, 0.08), mix(vec3(0.9, 0.2, 0.15), vec3(0.3, 0.9, 0.3), vHp), fill));
   }
 
+  // The ice. A block of it standing on the ground with the animal inside,
+  // melting from the top down, so what is left is a block whose lid comes
+  // down through the unicorn until there is none of it.
+  //
+  // Three faces make it a block rather than a pane: the lid and the far
+  // side, both running back and up the screen the way everything else on
+  // this field is seen, and the front over them. The lid takes the light,
+  // the side is darker, and the front is the palest and the clearest,
+  // because that is the one the animal has to be seen through.
+  if (vIce > 0.0) {
+    vec2 q = vec2(p.x * vFlip, p.y);
+    float top = -FEET + ICE_H * vIce, bot = -FEET - 0.01;
+    float aa = max(fwidth(q.x), 1e-6) * 1.5;
+    // Frost, so it is ice and not glass.
+    float fr = 0.5 + 0.5 * sin(q.x * 41.0 + q.y * 29.0)
+             * sin(q.x * 19.0 - q.y * 53.0 + t * 0.5);
+    vec3 icy = mix(vec3(0.88, 0.96, 1.0), vec3(0.45, 0.68, 0.88), 0.45 + 0.3 * fr);
+
+    // The lid: the top edge of the front face swept back along ICE_D.
+    float u = clamp((q.y - top) / ICE_D.y, 0.0, 1.0);
+    float lid = band(q.y, top, top + ICE_D.y, aa)
+              * band(q.x - u * ICE_D.x, -ICE_W, ICE_W, aa);
+    // The far side: the right edge swept back the same way.
+    float v2 = clamp((q.x - ICE_W) / ICE_D.x, 0.0, 1.0);
+    float side = band(q.x, ICE_W, ICE_W + ICE_D.x, aa)
+               * band(q.y - v2 * ICE_D.y, bot, top, aa);
+    // And the front, which is the one you look through.
+    float front = band(q.x, -ICE_W, ICE_W, aa) * band(q.y, bot, top, aa);
+
+    c = put(c, lid * 0.92, icy * 1.15 + 0.1);
+    c = put(c, side * 0.85, icy * 0.72);
+    // Brighter along the melting edge, where the light runs along the wet.
+    float wet = smoothstep(0.07, 0.0, top - q.y) * front;
+    c = put(c, front * 0.5 + wet * 0.3, icy + wet * 0.4);
+  }
+
   if (c.a < 0.002) discard;
   // Below zero health is the fade-out: −1 is gone.
   o = c * (vHp > 0.0 ? 1.0 : 1.0 + vHp);
@@ -416,7 +471,7 @@ void main(){
 // The swarms
 // ---------------------------------------------------------------------------
 
-import { MAX, COOL, FREEZE } from './sim.js';
+import { MAX, FREEZE, COOL, FROST } from './sim.js';
 
 let _prog, _u, _batch;
 
@@ -424,7 +479,7 @@ let _prog, _u, _batch;
 export function initUnicorns() {
     _prog = program(VS, FS);
     _u = uniforms(_prog, ['uRes', 'uTime']);
-    _batch = new Batch(_prog, [4, 1, 4], MAX);
+    _batch = new Batch(_prog, [4, 1, 4, 1], MAX);
 }
 
 /**
@@ -442,11 +497,11 @@ export function drawUnicorns(herd, from = 0, y = -Infinity) {
     for (; i < herd.length && herd[i]._y > y; i++) {
         const un = herd[i];
         _batch.push(un._x, un._y, un._face * un._s, un._ph, un._side, un._fight,
-            un._hp > 0 ? un._hp / un._max : un._hp,
+            un._hp > 0 ? un._hp / un._max : un._hp, un._ice / FREEZE,
             // A fighter has no cape, and says so with a negative; a mage sends
             // how charged its spell is in the same float.
             un._mage ? 1 - Math.min(1, un._cast / COOL) : -1,
-            Math.min(1, un._froze / FREEZE));
+            Math.min(1, un._froze / FROST));
     }
     gl.useProgram(_prog);
     _u({ uRes: [width, height], uTime: time });

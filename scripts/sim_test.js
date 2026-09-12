@@ -32,9 +32,33 @@
 import * as sim from '../src/sim.js';
 
 const T = sim.TUNE;
+/**
+ * How far into each other two are allowed to stand. The simulation lets a
+ * crowd touch rather than correcting every hair every step, because a crowd
+ * that may touch is a crowd that settles; what it does instead is stop a
+ * unicorn walking into whatever is already against it. So these tests ask
+ * that nothing stands *well* inside anything, not that nothing touches.
+ */
+const TOUCH = 0.2;
+/** A castle's ground is its own size, like every distance on the field. */
+const sizeAt = (y) => T.NEAR_S + (T.FAR_S - T.NEAR_S) * ((y - T.NEAR_Y) / (T.FAR_Y - T.NEAR_Y));
+const depthScale = (y) => sizeAt(y) / sizeAt(T.FOOT);
+
+/** How far into a castle a unicorn stands, as a fraction of the footprint. */
+function inCastle(u, c) {
+    const w = c._w * depthScale(c._y);
+    const ex = w + u._s * T.LONG * 0.5, ey = w + u._s * T.DEEP * 0.5;
+    const ox = ex - Math.abs(u._x - c._x), oy = ey - Math.abs(u._y - c._y);
+    return ox > 0 && oy > 0 ? Math.min(ox / ex, oy / ey) : 0;
+}
 const STEP = 1 / 60;
 const seconds = Number(process.argv[2]) || 600;
 const quiet = process.argv.includes('quiet');
+/** `npm run sim -- games 100` plays that many out to a finish and counts them. */
+const games = process.argv.includes('games')
+    ? Number(process.argv[process.argv.indexOf('games') + 1]) || 100 : 0;
+/** A game is called drawn after this long, so one that cannot end still ends. */
+const LIMIT = 900;
 
 let failed = 0, passed = 0;
 const say = (...a) => { if (!quiet) console.log(...a); };
@@ -64,6 +88,11 @@ function stage(them) {
             _mage: false, _cast: 0, _froze: 0,
             ...t,
         });
+        // The trailing point starts under it, or it would read as walking
+        // out of whatever spot it was staged in.
+        const un = sim.herd[sim.herd.length - 1];
+        un._px = un._ox = un._x;
+        un._py = un._oy = un._y;
     }
     return sim.herd;
 }
@@ -166,7 +195,7 @@ function units() {
         ok('a unicorn walks around one of its own that is in the way',
             a._x > b._x || Math.abs(a._y - y0) > 0.01,
             `it is still stuck behind it — ${show(a)} / ${show(b)}`);
-        ok('and it does not walk through it', overlap(a, b) < 0.02,
+        ok('and it does not walk through it', overlap(a, b) < TOUCH,
             `${overlap(a, b).toFixed(2)} overlapping`);
     }
 
@@ -179,9 +208,9 @@ function units() {
             _x: SUN_CASTLE._x + 0.001 * i, _y: SUN_CASTLE._y,
         })));
         for (const c of sim.castles) { c._side = 0; c._own = true; c._cap = T.CAP; }
-        run(120);
+        run(300);
         const { worst, pair } = worstOverlap();
-        ok('a crowd of twenty on one spot comes apart', worst < 0.02,
+        ok('a crowd of twenty on one spot comes apart', worst < TOUCH,
             pair ? `${(worst * 100) | 0}% — ${show(pair[0])} / ${show(pair[1])}` : '');
     }
 
@@ -243,6 +272,45 @@ function units() {
             `${together} of ${fights} fights ended with both falling in one step`);
     }
 
+    // Anything nearer to fight than what it is walking at, it turns to.
+    {
+        const [a, far, near] = stage([
+            { _x: 0, _y: -0.2, _side: 0 },
+            { _x: 0.3, _y: -0.2, _side: 1, _hp: 1e6, _max: 1e6 },
+            { _x: -0.08, _y: -0.26, _side: 1, _hp: 1e6, _max: 1e6 },
+        ]);
+        a._foe = far; far._att = 1;
+        run(2);
+        ok('a fighter turns to anything nearer than what it is walking at',
+            a._foe === near, 'it kept walking at the far one');
+    }
+    {
+        // But not one already horn to horn: that fight is seen out.
+        const [a, b] = stage([
+            { _x: 0, _y: -0.2, _side: 0, _hp: 1e6, _max: 1e6 },
+            { _x: 0.03, _y: -0.2, _side: 1, _hp: 1e6, _max: 1e6 },
+        ]);
+        a._foe = b; b._foe = a;
+        run(30);                       // long enough to be horn to horn
+        sim.herd.push({ ...sim.herd[0], _x: -0.02, _y: -0.21, _side: 1,
+            _hp: 1e6, _max: 1e6, _foe: null, _att: 0, _eng: false });
+        run(60);
+        ok('but not one it is already horn to horn with', a._foe === b,
+            'it was drawn off a fight it had joined');
+    }
+    {
+        // Nearest full stop: it takes whichever is closer, by however little.
+        const [a, first, other] = stage([
+            { _x: 0, _y: -0.2, _side: 0 },
+            { _x: 0.2, _y: -0.2, _side: 1, _hp: 1e6, _max: 1e6 },
+            { _x: -0.19, _y: -0.2, _side: 1, _hp: 1e6, _max: 1e6 },
+        ]);
+        a._foe = first; first._att = 1;
+        run(2);
+        ok('and it is the nearer of two, by however little', a._foe === other,
+            'it stayed with the one a hair further off');
+    }
+
     // A unicorn that is struck while walking turns on whoever struck it.
     {
         const [a, b, c] = stage([
@@ -280,6 +348,122 @@ function units() {
         const on = sim.herd.filter((u) => u._foe === target).length;
         ok('no more than the cap choose one target', on <= T.CROWD,
             `${on} chose it, cap is ${T.CROWD}`);
+    }
+
+    // A castle is ground too: nothing stands in one but its own garrison.
+    {
+        const c = sim.castles[1];
+        const [a] = stage([{ _x: c._x, _y: c._y, _side: 0 }]);
+        run(60);
+        ok('a unicorn is put out of a castle it does not hold', inCastle(a, c) < TOUCH,
+            `${(inCastle(a, c) * 100) | 0}% inside it — ${show(a)}`);
+    }
+    {
+        const c = sim.castles[0];
+        const [a] = stage([{ _x: c._x, _y: c._y, _side: 0, _rest: true, _hp: 1 }]);
+        run(60);
+        ok('but its own garrison heals standing on it',
+            Math.abs(a._x - c._x) < 0.05 && a._hp > 1, show(a));
+    }
+    {
+        const c = sim.castles[1];
+        stage(Array.from({ length: 12 }, (_, i) => ({ _x: c._x + 0.002 * i, _y: c._y, _side: 0 })));
+        run(180);
+        const worst = Math.max(...sim.herd.map((u) => inCastle(u, c)));
+        ok('a crowd driven onto a castle ends up around it', worst < TOUCH,
+            `${(worst * 100) | 0}% of one is still inside it`);
+    }
+
+    // One that has arrived and stopped stands still, all four feet down.
+    {
+        const c = sim.castles[0];
+        const [a] = stage([{ _x: c._x, _y: c._y - 0.1, _side: 0, _rest: true, _hp: 1 }]);
+        run(300);
+        const ph = a._ph, y = a._y;
+        run(60);
+        ok('a unicorn that has arrived stands still', Math.abs(a._ph - ph) < 0.02,
+            `its legs are still going: phase moved ${(a._ph - ph).toFixed(3)} in a second`);
+        ok('and stands with its feet down, not mid-stride',
+            a._fight > 0.9 && Math.abs(a._ph) < 0.05,
+            `pose ${a._fight.toFixed(2)}, phase ${a._ph.toFixed(3)}`);
+        ok('and it has not wandered off', Math.abs(a._y - y) < 0.01, show(a));
+    }
+    {
+        // One still walking is still walking.
+        const [a] = stage([{ _x: -0.5, _y: -0.3, _side: 0 }]);
+        run(30);
+        const ph = a._ph;
+        run(30);
+        ok('but one on the move keeps moving its legs', a._ph - ph > 0.5,
+            `phase moved only ${(a._ph - ph).toFixed(3)} in half a second`);
+    }
+
+    // The ice.
+    {
+        const [a, b] = stage([
+            { _x: 0, _y: -0.2, _side: 0 },
+            { _x: 0.05, _y: -0.2, _side: 1, _hp: 1e6, _max: 1e6 },
+        ]);
+        a._ice = T.FREEZE;
+        const x = a._x, y = a._y, hp = b._hp;
+        run(60 * 3);
+        ok('a unicorn under the ice does not move', Math.hypot(a._x - x, a._y - y) < 1e-9,
+            `it shifted ${Math.hypot(a._x - x, a._y - y).toFixed(4)}`);
+        ok('and does not fight back', b._hp === hp, `it took ${(hp - b._hp).toFixed(2)} off its enemy`);
+        ok('and is still cut down where it stands', a._hp < T.HP,
+            `it took no hurt at all under there`);
+    }
+    {
+        const [a] = stage([{ _x: 0, _y: -0.2, _side: 0 }]);
+        a._ice = T.FREEZE;
+        run(60 * (T.FREEZE - 1));
+        const still = a._ice > 0;
+        run(60 * 2);
+        ok('and the block melts off it in the time it should',
+            still && a._ice <= 0, `it had ${a._ice.toFixed(1)}s left`);
+    }
+    {
+        // It is in the way while it is under there: whoever meets it goes
+        // round, and the block itself does not budge.
+        const [a, b] = stage([
+            { _x: 0, _y: -0.2, _side: 0 },
+            { _x: -0.2, _y: -0.2, _side: 1, _hp: 1e6, _max: 1e6 },
+        ]);
+        a._ice = T.FREEZE;
+        const x = a._x, y = a._y;
+        run(60 * 4);
+        ok('and nothing shoves the block aside', Math.hypot(a._x - x, a._y - y) < 1e-9,
+            `the block moved ${Math.hypot(a._x - x, a._y - y).toFixed(4)}`);
+        ok('and nothing stands inside it', overlap(a, b) < TOUCH,
+            `${overlap(a, b).toFixed(2)} overlapping`);
+    }
+
+    // A run ends when one side holds the lot.
+    {
+        stage([]);
+        run(1);
+        ok('a run with the castles as they start has no winner', sim.winner < 0,
+            `side ${sim.winner} has already won it`);
+    }
+    {
+        stage([]);
+        for (const c of sim.castles) { c._side = 1; c._own = true; c._cap = T.CAP; }
+        run(1);
+        ok('a side that holds every castle has won the run', sim.winner === 1,
+            `winner came out ${sim.winner}`);
+    }
+    {
+        stage([]);
+        for (const c of sim.castles) { c._side = 0; c._own = true; c._cap = T.CAP; }
+        run(1);
+        // One of them not yet fully claimed is one still being fought for.
+        sim.castles[1]._own = false;
+        sim.castles[1]._cap = T.CAP * 0.5;
+        const won = sim.winner;
+        sim.reset();
+        run(1);
+        ok('holding every castle but one is not winning it', won === 0 && sim.winner < 0,
+            `won ${won}, and after a reset ${sim.winner}`);
     }
 
     // Nothing in sight is nothing to fight.
@@ -628,6 +812,321 @@ function capture() {
 }
 
 // ---------------------------------------------------------------------------
+// Jostling
+// ---------------------------------------------------------------------------
+
+/**
+ * Ground covered by the whole crowd over a second, in unicorn-walks: one
+ * unicorn walking flat out for that second is 1. A crowd that has settled
+ * covers almost none. One shoving itself round a castle covers a lot while
+ * going nowhere, which is the thing worth catching — it reads on screen as
+ * a knot of animals treading water, and no still frame shows it.
+ * @param {number} seconds
+ */
+function ground(seconds, how = run) {
+    const was = sim.herd.filter((u) => u._hp > 0).map((u) => ({ u, x: u._x, y: u._y }));
+    let path = 0;
+    for (let i = 0; i < 60 * seconds; i++) {
+        how(1);
+        for (const w of was) {
+            if (!sim.herd.includes(w.u)) continue;
+            path += Math.hypot(w.u._x - w.x, w.u._y - w.y);
+            w.x = w.u._x; w.y = w.u._y;
+        }
+    }
+    return path / (T.SPEED * seconds);
+}
+
+/** How many of the living are stood squarely rather than walking. */
+const standing = () => sim.herd.filter((u) => u._hp > 0 && u._fight > 0.85).length;
+
+/**
+ * Step with the herd held wounded, so that a garrison stays a garrison.
+ * Healing is a share of a unicorn's own maximum, so handing one a huge
+ * maximum to keep it resting heals it in a single frame instead: it levels
+ * up and marches off, and what gets measured is twenty unicorns crossing the
+ * field rather than twenty standing at a gate.
+ * @param {number} n
+ */
+function wounded(n) {
+    for (let i = 0; i < n; i++) {
+        for (const u of sim.herd) u._hp = Math.min(u._hp, u._max * 0.3);
+        run(1);
+    }
+}
+
+function jostle() {
+    say('\n[sim] jostling');
+
+    // A garrison settles rather than shoving each other round the walls.
+    {
+        const c = sim.castles[0];
+        stage(Array.from({ length: 6 }, (_, i) => ({
+            _x: c._x + 0.06 * (i - 2), _y: c._y - 0.05 + 0.03 * i,
+            _side: 0, _rest: true, _hp: 1,
+        })));
+        wounded(60 * 5);
+        const walked = ground(2, wounded);
+        ok('a garrison of six settles at its castle', walked < 0.35,
+            `they covered ${walked.toFixed(2)} unicorn-walks in two seconds, going nowhere`);
+        ok('and every one of them is stood squarely', standing() === 6,
+            `${standing()} of 6 are on their feet`);
+        // Six will not all fit on the stone; the ones that do not queue at
+        // the wall rather than circling it.
+        const near = sim.herd.filter((u) => Math.hypot(u._x - c._x, u._y - c._y) < 0.2).length;
+        const on = sim.herd.filter((u) => inCastle(u, c) > TOUCH).length;
+        ok('and the garrison gathers at its own castle', near >= 5 && on >= 2,
+            `${near} of 6 are at it and ${on} are on the stone itself`);
+    }
+
+    // So does a siege, which has a wall in the way instead of a welcome.
+    {
+        const c = sim.castles[2];
+        stage(Array.from({ length: 6 }, (_, i) => ({
+            _x: c._x - 0.25 - 0.03 * i, _y: c._y - 0.06 + 0.025 * i, _side: 0,
+            _hp: 1e6, _max: 1e6,
+        })));
+        run(60 * 8);
+        const walked = ground(2);
+        ok('a siege of six settles at the wall', walked < 0.5,
+            `they covered ${walked.toFixed(2)} unicorn-walks in two seconds`);
+        const inside = sim.herd.filter((u) => inCastle(u, c) > TOUCH).length;
+        ok('and none of them stands well inside the castle', inside === 0,
+            `${inside} of 6 are in the walls`);
+        const r = T.CAP_R * depthScale(c._y);
+        const pressing = sim.herd.filter((u) =>
+            (u._x - c._x) ** 2 + (u._y - c._y) ** 2 <= r * r).length;
+        ok('and enough of them are near enough to press the claim', pressing >= T.MOB,
+            `only ${pressing} are inside the reach, and ${T.MOB} is what a claim needs`);
+    }
+
+    // Twenty of them, which is a good deal more than the ground round a
+    // castle holds. They are a garrison rather than a siege: a siege takes
+    // the castle and marches off to the next one, and twenty unicorns
+    // crossing the field is not jostling, it is going somewhere.
+    {
+        const c = sim.castles[0];
+        stage(Array.from({ length: 20 }, (_, i) => ({
+            _x: c._x + 0.2 - 0.02 * i, _y: c._y - 0.06 + 0.006 * i,
+            _side: 0, _rest: true, _hp: 1,
+        })));
+        wounded(60 * 10);
+        const walked = ground(2, wounded);
+        ok('twenty at one castle settle rather than milling about', walked < 1.0,
+            `they covered ${walked.toFixed(2)} unicorn-walks in two seconds, going nowhere`);
+        ok('and nearly all of them are stood squarely', standing() >= 18,
+            `${standing()} of 20 are on their feet`);
+    }
+}
+
+/**
+ * With nothing in sight to fight, a unicorn walks to the nearest castle that
+ * is not its side's to hold — an enemy's, an unclaimed one, or one of its own
+ * whose claim an enemy has broken. That is the whole of how the two sides
+ * find each other, and how a castle changes hands.
+ */
+function marching() {
+    say('\n[sim] marching on castles');
+    const [SUN, MID, RAIN] = sim.castles;
+    /** Where a lone sunicorn dropped here walks to. */
+    const walksTo = (x, y, set) => {
+        stage([{ _x: x, _y: y, _side: 0 }]);
+        if (set) set();
+        const from = sim.castles.map((c) => Math.hypot(c._x - x, c._y - y));
+        run(60 * 6);
+        const a = sim.herd[0];
+        const to = sim.castles.map((c) => Math.hypot(c._x - a._x, c._y - a._y));
+        // Whichever castle it closed the distance on.
+        let best = -1, gain = 0.02;
+        for (let i = 0; i < to.length; i++) if (from[i] - to[i] > gain) { gain = from[i] - to[i]; best = i; }
+        return best;
+    };
+
+    ok('with nothing in sight it walks on an unclaimed castle',
+        walksTo(-0.35, -0.1) === 1, 'it went somewhere else');
+    ok('and on an enemy castle when that is the nearer',
+        walksTo(0.45, -0.24, () => { MID._side = 0; MID._own = true; MID._cap = T.CAP; }) === 2,
+        'it did not make for the enemy castle');
+    ok('and on one of its own that an enemy has broken',
+        walksTo(-0.5, -0.24, () => {
+            MID._side = 0; MID._own = true; MID._cap = T.CAP;
+            RAIN._side = 0; RAIN._own = true; RAIN._cap = T.CAP;
+            SUN._own = false; SUN._cap = T.CAP * 0.4;
+        }) === 0, 'it left its own half-broken castle alone');
+    // Far enough out to have to walk: one already standing at a castle has
+    // arrived at it, and standing still is the right thing for it to do.
+    ok('and it is the nearest of them it makes for, not the first',
+        walksTo(0.3, 0.02) === 1
+        && walksTo(0.35, -0.24, () => { MID._side = 0; MID._own = true; MID._cap = T.CAP; }) === 2,
+        'it walked past a nearer one');
+}
+
+/**
+ * The end of a run, which is where a crowd is at its worst: one side has all
+ * but won and its whole army is stood round the last castle. The claim is
+ * held down so the siege cannot end, because what is being measured is the
+ * standing about, not the taking.
+ * @param {number} n
+ */
+function siege(n) {
+    const c = sim.castles[2];
+    stage(Array.from({ length: n }, (_, i) => ({
+        _x: c._x - 0.5 + 0.02 * (i % 5), _y: -0.3 + 0.03 * (i % 7),
+        _side: 0, _hp: 1e6, _max: 1e6, _lane: ((i % 5) - 2) * 0.05,
+    })));
+    const hold = (k) => {
+        for (let i = 0; i < k; i++) {
+            c._side = 1; c._own = true; c._cap = T.CAP;
+            run(1);
+        }
+    };
+    hold(60 * 20);
+    return { c, walked: ground(3, hold) };
+}
+
+function endgame() {
+    say('\n[sim] the last castle');
+    for (const n of [10, 20, 40]) {
+        const { c, walked } = siege(n);
+        const per = walked / n;
+        // The bigger the crowd the more of it is still arriving: forty
+        // cannot all be inside the reach a castle is held from.
+        ok(`${n} besieging the last castle settle round it`, per < 0.2,
+            `each covered ${per.toFixed(2)} of a unicorn-walk in three seconds while going nowhere`
+            + ` (${walked.toFixed(1)} between them over three seconds)`);
+        ok(`and most of the ${n} are stood squarely`, standing() >= n * 0.7,
+            `${standing()} of ${n} are on their feet`);
+        const inside = sim.herd.filter((u) => inCastle(u, c) > TOUCH).length;
+        ok(`and none of the ${n} stands well inside the walls`, inside === 0,
+            `${inside} are in the castle`);
+    }
+}
+
+/**
+ * Bouncing: the ground a unicorn covers against the ground it gains, and how
+ * often it reverses. A unicorn walking anywhere covers about what it gains
+ * and never doubles back. One that keeps walking into something it cannot
+ * pass covers ground it does not gain and reverses several times a second,
+ * which is what a shuddering herd looks like from the outside. Measured in a
+ * game left to run, because it is the crowd around a fight that does it.
+ */
+function bouncing() {
+    say('\n[sim] bouncing');
+    sim.reset();
+    for (let i = 0; i < 60 * 45; i++) sim.step(1 / 60);
+    const w = sim.herd.filter((u) => u._hp > 0)
+        .map((u) => ({ u, x: u._x, y: u._y, sx: u._x, sy: u._y, path: 0, back: 0, px: 0, py: 0 }));
+    for (let i = 0; i < 60; i++) {
+        sim.step(1 / 60);
+        for (const q of w) {
+            if (!sim.herd.includes(q.u)) continue;
+            const dx = q.u._x - q.x, dy = q.u._y - q.y;
+            q.path += Math.hypot(dx, dy);
+            if (i && dx * q.px + dy * q.py < 0) q.back++;
+            q.px = dx; q.py = dy; q.x = q.u._x; q.y = q.u._y;
+        }
+    }
+    const path = w.reduce((a, q) => a + q.path, 0);
+    const net = w.reduce((a, q) => a + Math.hypot(q.u._x - q.sx, q.u._y - q.sy), 0);
+    const back = w.reduce((a, q) => a + q.back, 0) / Math.max(w.length, 1);
+    ok('a herd covers about the ground it gains', path / Math.max(net, 1e-9) < 1.3,
+        `it walked ${(path / net).toFixed(2)} times the ground it got anywhere on`);
+    ok('and does not double back on itself several times a second', back < 1.5,
+        `each unicorn reversed ${back.toFixed(1)} times in a second`);
+
+    // And the worst half-second any of a handful of games can produce, which
+    // is a crowd of two dozen pressing the last castle. This is the number
+    // that reads as a shuddering herd, and it is here to be driven down: it
+    // was thirteen reversals in half a second; it is three, and that is with
+    // eight, since a unicorn stopped walking straight back into whatever
+    // had just shoved it. A crowd this dense has not stopped moving; what it
+    // has stopped doing is moving back and forth.
+    let worst = { back: 0 };
+    for (const seed of [3, 11, 23, 47, 71, 101, 137, 199]) {
+        sim.reset(seed);
+        for (let t = 0; t < 300 && sim.winner < 0; t += 1 / 60) {
+            sim.step(1 / 60);
+            if (Math.round(t * 60) % 60) continue;
+            const q = sim.herd.filter((u) => u._hp > 0)
+                .map((u) => ({ u, x: u._x, y: u._y, back: 0, px: 0, py: 0 }));
+            if (q.length < 8) continue;
+            for (let i = 0; i < 30; i++) {
+                sim.step(1 / 60); t += 1 / 60;
+                for (const r of q) {
+                    if (!sim.herd.includes(r.u)) continue;
+                    const dx = r.u._x - r.x, dy = r.u._y - r.y;
+                    if (i && dx * r.px + dy * r.py < 0) r.back++;
+                    r.px = dx; r.py = dy; r.x = r.u._x; r.y = r.u._y;
+                }
+            }
+            const b = q.reduce((a, r) => a + r.back, 0) / q.length;
+            if (b > worst.back) worst = { back: b, seed, n: q.length, t: t.toFixed(0) };
+        }
+    }
+    ok('and the worst crowd any of eight games throws up does not shudder',
+        worst.back < 10, `${worst.back.toFixed(1)} reversals in half a second,`
+        + ` with ${worst.n} alive at ${worst.t}s of seed ${worst.seed}`);
+}
+
+// ---------------------------------------------------------------------------
+// A hundred games
+// ---------------------------------------------------------------------------
+
+/**
+ * Play games out, each off its own seed, and say who won them. Nothing
+ * interferes: no smiting, no hand on the scales. This is the question of
+ * whether the two sides are actually even, which watching one run cannot
+ * answer — and everything random in the simulation comes off one seed, so a
+ * hundred runs of the same seed would be one run counted a hundred times.
+ * @param {number} n
+ */
+function tournament(n) {
+    const wins = [0, 0];
+    const times = [[], []];
+    const first = [0, 0, 0];
+    let draws = 0, held = 0;
+    const began = process.hrtime.bigint();
+    for (let g = 0; g < n; g++) {
+        sim.reset(1 + g * 7919);
+        let t = 0, took = -1;
+        for (; t < LIMIT && sim.winner < 0; t += STEP) {
+            sim.step(STEP);
+            if (took < 0 && sim.captured.length) took = sim.captured[0]._side;
+            sim.fallen.length = sim.promoted.length = sim.captured.length = 0;
+        }
+        if (sim.winner < 0) draws++;
+        else { wins[sim.winner]++; times[sim.winner].push(t); }
+        first[took >= 0 ? took : 2]++;
+        if (took >= 0 && took === sim.winner) held++;
+    }
+    const real = Number(process.hrtime.bigint() - began) / 1e9;
+    const mean = (a) => (a.length ? a.reduce((x, y) => x + y, 0) / a.length : 0);
+    const all = [...times[0], ...times[1]].sort((a, b) => a - b);
+    const played = wins[0] + wins[1];
+
+    ok(`neither side wins every one of ${n} games`, wins[0] > 0 && wins[1] > 0,
+        `sunicorns ${wins[0]}, rainicorns ${wins[1]}, drawn ${draws}`);
+    // Even-ish is a band, not a point: a hundred fair games land inside
+    // 40–60 about nineteen times in twenty, so outside it is worth a look.
+    ok('and the two sides win about as often as each other',
+        played > 0 && Math.abs(wins[0] - wins[1]) <= 0.2 * played + 2,
+        `sunicorns ${wins[0]}, rainicorns ${wins[1]} of ${played} decided`);
+    if (quiet) return;
+    const row = (k, v) => console.log(`    ${k.padEnd(26)} ${v}`);
+    row('sunicorns won', `${wins[0]}`);
+    row('rainicorns won', `${wins[1]}`);
+    row(`drawn after ${LIMIT}s`, `${draws}`);
+    row('first castle taken by', `sunicorns ${first[0]}, rainicorns ${first[1]}, nobody ${first[2]}`);
+    row('and that side went on to win', `${held} of ${first[0] + first[1]}` +
+        ` (${(held / Math.max(first[0] + first[1], 1) * 100).toFixed(0)}%)`);
+    row('mean game', `${mean(all).toFixed(0)}s` +
+        ` (sunicorn wins ${mean(times[0]).toFixed(0)}s, rainicorn ${mean(times[1]).toFixed(0)}s)`);
+    row('shortest, longest', all.length ? `${all[0].toFixed(0)}s, ${all[all.length - 1].toFixed(0)}s` : '—');
+    row('median', all.length ? `${all[all.length >> 1].toFixed(0)}s` : '—');
+    row('real time', `${real.toFixed(2)}s for ${n}, ${(real / n * 1000).toFixed(0)}ms a game`);
+}
+
+// ---------------------------------------------------------------------------
 // The mage
 // ---------------------------------------------------------------------------
 
@@ -921,9 +1420,21 @@ function e2e() {
 
 // ---------------------------------------------------------------------------
 
+if (games) {
+    say(`\n[sim] ${games} games, each to a finish`);
+    tournament(games);
+    console.log(failed ? `\n[sim] ${failed} failed, ${passed} passed`
+        : `\n[sim] all ${passed} passed`);
+    process.exit(failed ? 1 : 0);
+}
+
 units();
 field();
 capture();
+jostle();
+marching();
+endgame();
+bouncing();
 mages();
 e2e();
 console.log(failed

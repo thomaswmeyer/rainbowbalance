@@ -18,6 +18,7 @@ npm run build    # → dist/index.html and dist/endlessrainbows.zip, size-gated
 npm run size     # the byte count on its own
 npm run check    # do the minified shaders render what the source rendered?
 npm run sim      # the fight, headless: unit tests, then ten minutes of play
+npm run sim -- games 100   # a hundred whole games, and who won them
 ```
 
 `check` needs a browser: `npm i -D puppeteer`, or the lighter
@@ -44,8 +45,10 @@ is already in a fight of its own. A swing lands at the bottom of the neck's
 lunge and may miss. Everything on the field walks at one speed and stops
 exactly where it is going rather than easing into the last inch of it — a
 walk that slowed as it arrived could never close on anything that was walking
-away from it, which is a thing the field now has on it. Nobody stands in anyone else's ground: a unicorn blocked
-in its path steps aside in depth to get by — feet planted, necks lunging, a health bar over the
+away from it, which is a thing the field now has on it. Nobody stands in
+anyone else's ground — a unicorn blocked in its path steps aside in depth to
+get by — nor in a castle's, which is as deep as it is wide, unless it is the
+garrison healing there — feet planted, necks lunging, a health bar over the
 horn — and the loser fades out over half a second in a burst of sparks in
 its own colours. A winner left under half health withdraws to its
 nearest own castle, stands squarely on it healing four times as fast — it can be run down on
@@ -55,7 +58,11 @@ hit points added — added, not compounded — grown into over a second in a
 white shower of sparks. A recruit starts at half
 size, so a field of veterans is visibly a field of veterans. Balance — the one number the sky,
 the bow and the castles read — is who has more fighters alive, smoothed. The
-player's verb is god mode: a touch strikes down the unicorn nearest to it.
+player's verbs are both god mode, chosen from the two buttons at the top left:
+a touch strikes the nearest unicorn down in a burst of sparks, or freezes it
+into a block of ice. Frozen, it stands there for twenty seconds doing nothing
+and taking nothing but damage, in the way of the fight but out of it, while
+the block melts off it from the top down.
 
 Not every recruit fights. One in four comes out of the gate in a cape and
 never goes horn to horn with anything: a mage marches where a fighter
@@ -89,6 +96,16 @@ one-sided because there is nobody left doing the killing. Three mages to a
 side fixed the second of those, and so did having fighters pick the cape out
 of a crowd first. Neither is in. What a mage costs its side is a design
 question, and the answer to it is not a patch.
+
+There are two freezes on the field at the moment, and that is deliberate
+until both have been played. The player's is a block of ice: twenty seconds,
+cast by the second god-mode hand, and nothing of the animal inside it moves at
+all. The mage's is frost: a second and a half, cast by an animal rather than
+by the player, and it stops a unicorn walking, swinging and healing without
+taking it out of the crowd. They are meant to be told apart at a glance — the
+ice is a block standing on the ground with the unicorn inside it, the frost is
+the unicorn itself gone pale and crystalline — and which of them stays, or
+whether both do, is a question for after playing them.
 
 Castles change hands, which is what a fighter with nothing in front of it
 walks off to do. There are three: one at each foot of the bow, held from the
@@ -150,8 +167,57 @@ fighters ahead, the lightest hand that keeps a run going — since otherwise
 every number it collects comes from the first minute of a run that is
 already over.
 
-Next, in order: what ends a run, deaths with some ceremony, whatever class
-comes after the mage, then sound.
+`f` buys another second of the fight for every second of watching — 2×, then
+3×, and up — `s` gives it back a step at a time down to a stop, and space
+plays or pauses at whatever pace was last set. The step is fixed, so a run
+watched fast is the same run.
+
+One clock runs here. The simulation is a fixed sixtieth of a second a step,
+and `state._elapsed` counts those, so it is game time: the clock in the corner
+shows it, it runs at whatever pace is set, and it stops when the game does.
+The shaders are handed the same number, so the clouds, the rain, the grass and
+the manes keep pace with the fight and stop with it. A paused frame is
+identical to the one before it, down to the pixel.
+
+A claim being made or broken shows as a bar over the castle, in the colour of
+whoever is making it. When one side holds every castle the run is over: the
+field stops where it stands, the clock holds at the time it took, and a touch
+begins another.
+
+A unicorn that is getting nowhere stands still with its four feet on the
+ground, and its legs are driven by the ground it covers rather than the speed
+it meant to walk at, so one held up by the crowd stops rather than walking on
+the spot. Horn to horn it holds its ground instead of walking at its foe every
+step, which is what stopped a fighting pair shuddering every time the crowd
+nudged them. A unicorn shoved away from where it was going waits a
+step rather than walking straight back into what shoved it, which is what a
+crowd pressing the last castle was doing thirteen times a second. A fighter takes the
+nearest enemy it can see, every step, unless it is already horn to horn with
+one — packed into a crowd it is forever carried away from whatever it first
+picked, and walking back across the press to reach that one rather than the
+one under its nose is how a fight becomes a crush of animals going past each
+other.
+
+Letting a crowd overlap a little and stopping on contact was tried, and it all
+but removed the shudder — but crowds packed tight, fights started half as
+often, and a game that took a minute took three. Drawing a unicorn a step or
+two behind where it stands was tried too, and halved what a dense crowd shows
+for nothing at all, but it is a coat of paint over the thing rather than the
+thing. Neither is in. `npm run
+sim` measures all of it: ground covered against ground gained, how often a
+unicorn doubles back, and the worst crowd eight games can throw up — what counts is the ground it covers,
+not whether it is trying, because a crowd at a gate walks into the wall and is
+pushed back out of it all day. `npm run sim` measures that directly — ground
+covered by a crowd that finished where it started, in unicorn-walks — for a
+garrison, a siege, and the endgame crowd of forty round the last castle.
+
+A hundred games play out headless in a second, which is how the two sides are
+known to be even — 2,463 against 2,537 over five thousand — and how the one
+thing that decides a run was found: whoever takes the first castle wins 99 of
+every 100.
+
+Next, in order: what ends a run with some ceremony, whatever class comes
+after the mage, then sound.
 
 The clouds are a volumetric march ported close to Valentin Galea's
 [XtBXDw](https://www.shadertoy.com/view/XtBXDw) (MIT), tuned by hand, on its
@@ -179,11 +245,11 @@ the values as constants, "copy GLSL" to get them back. Restore `src/debug.js`
 from there and give the lines their ranges back to tune again.
 
 ```
-[build]  8413 / 13312 bytes — 4899 free (36.8%)
-  esbuild    24094 B
-  terser     22305 B  (-7%)
-  roadroller 10984 B  (-51%)
-  glsl       13321 B  (-71% of 46432 B raw)
+[build]  9744 / 13312 bytes — 3568 free (26.8%)
+  esbuild    27943 B
+  terser     26114 B  (-7%)
+  roadroller 12751 B  (-51%)
+  glsl       14309 B  (-72% of 50881 B raw)
 ```
 
 ## Layout

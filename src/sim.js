@@ -79,6 +79,13 @@ const SPEED = 0.22;
  * recruit rather than nine times one. There is no ceiling.
  */
 const SCALE0 = 0.5, GROW = 0.25, TOUGH = 0.5;
+/**
+ * Ice. A unicorn caught by it is inside a block of it, and can do nothing at
+ * all until the block has gone: not walk, not fight, not heal, not even
+ * flinch. It can still be cut down where it stands, which is the point of
+ * it. The block melts from the top down over this many seconds.
+ */
+export const FREEZE = 20;
 /** Out of a fight, a unicorn heals from nothing to full in this many seconds. */
 const HEAL = 30;
 /** Below this much health, a unicorn that wins a fight withdraws to heal. */
@@ -106,6 +113,15 @@ const LONG = 1.25, DEEP = 0.625;
  * castle is at, rather than lining up outside the very claim it came for.
  */
 const LANE = 0.2;
+/**
+ * A castle's half-width at the bow's feet, measured off the screen, and its
+ * ground is square: as deep as it is wide, where a unicorn's is half as deep
+ * as it is long. Like every other distance on the ground it is the castle's
+ * own size, so one deep in the field takes up less of it. Nothing stands in
+ * it but the garrison healing there — and a besieger shoved out of it is
+ * still well inside CAP_R, so it presses its claim from the wall.
+ */
+const CASTLE_W = 0.071;
 /** A swing connects this often, and takes off this much when it does. */
 const HIT = 0.65, DMG = 1.5;
 /** Radians a second the neck lunges while fighting: one swing a second. */
@@ -141,7 +157,7 @@ const MOB = 3;
  * is the one unicorn here that never fights horn to horn. It walks where a
  * fighter walks, stops as soon as the nearest enemy is within KEEP of it,
  * gives ground to one that gets well inside that, and every COOL seconds
- * freezes the nearest enemy within CAST for FREEZE seconds
+ * freezes the nearest enemy within CAST for FROST seconds
  * — a unicorn that cannot walk, cannot swing and cannot heal, but is still a
  * target and still stands in everyone's way.
  *
@@ -169,7 +185,7 @@ const MOB = 3;
  */
 const MAGE_EVERY = 4, MAGE_V = 0.75;
 const CAST = 0.3, KEEP = 0.19;
-export const COOL = 3.5, FREEZE = 1.6;
+export const COOL = 3.5, FROST = 1.6;
 
 /**
  * @typedef {object} Unicorn
@@ -181,6 +197,16 @@ export const COOL = 3.5, FREEZE = 1.6;
  * @property {number} _ph gallop phase
  * @property {number} _lane its own depth to walk a castle down at, so that a
  *   column marching on one arrives on a front rather than in single file
+ * @property {number} _ice seconds of the block left over it, 0 when free
+ * @property {number} _ox where it stood when the last step ended, and
+ * @property {number} _oy the same: the ground it covered since is what its
+ *   legs are driven by, so a unicorn that is held still does not walk on the
+ *   spot however hard it is trying to get somewhere
+ * @property {number} _px a point trailing half a second behind it, and
+ * @property {number} _py the same, so it can tell whether it is getting
+ *   anywhere. Trying to walk is not the same as getting somewhere: one at a
+ *   gate walks into the wall, is put back out of it, and walks in again,
+ *   every step of it real movement that adds up to standing on the spot
  * @property {number} _hp above 0 alive; 0 down to −1 is the half-second it fades out
  * @property {number} _max hit points at its level
  * @property {number} _lvl how many fights it has won its way up
@@ -213,6 +239,7 @@ export const herd = [];
  * @property {number} _t seconds to its next spawn
  * @property {number} _n recruits it has turned out, for whose turn it is to
  *   wear the cape
+ * @property {number} _w half the ground it stands on, at the bow's feet
  */
 
 /**
@@ -222,9 +249,9 @@ export const herd = [];
  * @type {Castle[]}
  */
 export const castles = [
-    { _x: -FOOT_X, _y: FOOT, _from: 0, _side: 0, _cap: CAP, _own: true, _rate: 1, _t: 1, _n: 0 },
-    { _x: 0, _y: MID_Y, _from: -1, _side: -1, _cap: 0, _own: false, _rate: OUTPOST, _t: 1, _n: 0 },
-    { _x: FOOT_X, _y: FOOT, _from: 1, _side: 1, _cap: CAP, _own: true, _rate: 1, _t: 1, _n: 0 },
+    { _x: -FOOT_X, _y: FOOT, _from: 0, _side: 0, _cap: CAP, _own: true, _rate: 1, _t: 1, _n: 0, _w: CASTLE_W },
+    { _x: 0, _y: MID_Y, _from: -1, _side: -1, _cap: 0, _own: false, _rate: OUTPOST, _t: 1, _n: 0, _w: CASTLE_W },
+    { _x: FOOT_X, _y: FOOT, _from: 1, _side: 1, _cap: CAP, _own: true, _rate: 1, _t: 1, _n: 0, _w: CASTLE_W },
 ];
 
 /** −1 rainicorns ahead … +1 sunicorns ahead, smoothed. */
@@ -244,6 +271,13 @@ export const captured = [];
  */
 export const casts = [];
 
+/**
+ * The side that holds every castle, with a full claim on each, or −1 while
+ * the run is still on. Nothing in the simulation reads it: it stops when
+ * main.js stops calling it, so the field holds still at the moment it was won.
+ */
+export let winner = -1;
+
 let seed = 7;
 const rnd = () => (seed = (seed * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff;
 
@@ -255,8 +289,9 @@ const rnd = () => (seed = (seed * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff
  */
 export const TUNE = typeof __DEBUG__ === 'undefined' || __DEBUG__
     ? { HP, HURT, HEAL, LOOK, CROWD, LONG, DEEP, HIT, DMG, REACH, MAX, NEAR_Y, FAR_Y,
-        SPAWN, SCALE0, CAP, CAP_R, TAKE, BREAK, MOB, LANE, OUTPOST,
-        MAGE_EVERY, MAGE_V, CAST, KEEP, COOL, FREEZE }
+        SPAWN, SCALE0, CAP, CAP_R, TAKE, BREAK, MOB, LANE, OUTPOST, FREEZE,
+        CASTLE_W, NEAR_S, FAR_S, FOOT, SPEED,
+        MAGE_EVERY, MAGE_V, CAST, KEEP, COOL, FROST }
     : null;
 const sizeAt = (y) => NEAR_S + (FAR_S - NEAR_S) * ((y - NEAR_Y) / (FAR_Y - NEAR_Y));
 /**
@@ -267,16 +302,24 @@ const sizeAt = (y) => NEAR_S + (FAR_S - NEAR_S) * ((y - NEAR_Y) / (FAR_Y - NEAR_
  * @param {number} y
  */
 const depthScale = (y) => sizeAt(y) / sizeAt(FOOT);
+/** The same, for main.js: how big to draw a thing standing at this depth. */
+export const depthAt = depthScale;
 
-export function reset() {
-    // The same seed every time: a run is reproducible, which is what makes
-    // the headless harness worth anything.
-    seed = 7;
+/**
+ * Start a run. The seed is the whole of what makes one run differ from
+ * another — everything random in here comes off it — so the same seed gives
+ * the same run, which is what makes the headless harness worth anything, and
+ * a fresh one gives a fresh game.
+ * @param {number} [s]
+ */
+export function reset(s = 7) {
+    seed = s;
     herd.length = 0;
     fallen.length = 0;
     promoted.length = 0;
     captured.length = 0;
     casts.length = 0;
+    winner = -1;
     balance = 0;
     for (const c of castles) {
         c._side = c._from;
@@ -307,6 +350,9 @@ function spawn(castle) {
         _face: castle._side ? -1 : 1,
         _ph: rnd() * 6.283,
         _lane: (rnd() - 0.5) * LANE,
+        _px: castle._x, _py: y,
+        _ox: castle._x, _oy: y,
+        _ice: 0,
         _hp: HP,
         _max: HP,
         _lvl: 0,
@@ -351,7 +397,10 @@ function aim(un, foe) {
 function seek(un, look, crowd) {
     let best = null, bd = look * look;
     for (const e of herd) {
-        if (e._side === un._side || e._hp <= 0 || e._att >= crowd) continue;
+        // One foe at a time, up to the cap — whoever it is already after is
+        // of course still allowed, or it could not keep the foe it has.
+        if (e._side === un._side || e._hp <= 0
+            || (e._att >= crowd && e !== un._foe)) continue;
         const d = (e._x - un._x) ** 2 + (e._y - un._y) ** 2;
         if (d < bd) { bd = d; best = e; }
     }
@@ -450,6 +499,10 @@ function capture(dt) {
 export function step(dt) {
     capture(dt);
 
+    // Every castle one side's, and every claim on them full: the run is over.
+    const first = castles[0]._side;
+    if (first >= 0 && castles.every((c) => c._side === first && c._own)) winner = first;
+
     for (const c of castles) {
         if (!c._own) continue;
         // A castle spawns at its own rate, and at the rate of the claim on
@@ -485,6 +538,25 @@ export function step(dt) {
             un._fight = Math.max(0, un._fight - dt * 4);
             continue;
         }
+        // Under the ice: it does nothing and nothing of its own changes,
+        // beyond the block melting off it. It keeps whatever it was after,
+        // to take that up again when it is free.
+        if (un._ice > 0) {
+            un._ice -= dt;
+            un._eng = false;
+            un._fight += (1 - un._fight) * Math.min(1, dt * 6);
+            // The short way round to zero. Winding a phase of twenty down by
+            // thirds takes it through every lunge on the way, and a unicorn
+            // setting into the ice was throwing its neck up and down a dozen
+            // times on the way to standing still.
+            let ph = un._ph % 6.2832;
+            if (ph > 3.1416) ph -= 6.2832;
+            un._ph = ph * Math.max(0, 1 - dt * 4);
+            un._ox = un._x;
+            un._oy = un._y;
+            continue;
+        }
+
         // A target that has fallen frees it.
         if (un._foe && un._foe._hp <= 0) aim(un, null);
 
@@ -510,7 +582,15 @@ export function step(dt) {
         // but it answers one that comes to it.
         const rest = un._rest ? home(un) : null;
         if (!rest) un._rest = false;
-        if (!un._mage && !un._foe && !un._rest) aim(un, seek(un, LOOK, CROWD));
+        // The nearest enemy it can see, every step. Packed into a crowd it
+        // is forever being carried away from whatever it first picked, and
+        // walking back across the press to reach that one rather than the
+        // one under its nose is how a fight turns into a crush of animals
+        // going past each other. The exception is a fight already joined:
+        // that is seen out. A mage takes no foe at all.
+        if (!un._mage && !un._rest && !un._eng) {
+            aim(un, seek(un, LOOK, CROWD) || un._foe);
+        }
 
         // What a mage has instead of a foe: the nearest enemy within a
         // spell's length, which it freezes and keeps its distance from. It is
@@ -546,18 +626,63 @@ export function step(dt) {
         // Where to stop, and from how close the horns connect: a little
         // further out than the stop, so a pair that eases to a halt at the
         // stop is fighting by the time it gets there.
-        const stop = un._foe ? REACH * (un._s + un._foe._s) : (rest ? 0.012 : 0.08) * near;
+        // The doorstep is inside the castle's ground on purpose: a besieger
+        // walks at the gate, is put back out of the wall by walls(), and
+        // takes that depth for its lane. Stopping it outside the wall
+        // instead would have a big veteran standing beyond CAP_R, unable to
+        // press the claim it came for.
+        // A garrison stops as soon as it is on the castle rather than walking
+        // for the exact middle of it: five of them cannot all stand on one
+        // point, and any that try spend the watch shoving each other off it
+        // and walking back. Anywhere on the stone will do.
+        const stop = un._foe ? REACH * (un._s + un._foe._s) : (rest ? 0.04 : 0.08) * near;
         // Once horn to horn it takes more than a shove from the crowd to
         // break it off, or the pair spend the fight stepping in and out of
         // range of each other.
         const fighting = un._foe && d < stop * (un._eng ? 1.7 : 1.3);
+        // How far it has got from where it was half a second ago. A step on
+        // its own cannot tell walking from jittering: both move real ground,
+        // and only one of them ends up anywhere.
+        const arrived = Math.hypot(un._x - un._px, un._y - un._py) < SPEED * 0.06;
+        // The ground it actually covered last step, shoves and all. The mark
+        // is dropped here rather than at the end of the step: nothing moves
+        // between one step ending and the next beginning, so a mark dropped
+        // there would measure nothing at all.
+        const gx = un._x - un._ox, gy = un._y - un._oy;
+        const gone = Math.hypot(gx, gy);
+        un._ox = un._x;
+        un._oy = un._y;
         // Standing on the castle, unmolested: four times the healing, and no
         // walking. The hold is roomier than the stop so that being shoved
-        // aside by another of its own does not send it walking back.
-        const healing = !frost && rest && !un._foe && d <= 0.07 * near;
+        // aside by another of its own does not send it walking back — and
+        // one that has queued up behind a full garrison, and is getting no
+        // closer for trying, settles where it stands rather than circling
+        // the walls for the rest of the watch.
+        const healing = !frost && rest && !un._foe
+            && (d <= 0.07 * near || (arrived && d <= 0.18 * near));
+        // Near where it was going and getting no nearer: it stops walking.
+        // A crowd round a castle is pushed off the doorstep as fast as it
+        // reaches it, and without this the ones at the back spend the siege
+        // walking back in — forty of them covering a fifth of a walk each
+        // every three seconds, for as long as the siege lasted.
+        // Never far enough out to be idling outside the very claim it came
+        // for: the reach a castle is held from is the limit.
+        const stuck = arrived && d < Math.min(stop * 3, CAP_R * near * 0.9);
         // A mage is the slower animal, going or coming.
         const pace = SPEED * (un._mage ? MAGE_V : 1);
         let v = 0;
+        // Horn to horn it holds its ground. It is already where it needs to
+        // be, and a pair that walks at each other every step is a pair the
+        // crowd can bounce: shoved apart, they close again, and the two of
+        // them shudder for the whole fight. The reach it fights at is
+        // roomier than the reach it closes to, so a nudge does not break it
+        // off and it does not have to chase.
+        // Walked into something and came off worse: last step it ended up
+        // further from where it was going than it set out. Walking at it
+        // again this step only repeats the collision, and a unicorn doing
+        // that every step in a crowd shudders on the spot. It waits instead,
+        // and the crowd moves on around it.
+        const blocked = gx * dx + gy * dy < 0;
         if (frost) {
             // Nothing. The frost is the whole of it.
         } else if (back) {
@@ -569,15 +694,16 @@ export function step(dt) {
             // to stop at, so the band has to.
             un._y = Math.min(FAR_Y, Math.max(NEAR_Y,
                 un._y + (un._y - mark._y) / hold * v * dt));
-        } else if (d > stop && hold > KEEP) {
+        } else if (d > stop && hold > KEEP && !healing && !stuck && !un._eng && !blocked) {
             // Full speed the whole way, and never a step past the thing it is
-            // walking to. This used to ease off over the last little way
-            // instead, which meant nothing could catch anything that was
-            // backing away from it: the two settled at the distance where the
-            // pursuer's eased-off speed matched the pursued's, and the pair
-            // walked off the field together. Not overshooting the doorstep is
-            // what the ramp was actually for, and the clamp does that without
-            // slowing anyone down.
+            // walking to. It used to ease off over the last little way
+            // instead, and then nothing could close on anything that was
+            // walking away from it: the two settled at the distance where the
+            // pursuer's eased-off speed matched the pursued's and went off
+            // the field together. There is still no floor under it — the step
+            // is whatever is left of the way — so one shoved a hair past
+            // where it meant to stand still ambles back by that hair rather
+            // than setting off at a walk.
             v = Math.min(pace, (d - stop) / dt);
             un._x += dx / d * v * dt;
             un._y += dy / d * v * dt;
@@ -593,12 +719,12 @@ export function step(dt) {
 
         // The spell. It does not travel and it does not miss: what a mage
         // brings to a fight is not damage but a target that cannot answer for
-        // FREEZE seconds. Frozen itself, it cannot work either.
+        // FROST seconds. Frozen itself, it cannot work either.
         if (un._mage && !frost) {
             un._cast -= dt;
             if (mark && un._cast <= 0) {
                 un._cast = COOL;
-                mark._froze = FREEZE;
+                mark._froze = FROST;
                 casts.push({
                     _x: un._x, _y: un._y + un._s, _s: un._s,
                     _tx: mark._x, _ty: mark._y + mark._s * 0.6,
@@ -618,14 +744,26 @@ export function step(dt) {
         const scale = SCALE0 * (1 + GROW * un._lvl);
         if (un._scale < scale) un._scale = Math.min(scale, un._scale + SCALE0 * GROW * dt);
         un._s = sizeAt(un._y) * un._scale;
-        if (!healing && !frost && Math.abs(dx) > 0.01) un._face = dx > 0 ? 1 : -1;
-        // The fighting pose plants all four feet, which is also how a unicorn
-        // stands while it heals; there the phase winds down to zero instead,
-        // so the neck comes up rather than lunging.
-        if (!frost) un._fight += ((fighting || healing ? 1 : 0) - un._fight) * Math.min(1, dt * 6);
+        // Nothing to fight and nowhere it is actually getting: it stands, and
+        // standing is all four feet down. The fighting pose is what plants
+        // them — the stride fades out of it — and winding the phase down to
+        // zero takes the lunge back out, which leaves a unicorn on its feet
+        // with its head up.
+        //
+        // What counts is the ground it covered last step, not whether it
+        // tried to walk. One at a gate walks into the wall, is put back out
+        // of it, and walks in again: it is trying the whole time and getting
+        // nowhere, and it should be standing there like anything else that
+        // has arrived.
+        //
+        // Under the frost none of it moves: face, pose and phase are held
+        // wherever the spell caught them.
+        const still = !fighting && arrived;
+        if (!still && !frost && Math.abs(dx) > 0.01) un._face = dx > 0 ? 1 : -1;
+        if (!frost) un._fight += ((fighting || still ? 1 : 0) - un._fight) * Math.min(1, dt * 6);
         if (frost) {
             // The lunge is held where the frost caught it.
-        } else if (healing) {
+        } else if (still) {
             // The short way round to zero, so the neck does not swing through
             // a whole lunge on the way.
             let ph = un._ph % 6.2832;
@@ -646,12 +784,25 @@ export function step(dt) {
             }
             un._ph = next;
         } else {
-            // A walk at rest, a gallop on the move.
-            un._ph += dt * (2.5 + Math.min(v * 55, 12));
+            // The legs are driven by the ground it covered, not by the speed
+            // it meant to walk at: one held still by the crowd in front of
+            // it stops its legs rather than walking on the spot. Measured in
+            // its own lengths, so a veteran takes longer strides for the
+            // same ground.
+            un._ph += Math.min(gone / un._s, 0.1) * 3.9;
         }
     }
 
-    separate();
+    separate(dt);
+
+    // The trailing point creeps after everyone, shoves and all. A steady walk
+    // leaves it a tenth of a unit behind; a unicorn going nowhere is sat on
+    // top of it.
+    const k = Math.min(1, dt * 2);
+    for (const un of herd) {
+        un._px += (un._x - un._px) * k;
+        un._py += (un._y - un._py) * k;
+    }
 
     // Gone once faded.
     for (let i = herd.length; i--;) if (herd[i]._hp <= -1) herd.splice(i, 1);
@@ -672,12 +823,61 @@ export function step(dt) {
  * edge of the band pushes the other twice as far, and a pair with no depth
  * left to give gives way sideways.
  */
-function separate() {
+function separate(dt) {
     // Resolving one pair can push a unicorn into another, so it takes a few
     // sweeps to settle. The last one gives way sideways instead: whatever a
     // crowd could not solve by stepping aside in depth, it solves by
-    // spreading out along the field.
-    sweep(0); sweep(0); sweep(0); sweep(1);
+    // spreading out along the field. The castles are put in between, so a
+    // unicorn shoved into one is put back out before the next sweep.
+    const was = herd.map((u) => [u._x, u._y]);
+    sweep(0); walls(); sweep(0); walls(); sweep(0); sweep(1); walls();
+
+    // No unicorn is shoved faster than it could run. Resolving every pair in
+    // full is what stops a crowd standing inside itself, but in a dense one
+    // the pushes compound: twenty at a gate flung each other half a field and
+    // then walked back, over and over, for as long as they were there. The
+    // limit is what turns that into a crowd that settles.
+    const cap = SPEED * dt * 1.5;
+    for (let i = 0; i < herd.length; i++) {
+        const u = herd[i], [x, y] = was[i];
+        const dx = u._x - x, dy = u._y - y;
+        const m = Math.hypot(dx, dy);
+        if (m <= cap) continue;
+        u._x = x + dx / m * cap;
+        u._y = y + dy / m * cap;
+        u._s = sizeAt(u._y) * u._scale;
+    }
+}
+
+/**
+ * Out of the castles. They do not move, so the unicorn gives all the ground,
+ * and it gives it the short way: whichever of depth and across is the less
+ * far to go. Always choosing depth would put a besieger that walked up to a
+ * gate at the castle's exact depth, whatever lane it marched in, and a
+ * column would arrive in single file after all. A unicorn healing at a
+ * castle of its own is the garrison and stands on it.
+ */
+function walls() {
+    for (const un of herd) {
+        if (un._hp <= 0 || un._ice > 0) continue;
+        for (const c of castles) {
+            if (un._rest && c._side === un._side) continue;
+            const w = c._w * depthScale(c._y);
+            const ex = w + un._s * LONG * 0.5;
+            const ey = w + un._s * DEEP * 0.5;
+            const dx = un._x - c._x, dy = un._y - c._y;
+            const ox = ex - Math.abs(dx), oy = ey - Math.abs(dy);
+            if (ox <= 0 || oy <= 0) continue;
+            // The short way out, and out of the band is no way at all.
+            const y = un._y + (dy === 0 ? 1 : Math.sign(dy)) * oy;
+            if (oy <= ox && y >= NEAR_Y && y <= FAR_Y) {
+                un._y = y;
+                un._s = sizeAt(un._y) * un._scale;
+            } else {
+                un._x += (dx === 0 ? (un._x < c._x ? -1 : 1) : Math.sign(dx)) * ox;
+            }
+        }
+    }
 }
 
 /** @param {number} sideways */
@@ -688,6 +888,8 @@ function sweep(sideways) {
         for (let j = i + 1; j < herd.length; j++) {
             const b = herd[j];
             if (b._hp <= 0) continue;
+            // A block of ice does not give way; whoever met it goes round.
+            if (a._ice > 0 && b._ice > 0) continue;
             const w = (a._s + b._s) * 0.5;
             const oy = w * DEEP - Math.abs(b._y - a._y);
             if (oy <= 0) continue;
@@ -708,9 +910,9 @@ function sweep(sideways) {
             const dir = b._y === a._y ? (i & 1 ? 1 : -1) : Math.sign(b._y - a._y);
             let da = -dir * oy * 0.5, db = dir * oy * 0.5;
             // One of them pinned at the edge of the band pushes the other
-            // twice as far.
-            if (a._y + da < NEAR_Y || a._y + da > FAR_Y) { db -= da; da = 0; }
-            if (b._y + db < NEAR_Y || b._y + db > FAR_Y) { da -= db; db = 0; }
+            // twice as far, and so does one under the ice.
+            if (a._ice > 0 || a._y + da < NEAR_Y || a._y + da > FAR_Y) { db -= da; da = 0; }
+            if (b._ice > 0 || b._y + db < NEAR_Y || b._y + db > FAR_Y) { da -= db; db = 0; }
             const ay = Math.min(FAR_Y, Math.max(NEAR_Y, a._y + da));
             const by = Math.min(FAR_Y, Math.max(NEAR_Y, b._y + db));
             // What the edge of the band ate, they give way sideways instead.
@@ -732,16 +934,33 @@ function sweep(sideways) {
 }
 
 /**
- * God mode: strike down the unicorn nearest the point, if one is near.
+ * The unicorn nearest a point, if one is near enough to mean it.
  * @param {number} x in the herd's units
  * @param {number} y
  */
-export function smite(x, y) {
+function nearest(x, y) {
     let best = null, bd = 0.02;
     for (const un of herd) {
         if (un._hp <= 0) continue;
         const d = (un._x - x) ** 2 + (un._y - (y + un._s * 0.4)) ** 2;
         if (d < bd) { bd = d; best = un; }
     }
+    return best;
+}
+
+/**
+ * God mode: freeze the unicorn nearest the point into a block of ice. It
+ * stands there, out of the fight but still in the way of it, until the block
+ * has melted off it.
+ * @param {number} x
+ * @param {number} y
+ */
+export function freeze(x, y) {
+    const un = nearest(x, y);
+    if (un) un._ice = FREEZE;
+}
+
+export function smite(x, y) {
+    const best = nearest(x, y);
     if (best) best._hp = 0;   // zero, not below: that is where the fade starts
 }
