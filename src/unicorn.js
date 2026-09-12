@@ -39,6 +39,10 @@
  *              neck swings down at the enemy with the phase
  *   aState.y   health, 0…1, for the bar over the horn; 0 down to −1 is the
  *              fade-out after death
+ *   aState.z   the cape: −1 for a fighter, which has none, and 0…1 for a mage,
+ *              which is how charged the spell on its horn is. One float for
+ *              both because the sign already says which animal this is
+ *   aState.w   frost, 0…1: how much of a freeze is still on it
  *
  * Who is where, and what they are doing, is sim.js's business; this file
  * only draws what it is handed.
@@ -56,10 +60,10 @@ import { g, program, uniforms, gl, time, width, height, Batch } from './gl.js';
 const VS = g`#version 300 es
 layout(location = 0) in vec4 aBody;
 layout(location = 1) in float aSide;
-layout(location = 2) in vec2 aState;
+layout(location = 2) in vec4 aState;
 uniform vec2 uRes;
 out vec2 vP;
-out float vPhase, vSide, vOw, vFlip, vFight, vHp;
+out float vPhase, vSide, vOw, vFlip, vFight, vHp, vCape, vFrost;
 
 // The quad in body units: wide enough for the tail behind and the muzzle in
 // front, tall enough for the horn above and the hooves at full stride.
@@ -87,6 +91,8 @@ void main(){
   vSide = aSide;
   vFight = aState.x;
   vHp = aState.y;
+  vCape = aState.z;
+  vFrost = aState.w;
   vOw = OUTLINE / (uRes.y * s);
   // The same space the rainbow works in: y is -0.5…0.5, x scales with aspect.
   vec2 w = aBody.xy + vec2(0.0, FEET * s) + c * s;
@@ -96,7 +102,7 @@ void main(){
 const FS = g`#version 300 es
 precision highp float;
 in vec2 vP;
-in float vPhase, vSide, vOw, vFlip, vFight, vHp;
+in float vPhase, vSide, vOw, vFlip, vFight, vHp, vCape, vFrost;
 out vec4 o;
 uniform float uTime;
 
@@ -146,6 +152,7 @@ struct U {
   float farBack, farFront;
   float hoofFarBack, hoofFarFront, hoofBack, hoofFront;
   float tail, tailU, mane, maneU, horn, eye, glint;
+  float cape, clasp;   // a mage's; solved for every animal, drawn for one
 };
 
 U parts(vec2 p, float ph, float t, float fight){
@@ -244,6 +251,33 @@ U parts(vec2 p, float ph, float t, float fight){
   u.mane = min(seg(mp, mb, me, rm * 0.7, rm * 1.1),
                ell(q - (hc + vec2(-0.03, 0.085) * HEAD), vec2(0.055, 0.035) * HEAD * MANE));
   u.maneU = mh;
+
+  // The cape a mage wears: a sheet clasped at the withers, widening over the
+  // rump and hanging to the top of the hind legs. It flies with the stride —
+  // the hem swings back and up as the animal rises between strides — and
+  // ripples on its own besides, so a mage standing still is not a mage in a
+  // board. The ripple grows from nothing at the clasp to the whole of it at
+  // the hem, which is the only end of a cape that is free to move.
+  float fly = 0.3 + 0.7 * stride * (0.5 + 0.5 * sin(ph + 0.9));
+  vec2 kb = vec2(L * 0.42, H * 0.85);
+  vec2 kh = vec2(-L * 1.3, -H * 1.5) + vec2(-0.05, 0.07) * fly;
+  // In the cape's own frame: kq.x runs down the drape from the clasp, kq.y
+  // across it. That is what gives a hem — a straight cut across the sheet —
+  // where a capsule would give a round end and the animal would look like it
+  // was wearing a bag.
+  vec2 kv = kh - kb, ax = normalize(kv);
+  vec2 rel = p - kb;
+  vec2 kq = vec2(dot(rel, ax), dot(rel, vec2(-ax.y, ax.x)));
+  float kl = length(kv);
+  // Narrow at the clasp, wide at the hem, and rippling: the wave runs across
+  // the sheet rather than along it, so it reads as cloth moving rather than
+  // as an edge wobbling.
+  float wide = mix(0.04, 0.19, clamp(kq.x / kl, 0.0, 1.0))
+             * (1.0 + 0.16 * sin(kq.x * 18.0 - t * 5.0));
+  float hem = kl + 0.025 * sin(kq.y * 26.0 - t * 4.0);
+  vec2 kd = vec2(max(kq.x - hem, -kq.x), abs(kq.y) - wide);
+  u.cape = min(max(kd.x, kd.y), 0.0) + length(max(kd, 0.0));
+  u.clasp = length(p - kb) - 0.04;
   return u;
 }
 
@@ -299,6 +333,14 @@ void main(){
   vec3 eyeC   = mix(line * 0.6, vec3(0.92, 0.12, 0.45), vSide);
   vec3 hornC  = mix(vec3(1.0, 0.86, 0.5), vec3(0.80, 0.78, 0.88), vSide)
               * (0.85 + 0.15 * sin(dot(p, vec2(0.38, 0.92)) * 90.0));
+  // A mage: the cape is its own colour rather than the animal's, cold on both
+  // sides so that it reads against a cream unicorn and against a black one.
+  // The charge on its horn is squared, so the spell shows in the last moment
+  // before it goes rather than glowing flatly the whole cooldown through.
+  float mage = step(-0.5, vCape), glow = max(vCape, 0.0) * max(vCape, 0.0);
+  vec3 capeC  = mix(vec3(0.20, 0.26, 0.60), vec3(0.52, 0.80, 0.95), vSide);
+  vec3 iceC   = vec3(0.45, 0.80, 1.0);
+  hornC = mix(hornC, vec3(0.75, 0.94, 1.0), glow * 0.85 * mage);
 
   // The shadow it stands in, before anything else and outside the bob, so the
   // animal rises off the ground rather than dragging the shadow with it.
@@ -319,6 +361,14 @@ void main(){
   c = part(c, u.body, ow, shade(u.body, bodyC, shadeC, rimC), line);
   c = part(c, u.hoofBack, 0.0, hoofC, line);
 
+  // The cape, over the barrel it hangs on and under the near front leg, which
+  // stands in front of it. Only a mage has one, and the sign of vCape is what
+  // says so.
+  if (mage > 0.5) {
+    c = part(c, u.cape, ow, shade(u.cape, capeC, capeC * 0.4, rimC), line);
+    c = part(c, u.clasp, 0.0, vec3(1.0, 0.84, 0.40), line);
+  }
+
   // The near front leg, painted only where it actually changes the silhouette,
   // so it never retraces the barrel it stands against.
   float aaF = max(fwidth(u.frontEdge), 1e-6);
@@ -332,6 +382,19 @@ void main(){
   c = part(c, u.horn, ow * 0.7, hornC, line);
   c = part(c, u.eye, 0.0, eyeC, line);
   c = part(c, u.glint, 0.0, vec3(1.0), line);
+
+  // The spell gathering on the horn: light off the horn itself, falling away
+  // from it, with enough alpha of its own to survive the discard below.
+  float halo = glow * mage * exp(-max(u.horn, 0.0) * 34.0);
+  c += vec4(iceC * 1.3, 0.6) * halo * 0.6;
+
+  // Frozen: the colour goes out of it and a shell of ice takes the light. The
+  // facets are one sine through another, which at this size is all the
+  // crystal anyone can see.
+  if (vFrost > 0.0) {
+    float cr = 0.5 + 0.5 * sin(p.x * 30.0 + p.y * 21.0 + sin(p.y * 44.0));
+    c.rgb = mix(c.rgb, iceC * (0.95 + 0.16 * cr) * c.a, 0.62 * vFrost);
+  }
 
   // Health, over the horn, while it is hurt. It fills left to right on the
   // screen whichever way the animal faces.
@@ -353,7 +416,7 @@ void main(){
 // The swarms
 // ---------------------------------------------------------------------------
 
-import { MAX } from './sim.js';
+import { MAX, COOL, FREEZE } from './sim.js';
 
 let _prog, _u, _batch;
 
@@ -361,7 +424,7 @@ let _prog, _u, _batch;
 export function initUnicorns() {
     _prog = program(VS, FS);
     _u = uniforms(_prog, ['uRes', 'uTime']);
-    _batch = new Batch(_prog, [4, 1, 2], MAX);
+    _batch = new Batch(_prog, [4, 1, 4], MAX);
 }
 
 /**
@@ -379,7 +442,11 @@ export function drawUnicorns(herd, from = 0, y = -Infinity) {
     for (; i < herd.length && herd[i]._y > y; i++) {
         const un = herd[i];
         _batch.push(un._x, un._y, un._face * un._s, un._ph, un._side, un._fight,
-            un._hp > 0 ? un._hp / un._max : un._hp);
+            un._hp > 0 ? un._hp / un._max : un._hp,
+            // A fighter has no cape, and says so with a negative; a mage sends
+            // how charged its spell is in the same float.
+            un._mage ? 1 - Math.min(1, un._cast / COOL) : -1,
+            Math.min(1, un._froze / FREEZE));
     }
     gl.useProgram(_prog);
     _u({ uRes: [width, height], uTime: time });

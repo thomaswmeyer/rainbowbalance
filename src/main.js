@@ -15,7 +15,7 @@ import { initGl, resize, setTime } from './gl.js';
 import { initRainbow, drawRainbow, drawBow, drawCastle, recompile, SOURCES } from './rainbow.js';
 import { initUnicorns, drawUnicorns } from './unicorn.js';
 import * as sim from './sim.js';
-import { initSparks, burst, shower, stepSparks, drawSparks } from './sparks.js';
+import { initSparks, burst, shower, bolt, stepSparks, drawSparks } from './sparks.js';
 
 // --- the balance ------------------------------------------------------------
 
@@ -46,6 +46,10 @@ function step(dt) {
     // size of the castle rather than of a unicorn.
     for (const c of sim.captured) shower(c._x, c._y, 0.1);
     sim.captured.length = 0;
+    // And a spell is a streak of frost from the horn that cast it to whatever
+    // is now standing still.
+    for (const c of sim.casts) bolt(c._x, c._y, c._tx, c._ty, c._s);
+    sim.casts.length = 0;
     stepSparks(dt);
     if (!state._manual) state._balance = sim.balance;
 }

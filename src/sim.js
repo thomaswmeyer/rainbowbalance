@@ -137,6 +137,32 @@ const TAKE = 0.75, BREAK = 1.5;
 const MOB = 3;
 
 /**
+ * The mage: one recruit in MAGE_EVERY comes out of the gate in a cape, up to
+ * MAGES of them alive on a side, and it is the one unicorn here that never
+ * fights horn to horn. It walks up to KEEP of the nearest enemy and holds
+ * there, steps out of the way of a fight that is not about it, and every COOL
+ * seconds freezes the nearest enemy within CAST of it for FREEZE seconds — a
+ * unicorn that cannot walk, cannot swing and cannot heal, but is still a
+ * target and still stands in everyone's way.
+ *
+ * What it hands its side is not damage. It is a fight where one of the two is
+ * not swinging back, which is worth about what a second fighter would be
+ * worth and costs a fighter's place in the herd. So it is paid for elsewhere:
+ * fewer hit points than a recruit, slower on its feet than what is coming for
+ * it, and no veterancy at all, since a unicorn that never wins a fight never
+ * walks off to heal from one. A mage left unguarded is run down, and one that
+ * has been picked out cannot run: see `back` in the step for why not.
+ *
+ * CAST and KEEP are flat distances like LOOK, not ground to walk: how far a
+ * unicorn can reach is not scaled by the depth it stands at, and a spell is
+ * reach.
+ */
+const MAGE_EVERY = 4, MAGES = 3;
+const MAGE_HP = 0.6, MAGE_V = 0.75;
+const CAST = 0.3, KEEP = 0.19;
+export const COOL = 3.5, FREEZE = 1.6;
+
+/**
  * @typedef {object} Unicorn
  * @property {number} _x
  * @property {number} _y
@@ -157,6 +183,9 @@ const MOB = 3;
  * @property {number} _att how many are closing on it
  * @property {boolean} _eng horn to horn right now, so it will not be drawn off
  * @property {Unicorn|null} _hit who landed a blow on it since its last step
+ * @property {boolean} _mage it wears the cape: it casts rather than fights
+ * @property {number} _cast seconds until its spell comes round again
+ * @property {number} _froze seconds of frost left on it
  */
 
 /** @type {Unicorn[]} */
@@ -173,6 +202,8 @@ export const herd = [];
  * @property {number} _rate how fast it turns recruits out, against a home
  *   castle's rate
  * @property {number} _t seconds to its next spawn
+ * @property {number} _n recruits it has turned out, for whose turn it is to
+ *   wear the cape
  */
 
 /**
@@ -182,9 +213,9 @@ export const herd = [];
  * @type {Castle[]}
  */
 export const castles = [
-    { _x: -FOOT_X, _y: FOOT, _from: 0, _side: 0, _cap: CAP, _own: true, _rate: 1, _t: 1 },
-    { _x: 0, _y: MID_Y, _from: -1, _side: -1, _cap: 0, _own: false, _rate: OUTPOST, _t: 1 },
-    { _x: FOOT_X, _y: FOOT, _from: 1, _side: 1, _cap: CAP, _own: true, _rate: 1, _t: 1 },
+    { _x: -FOOT_X, _y: FOOT, _from: 0, _side: 0, _cap: CAP, _own: true, _rate: 1, _t: 1, _n: 0 },
+    { _x: 0, _y: MID_Y, _from: -1, _side: -1, _cap: 0, _own: false, _rate: OUTPOST, _t: 1, _n: 0 },
+    { _x: FOOT_X, _y: FOOT, _from: 1, _side: 1, _cap: CAP, _own: true, _rate: 1, _t: 1, _n: 0 },
 ];
 
 /** −1 rainicorns ahead … +1 sunicorns ahead, smoothed. */
@@ -196,6 +227,13 @@ export const fallen = [];
 export const promoted = [];
 /** Which castles came up to a full claim this step, likewise. */
 export const captured = [];
+/**
+ * The spells cast this step, for main.js to draw the streak of: from the
+ * caster's horn to whoever it was aimed at. The freeze itself has already
+ * landed — a spell does not miss and does not travel.
+ * @type {{_x:number,_y:number,_tx:number,_ty:number,_s:number}[]}
+ */
+export const casts = [];
 
 let seed = 7;
 const rnd = () => (seed = (seed * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff;
@@ -208,7 +246,8 @@ const rnd = () => (seed = (seed * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff
  */
 export const TUNE = typeof __DEBUG__ === 'undefined' || __DEBUG__
     ? { HP, HURT, HEAL, LOOK, CROWD, LONG, DEEP, HIT, DMG, REACH, MAX, NEAR_Y, FAR_Y,
-        SPAWN, SCALE0, CAP, CAP_R, TAKE, BREAK, MOB, LANE, OUTPOST }
+        SPAWN, SCALE0, CAP, CAP_R, TAKE, BREAK, MOB, LANE, OUTPOST,
+        MAGE_EVERY, MAGES, MAGE_HP, MAGE_V, CAST, KEEP, COOL, FREEZE }
     : null;
 const sizeAt = (y) => NEAR_S + (FAR_S - NEAR_S) * ((y - NEAR_Y) / (FAR_Y - NEAR_Y));
 /**
@@ -228,12 +267,14 @@ export function reset() {
     fallen.length = 0;
     promoted.length = 0;
     captured.length = 0;
+    casts.length = 0;
     balance = 0;
     for (const c of castles) {
         c._side = c._from;
         c._own = c._from >= 0;
         c._cap = c._own ? CAP : 0;
         c._t = 1;
+        c._n = 0;
     }
 }
 
@@ -246,6 +287,17 @@ function spawn(castle) {
     // proportionately less ground.
     const n = depthScale(castle._y);
     const y = Math.max(NEAR_Y, castle._y - (0.02 + rnd() * 0.06) * n);
+    // Whose turn it is to wear the cape, and whether its side has room for
+    // another. Counted rather than rolled: both sides get the same one
+    // recruit in four, and the run stays reproducible down to which of them
+    // it is. The cap is what stops a side turning into a herd of them: a mage
+    // is hard to get at — it stands behind its own line and backs away from
+    // what comes through it — so where a fighter's place in the herd comes
+    // free every few minutes, a mage's does not.
+    let mages = 0;
+    for (const u of herd) if (u._mage && u._hp > 0 && u._side === castle._side) mages++;
+    const mage = ++castle._n % MAGE_EVERY === 0 && mages < MAGES;
+    const hp = HP * (mage ? MAGE_HP : 1);
     herd.push({
         _x: castle._x + (rnd() - 0.5) * 0.1 * n,
         _y: y, _s: sizeAt(y) * SCALE0,
@@ -253,8 +305,8 @@ function spawn(castle) {
         _face: castle._side ? -1 : 1,
         _ph: rnd() * 6.283,
         _lane: (rnd() - 0.5) * LANE,
-        _hp: HP,
-        _max: HP,
+        _hp: hp,
+        _max: hp,
         _lvl: 0,
         _scale: SCALE0,
         _fight: 0,
@@ -263,6 +315,12 @@ function spawn(castle) {
         _att: 0,
         _eng: false,
         _hit: null,
+        _mage: mage,
+        // Half ready at the gate, so a mage walking into a fight it was
+        // spawned behind arrives with a spell rather than waiting out a whole
+        // cooldown in the open.
+        _cast: mage ? COOL * 0.5 : 0,
+        _froze: 0,
     });
 }
 
@@ -283,13 +341,18 @@ function aim(un, foe) {
 }
 
 /**
- * The nearest enemy within sight that is not already set upon by CROWD.
+ * The nearest enemy within `look` that is not already set upon by `crowd`
+ * others. A fighter looks LOOK ahead and leaves a mobbed one alone; a mage
+ * looks as far as its spell reaches and does not care how many are already on
+ * its mark, since freezing one is not standing in anyone's way.
  * @param {Unicorn} un
+ * @param {number} look
+ * @param {number} crowd
  */
-function seek(un) {
-    let best = null, bd = LOOK * LOOK;
+function seek(un, look, crowd) {
+    let best = null, bd = look * look;
     for (const e of herd) {
-        if (e._side === un._side || e._hp <= 0 || e._att >= CROWD) continue;
+        if (e._side === un._side || e._hp <= 0 || e._att >= crowd) continue;
         const d = (e._x - un._x) ** 2 + (e._y - un._y) ** 2;
         if (d < bd) { bd = d; best = e; }
     }
@@ -426,12 +489,21 @@ export function step(dt) {
         // A target that has fallen frees it.
         if (un._foe && un._foe._hp <= 0) aim(un, null);
 
+        // Frozen: the frost holds it where it stands. It neither walks nor
+        // swings nor heals until it lets go — but it is still a target, still
+        // presses whatever claim it was standing on, and still stands in
+        // everyone's way, which is the whole of what a mage is worth.
+        const frost = un._froze > 0;
+        if (frost) un._froze = Math.max(0, un._froze - dt);
+
         // Struck: it turns on whoever landed the blow, unless it is already
         // horn to horn with someone, in which case it finishes that fight.
         // Answering a blow ignores the crowding cap — being set upon is not
         // a choice — so a mobbed unicorn can briefly have three on it.
+        // A mage answers nothing: it has no fight to turn to, only ground to
+        // give.
         if (un._hit) {
-            if (un._hit._hp > 0 && !un._eng) aim(un, un._hit);
+            if (!un._mage && un._hit._hp > 0 && !un._eng) aim(un, un._hit);
             un._hit = null;
         }
 
@@ -439,27 +511,44 @@ export function step(dt) {
         // but it answers one that comes to it.
         const rest = un._rest ? home(un) : null;
         if (!rest) un._rest = false;
-        if (!un._foe && !un._rest) aim(un, seek(un));
+        if (!un._mage && !un._foe && !un._rest) aim(un, seek(un, LOOK, CROWD));
 
-        // Its foe, or the castle it is resting at, or the nearest castle its
-        // side does not hold. With nothing left to take it walks home.
-        const goal = un._foe || rest || foeHome(un) || home(un) || castles[1];
+        // What a mage is walking to is a place to stand off its nearest
+        // enemy, not the enemy itself. It takes no target of its own: nobody
+        // is closing on anything, so nothing here touches who is set upon by
+        // whom.
+        // (MAX for the crowding cap is a cap no crowd can reach: it would
+        // take the whole herd on one unicorn.)
+        const mark = un._mage ? seek(un, CAST, MAX) : null;
+
+        // Its foe, or its mark, or the castle it is resting at, or the
+        // nearest castle its side does not hold. With nothing left to take it
+        // walks home.
+        const goal = un._foe || mark || rest || foeHome(un) || home(un) || castles[1];
         // How large a thing that is to arrive at. A castle's doorstep, its
         // ground and the lanes across it are all its own size, so one deep in
         // the field is walked closer into and held tighter; a foe is measured
         // off the pair's own sizes instead, which already follow their depth.
-        const near = un._foe ? 1 : depthScale(goal._y);
+        const near = un._foe || mark ? 1 : depthScale(goal._y);
         // Marching on a castle it walks to its own lane, a little to one
         // side of the castle in depth, instead of at the castle's exact
         // depth. Every castle stands far enough inside the band for a lane
         // either side of it, so there is nothing to clamp.
-        const march = !un._foe && !rest;
+        const march = !un._foe && !mark && !rest;
         const dx = goal._x - un._x, dy = goal._y + (march ? un._lane * near : 0) - un._y;
         const d = Math.hypot(dx, dy);
         // Where to stop, and from how close the horns connect: a little
         // further out than the stop, so a pair that eases to a halt at the
         // stop is fighting by the time it gets there.
-        const stop = un._foe ? REACH * (un._s + un._foe._s) : (rest ? 0.012 : 0.08) * near;
+        const stop = un._foe ? REACH * (un._s + un._foe._s)
+            : mark ? KEEP : (rest ? 0.012 : 0.08) * near;
+        // A mage steps out of the way of a fight it is not part of. Once
+        // something has picked it out, though, it stands: it is the slower
+        // animal, so giving ground to what is coming for it would buy it
+        // nothing and — the two of them settling at the distance where a
+        // fighter eases off its approach — would walk the pair clean off the
+        // field, neither ever reaching the other.
+        const back = mark && !un._att && d > 1e-6 && d < KEEP * 0.75;
         // Once horn to horn it takes more than a shove from the crowd to
         // break it off, or the pair spend the fight stepping in and out of
         // range of each other.
@@ -467,12 +556,22 @@ export function step(dt) {
         // Standing on the castle, unmolested: four times the healing, and no
         // walking. The hold is roomier than the stop so that being shoved
         // aside by another of its own does not send it walking back.
-        const healing = rest && !un._foe && d <= 0.07 * near;
+        const healing = !frost && rest && !un._foe && d <= 0.07 * near;
+        // A mage is the slower animal, going or coming.
+        const pace = SPEED * (un._mage ? MAGE_V : 1);
         let v = 0;
-        if (d > stop) {
-            v = SPEED * Math.min(1, (d - stop) / 0.05 + 0.15);
+        if (frost) {
+            // Nothing. The frost is the whole of it.
+        } else if (d > stop) {
+            v = pace * Math.min(1, (d - stop) / 0.05 + 0.15);
             un._x += dx / d * v * dt;
             un._y += dy / d * v * dt;
+        } else if (back) {
+            v = pace * 0.8;
+            un._x -= dx / d * v * dt;
+            // Walking backwards is the one walk with nothing in front of it
+            // to stop at, so the band has to.
+            un._y = Math.min(FAR_Y, Math.max(NEAR_Y, un._y - dy / d * v * dt));
         }
         // Shoved aside at the gate, it takes the depth it was shoved to for
         // its own rather than pushing back into the crowd. That is what lets
@@ -481,7 +580,22 @@ export function step(dt) {
         if (march && d < stop * 2) un._lane = (un._y - goal._y) / near;
         // Horn to horn; and out of a fight, healing, four times as fast at home.
         un._eng = !!fighting;
-        if (!fighting) un._hp = Math.min(un._max, un._hp + un._max / HEAL * dt * (healing ? 4 : 1));
+        if (!fighting && !frost) un._hp = Math.min(un._max, un._hp + un._max / HEAL * dt * (healing ? 4 : 1));
+
+        // The spell. It does not travel and it does not miss: what a mage
+        // brings to a fight is not damage but a target that cannot answer for
+        // FREEZE seconds. Frozen itself, it cannot work either.
+        if (un._mage && !frost) {
+            un._cast -= dt;
+            if (mark && un._cast <= 0) {
+                un._cast = COOL;
+                mark._froze = FREEZE;
+                casts.push({
+                    _x: un._x, _y: un._y + un._s, _s: un._s,
+                    _tx: mark._x, _ty: mark._y + mark._s * 0.6,
+                });
+            }
+        }
         // Whole again, at a castle it withdrew to: that is a level. It grows
         // into it over the next second and goes back to the fight.
         if (un._rest && un._hp >= un._max) {
@@ -495,12 +609,14 @@ export function step(dt) {
         const scale = SCALE0 * (1 + GROW * un._lvl);
         if (un._scale < scale) un._scale = Math.min(scale, un._scale + SCALE0 * GROW * dt);
         un._s = sizeAt(un._y) * un._scale;
-        if (!healing && Math.abs(dx) > 0.01) un._face = dx > 0 ? 1 : -1;
+        if (!healing && !frost && Math.abs(dx) > 0.01) un._face = dx > 0 ? 1 : -1;
         // The fighting pose plants all four feet, which is also how a unicorn
         // stands while it heals; there the phase winds down to zero instead,
         // so the neck comes up rather than lunging.
-        un._fight += ((fighting || healing ? 1 : 0) - un._fight) * Math.min(1, dt * 6);
-        if (healing) {
+        if (!frost) un._fight += ((fighting || healing ? 1 : 0) - un._fight) * Math.min(1, dt * 6);
+        if (frost) {
+            // The lunge is held where the frost caught it.
+        } else if (healing) {
             // The short way round to zero, so the neck does not swing through
             // a whole lunge on the way.
             let ph = un._ph % 6.2832;

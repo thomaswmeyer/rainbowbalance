@@ -7,7 +7,8 @@
  * last, over everything, premultiplied.
  *
  * Instance data, six floats: x, y, size, age 0…1; side; u, a place along the
- * mane's hue sweep, −1 for the body colour, or −2 for white.
+ * mane's hue sweep, −1 for the body colour, −2 for white, or −3 for the ice a
+ * spell is made of.
  */
 
 import { g, program, uniforms, gl, time, width, height, Batch } from './gl.js';
@@ -46,6 +47,7 @@ vec3 hsv(float h, float s, float v){
 // The unicorn shader's mane colours, and its body colours with the
 // rainicorn's lifted out of the near-black, which does not read as a spark.
 vec3 colour(float u, float side, float t){
+  if (u < -2.5) return vec3(0.45, 0.82, 1.0);     // a spell's frost
   if (u < -1.5) return vec3(1.0);                 // a promotion's white shower
   if (u < 0.0) return mix(vec3(0.99, 0.95, 0.88), vec3(0.55, 0.40, 0.75), side);
   vec3 sun = hsv(fract(0.95 + u * 0.45 + t * 0.03), 0.7, 1.0);
@@ -109,6 +111,39 @@ export function shower(x, y, s) {
             _s: (0.003 + Math.random() * 0.005) * k,
             _age: 0, _life: 0.7 + Math.random() * 0.5,
             _side: 0, _u: -2,
+        });
+    }
+}
+
+/**
+ * A spell crosses the ground: frost laid the whole way from the caster's horn
+ * to what it was aimed at, thickening where it lands. The freeze itself has
+ * already happened — a spell does not travel and does not miss — so this is a
+ * streak that appears at once and goes out in a third of a second, which is
+ * what a bolt looks like anyway.
+ * @param {number} x0 the horn
+ * @param {number} y0
+ * @param {number} x1 what it is aimed at
+ * @param {number} y1
+ * @param {number} s the caster's size
+ */
+export function bolt(x0, y0, x1, y1, s) {
+    const k = s / 0.155;
+    const dx = x1 - x0, dy = y1 - y0;
+    for (let i = 0; i <= 24 && _sparks.length < CAP; i++) {
+        // Three quarters of them strung along the line, the rest scattered
+        // over the thing at the end of it.
+        const f = i < 18 ? i / 17 : 1;
+        const w = (i < 18 ? 0.012 : 0.05) * k;
+        _sparks.push({
+            _x: x0 + dx * f + (Math.random() - 0.5) * w,
+            _y: y0 + dy * f + (Math.random() - 0.5) * w,
+            // Drifting on along the line, so the streak draws itself out
+            // rather than just fading where it was laid.
+            _vx: dx * 0.35, _vy: dy * 0.35 + 0.05 * k,
+            _s: (0.005 + Math.random() * 0.005) * k,
+            _age: 0, _life: 0.3 + Math.random() * 0.25,
+            _side: 0, _u: -3,
         });
     }
 }

@@ -61,6 +61,7 @@ function stage(them) {
             _x: 0, _y: -0.2, _s: 0.06, _side: 0, _face: 1, _ph: 0, _lane: 0,
             _hp: T.HP, _max: T.HP, _lvl: 0, _scale: 0.5,
             _fight: 0, _rest: false, _foe: null, _att: 0, _eng: false, _hit: null,
+            _mage: false, _cast: 0, _froze: 0,
             ...t,
         });
     }
@@ -627,6 +628,163 @@ function capture() {
 }
 
 // ---------------------------------------------------------------------------
+// The mage
+// ---------------------------------------------------------------------------
+
+/**
+ * The unicorn in the cape. It fights nothing: it holds off at the length of
+ * its spell, freezes what its side is fighting, and gives ground rather than
+ * meeting anything that comes through for it. What the tests below are really
+ * checking is that none of that leaks into the fighter's rules — a mage takes
+ * no melee target, so it uses up nobody's place in a crowd and answers no
+ * blow — and that a freeze takes a unicorn out of its fight without taking it
+ * off the field.
+ */
+function mages() {
+    say('\n[sim] the mage');
+
+    // One recruit in MAGE_EVERY, and never more than MAGES of them alive at
+    // once on a side. The cap is the load-bearing half: a mage is hard to get
+    // at, so without one a side turns into a herd of them that freezes
+    // everything and kills nothing.
+    {
+        sim.reset();
+        // A home castle, spawning on its own, with nothing to walk to: only
+        // the sunicorns', so the count is one side's.
+        for (const c of sim.castles) if (c !== SUN_CASTLE) c._t = 1e9;
+        let sawMage = 0, most = 0;
+        for (let i = 0; i < 60 * 200; i++) {
+            for (const c of sim.castles) if (c !== SUN_CASTLE) c._t = 1e9;
+            sim.step(STEP);
+            const mages = sim.herd.filter((u) => u._mage && u._hp > 0).length;
+            most = Math.max(most, mages);
+            sawMage = Math.max(sawMage, mages);
+        }
+        const sun = sim.herd.filter((u) => !u._side);
+        const capes = sun.filter((u) => u._mage).length;
+        ok('a castle turns out a mage now and then', sawMage > 0);
+        ok('and no more of them than the cap allows', most <= T.MAGES,
+            `${most} at once against a cap of ${T.MAGES}`);
+        ok('so a herd is mostly fighters however long it runs',
+            capes / sun.length < 1 / T.MAGE_EVERY,
+            `${capes} of ${sun.length} in capes`);
+    }
+
+    // A mage walks to the length of its spell and stops there. A fighter in
+    // its place would have closed to horn range.
+    {
+        const [m, e] = stage([
+            { _x: -0.5, _y: -0.2, _side: 0, _mage: true, _cast: 1e9 },
+            { _x: 0.1, _y: -0.2, _side: 1, _hp: 1e6, _max: 1e6 },
+        ]);
+        run(60 * 12);
+        const d = Math.hypot(e._x - m._x, e._y - m._y);
+        ok('a mage closes to the length of its spell and no further',
+            d > T.KEEP * 0.7 && d < T.CAST,
+            `it stood ${d.toFixed(3)} off, for a stand-off of ${T.KEEP}`);
+        ok('and it takes no melee target on the way', m._foe === null && e._att === 0,
+            `foe ${m._foe ? 'set' : 'null'}, ${e._att} closing on the enemy`);
+    }
+
+    // A fight that comes near it but is not about it: it steps out of the way
+    // rather than joining in.
+    {
+        const [m, e, f] = stage([
+            { _x: 0, _y: -0.2, _side: 0, _mage: true, _cast: 1e9 },
+            { _x: 0.06, _y: -0.2, _side: 1, _hp: 1e6, _max: 1e6 },
+            { _x: 0.12, _y: -0.2, _side: 0, _hp: 1e6, _max: 1e6 },
+        ]);
+        e._foe = f;
+        run(60);
+        ok('a mage steps out of a fight it is not part of', m._x < -0.02,
+            `it gave ${(-m._x).toFixed(3)}`);
+        ok('and takes no part in it', m._foe === null && !m._eng);
+    }
+
+    // One that is about it, though, it stands for. Giving ground to what is
+    // coming for it would buy it nothing — it is the slower animal — and a
+    // pursuer eases off its approach as it arrives, so a mage that backed
+    // away from one would settle at that distance and lead it off the field.
+    {
+        const [m, e] = stage([
+            { _x: 0, _y: -0.2, _side: 0, _mage: true, _cast: 1e9 },
+            { _x: 0.3, _y: -0.2, _side: 1, _hp: 1e6, _max: 1e6 },
+        ]);
+        run(60 * 4);
+        ok('but it does not outrun what has picked it out', e._eng,
+            `they ended ${Math.hypot(e._x - m._x, e._y - m._y).toFixed(3)} apart`);
+        ok('and is run down, having nothing to fight back with', m._hp < T.HP,
+            `the mage is on ${m._hp.toFixed(2)} of ${T.HP}`);
+    }
+
+    // The spell itself: it lands on the nearest enemy in range, it is
+    // reported for the drawing, and it does not come round again until the
+    // cooldown is up.
+    {
+        const [m, near, far] = stage([
+            { _x: 0, _y: -0.2, _side: 0, _mage: true, _cast: 0 },
+            { _x: T.KEEP, _y: -0.2, _side: 1, _hp: 1e6, _max: 1e6 },
+            { _x: T.KEEP + 0.06, _y: -0.2, _side: 1, _hp: 1e6, _max: 1e6 },
+        ]);
+        run(1);
+        ok('a spell freezes the nearest enemy in range', near._froze > 0 && far._froze === 0,
+            `near ${near._froze.toFixed(2)}, far ${far._froze.toFixed(2)}`);
+        ok('and is reported once, from the horn to what it was aimed at',
+            sim.casts.length === 1 && Math.abs(sim.casts[0]._tx - near._x) < 1e-9,
+            `${sim.casts.length} cast`);
+        sim.casts.length = 0;
+        // A whole freeze goes by. Only the one cooldown has come round in it,
+        // so only the one spell.
+        run(Math.round(60 * T.FREEZE));
+        ok('the frost lets go after its time', near._froze === 0);
+        ok('and the spell comes round no faster than the cooldown',
+            sim.casts.length <= Math.ceil(T.FREEZE / T.COOL),
+            `${sim.casts.length} casts in ${T.FREEZE}s of a ${T.COOL}s cooldown`);
+    }
+
+    // What a freeze is worth: the frozen one cannot swing back, cannot walk,
+    // and cannot heal — but it is still there to be hit, which is what keeps
+    // a mage from being a way of removing a unicorn from the field.
+    {
+        const [a, b] = stage([
+            { _x: -0.03, _y: -0.2, _side: 0 },
+            { _x: 0.03, _y: -0.2, _side: 1, _froze: 1e9, _hp: 1e6, _max: 1e6 },
+        ]);
+        const x0 = b._x, hp0 = a._hp, b0 = b._hp;
+        run(60 * 4);
+        ok('a frozen unicorn takes its beating and gives none',
+            a._hp === hp0 && b._hp < b0,
+            `the one swinging is on ${a._hp.toFixed(2)} of ${hp0}, the frozen one took ${(b0 - b._hp).toFixed(2)}`);
+        ok('and it does not walk out of it', Math.abs(b._x - x0) < 0.02,
+            `it moved ${Math.abs(b._x - x0).toFixed(3)}`);
+        ok('but it is still on the field, which a removal would not be',
+            sim.herd.includes(b) && b._hp > 0);
+    }
+
+    // Nor does it heal under the frost, which is what keeps a freeze from
+    // being a rest.
+    {
+        const [f] = stage([{ _x: 0, _y: -0.2, _side: 0, _hp: T.HP / 2, _froze: 1e9 }]);
+        run(60 * 5);
+        ok('and heals none of it either', f._hp === T.HP / 2,
+            `it healed to ${f._hp.toFixed(2)} of ${T.HP}`);
+    }
+
+    // A mage answers no blow. A fighter struck from behind turns on whoever
+    // struck it; a mage has no fight to turn to, and taking one would put it
+    // horn to horn with something that would kill it.
+    {
+        const [m, e] = stage([
+            { _x: 0, _y: -0.2, _side: 0, _mage: true },
+            { _x: 0.05, _y: -0.2, _side: 1 },
+        ]);
+        m._hit = e;
+        run(1);
+        ok('a mage struck does not turn and fight', m._foe === null);
+    }
+}
+
+// ---------------------------------------------------------------------------
 // End to end
 // ---------------------------------------------------------------------------
 
@@ -668,6 +826,7 @@ function e2e() {
     sim.reset();
     const st = {
         deaths: 0, together: 0, promotions: 0, worst: 0, broke: 0, taken: 0, smitten: 0, decided: -1,
+        capes: 0, casts: 0, frozen: 0, living: 0,
         /** @type {number[]} */ balances: [], /** @type {number[]} */ fights: [],
         /** @type {number[]} */ depth: [], /** @type {number[]} */ across: [],
         /** @type {Map<object, number>} */ since: new Map(),
@@ -679,7 +838,10 @@ function e2e() {
 
         if (sim.fallen.length > 1 && new Set(sim.fallen.map((u) => u._side)).size > 1) st.together++;
         st.deaths += sim.fallen.length;
+        st.capes += sim.fallen.filter((u) => u._mage).length;
         sim.fallen.length = 0;
+        st.casts += sim.casts.length;
+        sim.casts.length = 0;
         st.promotions += sim.promoted.length;
         sim.promoted.length = 0;
         st.taken += sim.captured.length;
@@ -714,6 +876,12 @@ function e2e() {
 
         if (n % 30 === 0) {
             if (st.broke < 5 && !invariants(t)) st.broke++;
+            // How much of the fight a mage is taking out of it at any moment.
+            for (const u of sim.herd) {
+                if (u._hp <= 0) continue;
+                st.living++;
+                if (u._froze > 0) st.frozen++;
+            }
             st.worst = Math.max(st.worst, worstOverlap().worst);
             // How much of the field the fight is actually spread over. The
             // fight used to happen along the line of the bow's feet, and the
@@ -744,6 +912,10 @@ function e2e() {
     row('top level', Math.max(0, ...live.map((u) => u._lvl)));
     row('balance |b| > 0.8', `${pinned} of ${st.balances.length} samples`);
     row('smitten by the harness', st.smitten);
+    row('mages', `${live.filter((u) => u._mage).length} alive, `
+        + `${st.capes} of ${st.deaths} deaths`);
+    row('spells cast', `${st.casts}, holding ${(st.frozen / Math.max(st.living, 1) * 100).toFixed(1)}%`
+        + ' of the living frozen');
     row('castles taken', st.taken);
     row('a side first wiped out', st.decided < 0 ? 'never' : `${st.decided.toFixed(0)}s`);
     row('ground held at once', `${mean(st.depth).toFixed(2)} deep of ${(T.FAR_Y - T.NEAR_Y).toFixed(2)}`
@@ -759,6 +931,7 @@ function e2e() {
 units();
 field();
 capture();
+mages();
 e2e();
 console.log(failed
     ? `\n[sim] ${failed} failed, ${passed} passed`

@@ -54,6 +54,44 @@ size, so a field of veterans is visibly a field of veterans. Balance — the one
 the bow and the castles read — is who has more fighters alive, smoothed. The
 player's verb is god mode: a touch strikes down the unicorn nearest to it.
 
+Not every recruit fights. One in four comes out of the gate in a cape and
+never goes horn to horn with anything: a mage walks up to the length of its
+spell, holds there, and every three and a half seconds freezes the nearest
+enemy within it — a unicorn that for a second and a half cannot walk, cannot
+swing and cannot heal, but is still a target, still presses whatever claim it
+was standing on, and still stands in everyone's way. What that hands a side is
+not damage. It is a fight where one of the two is not swinging back, and it is
+paid for: three fifths of a recruit's hit points, slower on its feet than what
+is coming for it, and no veterancy at all, since a unicorn that never wins a
+fight never walks off to heal from one and never comes back a level up. It
+steps out of the way of a fight it is not part of. One that has picked it out
+it stands for — it is the slower animal, and a fighter eases off its approach
+as it arrives, so a mage that gave ground to its own pursuer would settle at
+exactly the distance where those two speeds meet and lead it off the field for
+ever, neither one ever reaching the other. That was the first version, and the
+headless harness walked a pair of them to x −1.2 to prove it.
+
+Three to a side is the whole of it, and the cap is what makes the mage a class
+rather than the army: past three the castle turns out a fighter instead.
+Without it a herd is mostly capes inside three minutes. A mage is hard to get
+at, standing off behind its own line, so where a fighter's place in the herd
+comes free every few minutes a mage's does not — and a field that freezes
+everything and kills nothing decides a run by running out of fighters, which
+is what it did. With the cap, ten minutes of play has six mages alive, forty
+of its five hundred and eighty deaths in capes, nine hundred spells, and a
+tenth of the living frozen at any moment. A fight is half a second longer than
+it was. The board is as level at thirty minutes as it was before any of this,
+and a crowd stands half a footprint inside itself where it used to stand a
+quarter: a mage backing out of a fight, and a pair frozen in one, are both
+ground that does not get out of its own way as quickly as it did.
+
+On the field a mage is a cape in a colour neither side wears — indigo on a
+sunicorn, ice on a rainicorn — flying with the stride, with the spell
+gathering as light on the horn as the cooldown comes round. A spell is a
+streak of frost laid from the horn to whatever it was aimed at, and what it
+lands on goes pale and crystalline until the frost lets go. None of it travels
+and none of it misses: the freeze has landed by the time the streak is drawn.
+
 Castles change hands, which is what a fighter with nothing in front of it
 walks off to do. There are three: one at each foot of the bow, held from the
 first frame, and one standing unclaimed far up the field between them. What
@@ -114,8 +152,8 @@ fighters ahead, the lightest hand that keeps a run going — since otherwise
 every number it collects comes from the first minute of a run that is
 already over.
 
-Next, in order: what ends a run, deaths with some ceremony, unicorn classes
-beyond the fighter, then sound.
+Next, in order: what ends a run, deaths with some ceremony, whatever class
+comes after the mage, then sound.
 
 The clouds are a volumetric march ported close to Valentin Galea's
 [XtBXDw](https://www.shadertoy.com/view/XtBXDw) (MIT), tuned by hand, on its
@@ -143,11 +181,11 @@ the values as constants, "copy GLSL" to get them back. Restore `src/debug.js`
 from there and give the lines their ranges back to tune again.
 
 ```
-[build]  7880 / 13312 bytes — 5432 free (40.8%)
-  esbuild    22298 B
-  terser     20713 B  (-7%)
-  roadroller 10247 B  (-51%)
-  glsl       12530 B  (-71% of 43179 B raw)
+[build]  8455 / 13312 bytes — 4857 free (36.5%)
+  esbuild    24140 B
+  terser     22345 B  (-7%)
+  roadroller 11032 B  (-51%)
+  glsl       13321 B  (-71% of 46432 B raw)
 ```
 
 ## Layout
@@ -156,9 +194,9 @@ from there and give the lines their ranges back to tune again.
 |---|---|
 | `src/gl.js` | WebGL2 context, programs, uniforms, the fullscreen triangle, instanced quad `Batch` |
 | `src/rainbow.js` | three passes: the world (sky, clouds, hills, grass), a castle, the bow — one number in |
-| `src/unicorn.js` | one signed-distance unicorn, instanced — draws the herd it is handed |
-| `src/sparks.js` | the burst a unicorn goes out in, instanced dots in its own colours |
-| `src/sim.js` | the fight: castles spawn and are captured, fighters cross the field and fight, balance is who is left |
+| `src/unicorn.js` | one signed-distance unicorn, instanced — draws the herd it is handed, cape, frost and all |
+| `src/sparks.js` | instanced dots: the burst a unicorn goes out in, the shower a promotion rises in, the streak a spell is drawn as |
+| `src/sim.js` | the fight: castles spawn and are captured, fighters cross the field and fight, mages freeze what they can reach, balance is who is left |
 | `scripts/sim_test.js` | the fight headless — unit tests on hand-built situations, then a long run checked for invariants, with a crude player keeping it alive |
 | `src/main.js` | boot, fixed-step loop, the page and clock, god mode, and the depth-ordered draw of herd, castles and bow |
 | `src/debug.js` | frame rate under the clock, and the `?b=` and `?off=` URL switches. Never ships |
@@ -196,7 +234,11 @@ from there and give the lines their ranges back to tune again.
   quad `corner()`, say — carries its own two-line copy, and the minifier
   inlines it anyway.
 - **Run `npm run check` after touching a shader**, and give a new state a
-  case in `CASES` if the sweep does not already reach it. An optimising
+  case in `CASES` if the sweep does not already reach it. A new per-instance
+  attribute needs its sample in `INSTANCES` widened to match in the same
+  breath: the check reads the stride off the vertex shader, so a sample
+  instance left short feeds every shader after it in the buffer somebody
+  else's floats. An optimising
   minifier's failure mode is a shader that compiles and draws something
   subtly wrong. The previous tool, `spglsl` 0.3.1, dropped the parentheses
   from `x - (y - z)` without flipping the sign and drew the bow a full
@@ -220,7 +262,7 @@ from there and give the lines their ranges back to tune again.
 
 - [ ] What ends a run. Losing every castle is the obvious answer and is
       already reachable; nothing acts on it yet.
-- [ ] Unicorn classes beyond the fighter.
+- [ ] A class past the mage — something a side can answer one with.
 - [ ] Procedural music, tied to the balance state — melody in while level,
       detuning as it frays.
 - [ ] Title, game-over and score, without shipping a font.
