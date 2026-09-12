@@ -568,24 +568,26 @@ function field() {
         sim.reset();
         const band = T.FAR_Y - T.NEAR_Y;
         ok('the middle castle stands far up the field',
-            MID_CASTLE._y - SUN_CASTLE._y > band * 0.4,
-            `it is ${(MID_CASTLE._y - SUN_CASTLE._y).toFixed(2)} up a band of ${band.toFixed(2)}`);
+            MID_CASTLE._y - T.NEAR_Y > band * 0.5,
+            `it is ${(MID_CASTLE._y - T.NEAR_Y).toFixed(2)} up a band of ${band.toFixed(2)}`);
         const reach = (c) => Math.hypot(c._x - MID_CASTLE._x, c._y - MID_CASTLE._y);
         ok('and neither side starts nearer to it',
             Math.abs(reach(SUN_CASTLE) - reach(RAIN_CASTLE)) < 1e-9,
             `${reach(SUN_CASTLE).toFixed(3)} against ${reach(RAIN_CASTLE).toFixed(3)}`);
     }
 
-    // Which means a fighter with nothing in sight walks up the field and not
-    // only across it. This is the whole point of the middle castle standing
-    // where it does.
+    // Which means a fighter with nothing in sight walks along the field and
+    // not only across it. This is the whole point of the unclaimed castles
+    // standing where they do: one far up the field, one in the foreground,
+    // and a fighter leaving a home castle for either of them crosses ground
+    // in both directions.
     {
         const [a] = stage([{ _x: SUN_CASTLE._x, _y: SUN_CASTLE._y, _side: 0 }]);
         const x0 = a._x, y0 = a._y;
         run(60 * 3);
-        ok('a fighter with nothing in sight walks up the field, not just across it',
-            a._y - y0 > 0.05 && a._x - x0 > 0.05,
-            `it went ${(a._x - x0).toFixed(3)} across and ${(a._y - y0).toFixed(3)} up`);
+        ok('a fighter with nothing in sight walks along the field, not just across it',
+            Math.abs(a._y - y0) > 1 && a._x - x0 > 1,
+            `it went ${(a._x - x0).toFixed(3)} across and ${(a._y - y0).toFixed(3)} along`);
     }
 
     // A column walks to a front rather than in single file: each fighter is
@@ -682,7 +684,7 @@ function field() {
         const [a] = stage([{ _x: MID_CASTLE._x + 14, _y: MID_CASTLE._y, _side: 0 }]);
         run(60 * 20);
         const deep = Math.hypot(a._x - MID_CASTLE._x, a._y - MID_CASTLE._y);
-        const [b] = stage([{ _x: SUN_CASTLE._x + 14, _y: SUN_CASTLE._y, _side: 1 }]);
+        const [b] = stage([{ _x: SUN_CASTLE._x + 8, _y: SUN_CASTLE._y, _side: 1 }]);
         run(60 * 20);
         const front = Math.hypot(b._x - SUN_CASTLE._x, b._y - SUN_CASTLE._y);
         ok('a fighter stands the same distance off a castle at any depth',
@@ -1005,7 +1007,7 @@ function jostle() {
  */
 function marching() {
     say('\n[sim] marching on castles');
-    const [SUN, MID, RAIN] = sim.castles;
+    const [SUN, MID, RAIN, NEAR] = sim.castles;
     /** Where a lone sunicorn dropped here walks to. */
     const walksTo = (x, y, set) => {
         stage([{ _x: x, _y: y, _side: 0 }]);
@@ -1020,22 +1022,27 @@ function marching() {
         return best;
     };
 
+    /** Hand a castle to the sunicorns outright, so it stops being a target. */
+    const held = (...cs) => () => {
+        for (const c of cs) { c._side = 0; c._own = true; c._cap = T.CAP; }
+    };
     ok('with nothing in sight it walks on an unclaimed castle',
-        walksTo(-10.03, 24.82) === 1, 'it went somewhere else');
+        walksTo(-5, 35) === 1, 'it went somewhere else');
+    ok('and on the one in the foreground when that is the nearer',
+        walksTo(-4, 17) === 3, 'it walked up the field past the near one');
     ok('and on an enemy castle when that is the nearer',
-        walksTo(8.79, 16.92, () => { MID._side = 0; MID._own = true; MID._cap = T.CAP; }) === 2,
-        'it did not make for the enemy castle');
+        walksTo(12, 18, held(MID, NEAR)) === 2, 'it did not make for the enemy castle');
     ok('and on one of its own that an enemy has broken',
-        walksTo(-9.77, 16.92, () => {
-            MID._side = 0; MID._own = true; MID._cap = T.CAP;
-            RAIN._side = 0; RAIN._own = true; RAIN._cap = T.CAP;
+        walksTo(-10, 21, () => {
+            held(MID, RAIN, NEAR)();
             SUN._own = false; SUN._cap = T.CAP * 0.4;
         }) === 0, 'it left its own half-broken castle alone');
     // Far enough out to have to walk: one already standing at a castle has
     // arrived at it, and standing still is the right thing for it to do.
+    // Both of these stand on the line between the two unclaimed castles, so
+    // the only thing telling them apart is which is nearer.
     ok('and it is the nearest of them it makes for, not the first',
-        walksTo(14.33, 41.36) === 1
-        && walksTo(6.84, 16.92, () => { MID._side = 0; MID._own = true; MID._cap = T.CAP; }) === 2,
+        walksTo(0, 26) === 3 && walksTo(0, 30) === 1,
         'it walked past a nearer one');
 }
 

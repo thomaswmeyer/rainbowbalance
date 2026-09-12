@@ -40,8 +40,8 @@
  * rainbow.js, whose bow draws its feet from the same numbers. main.js reads
  * FOOT too, to sort the bow into the depth order at its own feet.
  */
-export const FOOT = 16.919;
-const FOOT_X = 13.607;
+export const FOOT = 21;
+const FOOT_X = 16.55;
 /**
  * And where the unclaimed one stands: on the middle of the field, most of
  * the way back to the horizon. Both sides walk to it on the diagonal, which
@@ -49,6 +49,12 @@ const FOOT_X = 13.607;
  * line the bow's feet make.
  */
 const MID_Y = 41.357;
+/**
+ * And the near one: the same, in the foreground, under the middle of the
+ * arch and in front of everything. It is what the first minute is fought
+ * over, being the nearest castle to both sides that neither of them holds.
+ */
+const NEAR_MID_Y = 14.5;
 /**
  * What the middle castle turns recruits out at, against a home castle's
  * rate. It is an outpost, not a barracks: at a home castle's rate it doubled
@@ -318,14 +324,21 @@ export const herd = [];
 
 /**
  * The castles: one at each foot of the bow, held from the first frame, and
- * one standing unclaimed far up the field between them for the two sides to
- * meet over.
+ * two standing unclaimed between them, one far up the field and one in the
+ * foreground, for the two sides to meet over.
+ *
+ * The near one is last in the array rather than in its place along the field,
+ * because the order here is read elsewhere: the first three are the left
+ * castle, the middle and the right, and castles[1] is where a fighter with
+ * nothing left to take is sent. Nothing walks this list in order otherwise —
+ * the draw sorts it by depth and everything else looks for the nearest.
  * @type {Castle[]}
  */
 export const castles = [
     { _x: -FOOT_X, _y: FOOT, _from: 0, _side: 0, _cap: CAP, _own: true, _rate: 1, _t: 1, _n: 0, _w: CASTLE_W },
     { _x: 0, _y: MID_Y, _from: -1, _side: -1, _cap: 0, _own: false, _rate: OUTPOST, _t: 1, _n: 0, _w: CASTLE_W },
     { _x: FOOT_X, _y: FOOT, _from: 1, _side: 1, _cap: CAP, _own: true, _rate: 1, _t: 1, _n: 0, _w: CASTLE_W },
+    { _x: 0, _y: NEAR_MID_Y, _from: -1, _side: -1, _cap: 0, _own: false, _rate: OUTPOST, _t: 1, _n: 0, _w: CASTLE_W },
 ];
 
 /** −1 rainicorns ahead … +1 sunicorns ahead, smoothed. */

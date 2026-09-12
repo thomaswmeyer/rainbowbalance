@@ -386,7 +386,7 @@ const float PI = 3.14159265;
 const vec2  CENTRE = vec2(0.0, -0.31);
 const float R1 = 0.70, W1 = 0.075;
 const float R2 = 0.85, W2 = 0.075;
-const float FOOT = -0.24;
+const float FOOT = -0.1545;
 
 vec3 hsv(float h, float s, float v){
   vec3 k = clamp(abs(mod(h * 6.0 + vec3(0.0, 4.0, 2.0), 6.0) - 3.0) - 1.0, 0.0, 1.0);
