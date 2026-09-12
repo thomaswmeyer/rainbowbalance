@@ -597,7 +597,13 @@ function capture(dt) {
 }
 
 /**
- * One fixed step.
+ * One fixed step: the castles, then every unicorn deciding for itself, then
+ * the herd settled as a whole.
+ *
+ * The order is the whole of why it reads the way it does. What a unicorn
+ * decides, it decides against the field as it stood at the top of the step —
+ * nobody is answering a shove that has not happened yet — and what the crowd
+ * then does to it, it does to everybody at once.
  * @param {number} dt seconds
  */
 export function step(dt) {
@@ -620,6 +626,20 @@ export function step(dt) {
     for (const un of herd) un._att = 0;
     for (const un of herd) if (un._hp > 0 && un._foe && un._foe._hp > 0) un._foe._att++;
 
+    decide(dt);
+    settle(dt);
+}
+
+/**
+ * Every unicorn, one at a time, deciding what it is doing and doing it:
+ * fading if it has fallen, standing still if it is held, otherwise picking a
+ * foe or a castle, walking at it, healing, casting, levelling and moving its
+ * legs. Nothing in here looks at the herd as a whole — that is what settle()
+ * is for — and nothing in here is allowed to assume it ends up where it
+ * meant to, because the crowd has not had its say yet.
+ * @param {number} dt seconds
+ */
+function decide(dt) {
     for (const un of herd) {
         if (un._hp <= 0) {
             // Fading out over half a second. The moment it fell it is
@@ -894,7 +914,16 @@ export function step(dt) {
             un._ph += Math.min(gone / un._s, 0.1) * 3.9;
         }
     }
+}
 
+/**
+ * And the herd as a whole, once every unicorn has had its turn: nobody
+ * standing inside anyone else, nobody off the board, the trailing point
+ * brought along, the faded taken out, the rest put in depth order for the
+ * draw, and the balance the whole game is read off.
+ * @param {number} dt seconds
+ */
+function settle(dt) {
     separate(dt);
 
     // Nothing leaves the board. Most of the shoving bounds itself as it goes,
