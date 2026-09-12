@@ -191,17 +191,19 @@ const LONG = 1.25, DEEP = 0.625;
 const LANE = 2.735;
 /**
  * A castle's half-width, and its ground is square: as deep as it is wide,
- * where a unicorn's is half as deep as it is long. Taken off the castle
- * shader rather than off the screen — the towers reach 1.28 of the castle's
- * own units from its middle, and it is built at CASTLE_SCALE, which is this.
- * So the ground a castle holds is the ground the castle covers.
+ * where a unicorn's is half as deep as it is long. Nothing stands in it but
+ * the garrison healing there.
  *
- * Nothing stands in it but the garrison healing there, and a besieger shoved
- * out of it is still well inside CAP_R, so it presses its claim from the
- * wall. Two of these end to end is about three unicorns long, so a castle
- * holds one or two on the stone and the rest queue at the wall.
+ * Half what the castle draws at. The shader's towers reach 1.28 of the
+ * castle's own units out from its middle, which at CASTLE_SCALE is 0.751,
+ * and a footprint that size kept too much of the field clear: the exclusion
+ * is the castle plus the whole of a unicorn, so at 0.751 nothing could bring
+ * its middle within 1.4 of the gate, and a castle turned into a hole in the
+ * crowd half again as wide as itself. The towers are also up in the air.
+ * What stands on the ground is the wall, and a unicorn a little over it
+ * reads as a unicorn against it.
  */
-const CASTLE_W = 0.751;
+const CASTLE_W = 0.375;
 /** A swing connects this often, and takes off this much when it does. */
 const HIT = 0.65, DMG = 1.5;
 /** Radians a second the neck lunges while fighting: one swing a second. */
