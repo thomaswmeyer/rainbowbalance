@@ -471,7 +471,7 @@ void main(){
 // The swarms
 // ---------------------------------------------------------------------------
 
-import { MAX, FREEZE, COOL, FROST } from './sim.js';
+import { MAX, FREEZE, COOL, FROST, project } from './sim.js';
 
 let _prog, _u, _batch;
 
@@ -496,7 +496,11 @@ export function drawUnicorns(herd, from = 0, y = -Infinity) {
     let i = from;
     for (; i < herd.length && herd[i]._y > y; i++) {
         const un = herd[i];
-        _batch.push(un._x, un._y, un._face * un._s, un._ph, un._side, un._fight,
+        // The herd walks on a flat plain and is drawn on a screen. This is
+        // where the one becomes the other, and it is the same camera the
+        // ground and the castles are drawn with.
+        const [px, py, ps] = project(un._x, un._y, un._s);
+        _batch.push(px, py, un._face * ps, un._ph, un._side, un._fight,
             un._hp > 0 ? un._hp / un._max : un._hp, un._ice / FREEZE,
             // A fighter has no cape, and says so with a negative; a mage sends
             // how charged its spell is in the same float.

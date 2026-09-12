@@ -17,14 +17,18 @@
  * not its own, which is what brings the two sides into contact, and is how a
  * castle changes hands: standing on one is what takes it.
  *
- * Positions are in the space the rainbow and the unicorn shader use: x in
- * screen units, y from the front row up to the horizon, and a unicorn's size
- * follows its y. So does everything else that is a distance on the ground:
- * the field is drawn in perspective, and a castle deep in it is a smaller
- * thing to walk to, to stand on and to hold than one at the front. A castle
- * stands under each foot of the bow, at FOOT, and one stands far up the
- * field between them, which is what gives the fight somewhere to go that is
- * not along a single line.
+ * Positions are on the ground, in world units, flat: x across, y away from
+ * the camera. Every distance in here is an ordinary distance between two
+ * points on a plain, and a unicorn's size does not change as it walks. What
+ * the field being drawn in perspective costs is paid once, at the very end,
+ * by project(), which is the same camera the world shader raymarches the
+ * ground with and the same one the castle shader plants a castle with. So a
+ * castle deep in the field is not a smaller thing to walk to, to stand on or
+ * to hold; it only looks smaller, because it is further away.
+ *
+ * A castle stands under each foot of the bow, at FOOT, and one stands far up
+ * the field between them, which is what gives the fight somewhere to go that
+ * is not along a single line.
  *
  * Balance — the one number the sky, the bow and the castles read — is who
  * has more fighters alive, smoothed so the weather does not flicker with
@@ -36,15 +40,15 @@
  * rainbow.js, whose bow draws its feet from the same numbers. main.js reads
  * FOOT too, to sort the bow into the depth order at its own feet.
  */
-export const FOOT = -0.24;
-const FOOT_X = 0.6965;
+export const FOOT = 16.919;
+const FOOT_X = 13.607;
 /**
  * And where the unclaimed one stands: on the middle of the field, most of
  * the way back to the horizon. Both sides walk to it on the diagonal, which
  * is what puts the fight across the whole ground rather than along the one
  * line the bow's feet make.
  */
-const MID_Y = 0.02;
+const MID_Y = 41.357;
 /**
  * What the middle castle turns recruits out at, against a home castle's
  * rate. It is an outpost, not a barracks: at a home castle's rate it doubled
@@ -60,19 +64,61 @@ const MID_Y = 0.02;
  */
 const OUTPOST = 1 / 3;
 
-/** The ground band, front row to the horizon, and a unicorn's size across it. */
-export const NEAR_Y = -0.44, FAR_Y = 0.15;
-const NEAR_S = 0.155, FAR_S = 0.038;
+/**
+ * The camera. These three are the world shader's own: it puts the horizon at
+ * HORIZON on the screen, looks through a lens of half-angle 30 degrees, whose
+ * half-frame is therefore FOCAL deep, and stands EYE above the ground. The
+ * castle shader plants a castle by inverting the same three, and the unicorn
+ * shader is handed points that came out of them. One camera, so the ground,
+ * the walls and the herd agree about where a thing at a given distance
+ * belongs and how big it is when it gets there.
+ */
+const HORIZON = 0.2, FOCAL = 0.866, EYE = 8.596;
+/**
+ * A point on the ground, and how big a thing of world size s standing on it
+ * draws: one divide, then across and size scale by it and depth is read off
+ * the horizon. This is the only place perspective happens.
+ * @param {number} x across, world units
+ * @param {number} y away from the camera, world units
+ * @param {number} s world size
+ * @returns {[number, number, number]} screen x, screen y, screen size
+ */
+export const project = (x, y, s) => {
+    const k = FOCAL / y;
+    return [x * k, HORIZON - EYE * k, s * k];
+};
 
 /**
- * And how far the ground reaches across: half of what the window shows, so
- * the edge of the board is the edge of the picture. Nothing walks or is
- * shoved past it — a fight that spilled off the side would be a fight the
- * player cannot see.
+ * The ground band: how far off the front row of the field is, and the back.
  *
- * It will not go narrower than the ground the castles stand on, though. A
- * home castle's outer wall is at FOOT_X + CASTLE_W, and a fighter wants room
- * to stand beside it; on a tall phone half the aspect is a third of that, and
+ * The back is where the rain lands. The world shader draws sky through the
+ * ground wherever the fog is past its cut, and that is the same test that
+ * lets the rain streak down, so the line the rain stops at is the line the
+ * ground stops at. Measured off a port of that shader's own march, over the
+ * hills and across a wide board, it comes down the screen between 0.088 and
+ * 0.138 depending on the column; the band ends at the lowest of them, which
+ * is this far off, so there is no column anywhere on the board where a
+ * unicorn stands above the rain.
+ */
+export const NEAR_Y = 11.632, FAR_Y = 66.467;
+/**
+ * How big a full-grown unicorn is, in world units: a body a shade over two
+ * long, so a recruit at half of that is about the length of a pony. One
+ * number now rather than a ramp across the band, because a unicorn walking up
+ * the field does not shrink. The picture shrinks it.
+ */
+const BODY = 2.0818;
+
+/**
+ * How far the ground reaches across, kept as the screen measure it is: half
+ * of what the window shows. On the ground it is not one distance, because the
+ * camera's wedge opens away from it — the picture holds more real ground at
+ * the back than at the front — so what is stored is the half-width of the
+ * picture and the ground is worked out per depth where it is needed.
+ *
+ * It will not go narrower than the castles stand, though. A home castle's
+ * outer wall falls at about 0.735 of the way out, and a fighter wants room to
+ * stand beside it; on a tall phone half the aspect is a third of that, and
  * squeezing the board to fit would pile both armies onto their own castles.
  * So a narrow window shows less of the board rather than the board being made
  * smaller, and the fight stays where the castles are.
@@ -92,9 +138,9 @@ export const edgeAt = () => edge;
 export const MAX = 64;
 /** Seconds between a castle's spawns. */
 const SPAWN = 2.2;
-/** Hit points at the first level, and walking speed in screen units. */
+/** Hit points at the first level, and walking speed in world units a second. */
 const HP = 6;
-const SPEED = 0.22;
+const SPEED = 4.298;
 /**
  * Veterancy. A unicorn starts at half size and wins its way up: every fight
  * it wins and then walks off to heal from earns it a level. A level adds a
@@ -117,7 +163,7 @@ const HURT = 0.5;
 /** How close, in the pair's size, two horns have to be to be fighting. */
 const REACH = 0.7;
 /** How far a unicorn can see an enemy to pick it out. */
-const LOOK = 0.4;
+const LOOK = 7.815;
 /** How many can set upon one unicorn at once. */
 const CROWD = 2;
 /**
@@ -131,21 +177,25 @@ const LONG = 1.25, DEEP = 0.625;
  * Each fighter walks to a lane of its own a little to one side of the castle
  * rather than at the castle's exact depth: a side that all walked the one
  * line would arrive in single file, and the ground either side of it would
- * go unused. A lane is measured in the castle's own scale, like every other
- * distance on the ground, and half of one is less than CAP_R — so a fighter
- * that has arrived in its lane is standing on the castle whatever depth the
- * castle is at, rather than lining up outside the very claim it came for.
+ * go unused. A lane is a real depth off the castle, the same at every castle,
+ * and half of one is well inside CAP_R — so a fighter that has arrived in its
+ * lane is standing on the castle whatever depth the castle is at, rather than
+ * lining up outside the very claim it came for.
  */
-const LANE = 0.2;
+const LANE = 2.735;
 /**
- * A castle's half-width at the bow's feet, measured off the screen, and its
- * ground is square: as deep as it is wide, where a unicorn's is half as deep
- * as it is long. Like every other distance on the ground it is the castle's
- * own size, so one deep in the field takes up less of it. Nothing stands in
- * it but the garrison healing there — and a besieger shoved out of it is
- * still well inside CAP_R, so it presses its claim from the wall.
+ * A castle's half-width, and its ground is square: as deep as it is wide,
+ * where a unicorn's is half as deep as it is long. Taken off the castle
+ * shader rather than off the screen — the towers reach 1.28 of the castle's
+ * own units from its middle, and it is built at CASTLE_SCALE, which is this.
+ * So the ground a castle holds is the ground the castle covers.
+ *
+ * Nothing stands in it but the garrison healing there, and a besieger shoved
+ * out of it is still well inside CAP_R, so it presses its claim from the
+ * wall. Two of these end to end is about three unicorns long, so a castle
+ * holds one or two on the stone and the rest queue at the wall.
  */
-const CASTLE_W = 0.071;
+const CASTLE_W = 0.751;
 /** A swing connects this often, and takes off this much when it does. */
 const HIT = 0.65, DMG = 1.5;
 /** Radians a second the neck lunges while fighting: one swing a second. */
@@ -166,7 +216,7 @@ const LUNGE = 6.2832;
  * castle standing empty for whoever comes back for it.
  */
 export const CAP = 20;
-const CAP_R = 0.16;
+const CAP_R = 3.126;
 /** Points a recruit adds a second claiming, and takes off a held castle. */
 const TAKE = 0.75, BREAK = 1.5;
 /**
@@ -208,7 +258,7 @@ const MOB = 3;
  * reach.
  */
 const MAGE_EVERY = 4, MAGE_V = 0.75;
-const CAST = 0.3, KEEP = 0.19;
+const CAST = 5.861, KEEP = 3.712;
 export const COOL = 3.5, FROST = 1.6;
 
 /**
@@ -291,7 +341,7 @@ export const captured = [];
  * The spells cast this step, for main.js to draw the streak of: from the
  * caster's horn to whoever it was aimed at. The freeze itself has already
  * landed — a spell does not miss and does not travel.
- * @type {{_x:number,_y:number,_tx:number,_ty:number,_s:number}[]}
+ * @type {{_x:number,_y:number,_s:number,_tx:number,_ty:number,_ts:number}[]}
  */
 export const casts = [];
 
@@ -314,20 +364,10 @@ const rnd = () => (seed = (seed * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff
 export const TUNE = typeof __DEBUG__ === 'undefined' || __DEBUG__
     ? { HP, HURT, HEAL, LOOK, CROWD, LONG, DEEP, HIT, DMG, REACH, MAX, NEAR_Y, FAR_Y,
         SPAWN, SCALE0, CAP, CAP_R, TAKE, BREAK, MOB, LANE, OUTPOST, FREEZE,
-        CASTLE_W, NEAR_S, FAR_S, FOOT, SPEED,
+        CASTLE_W, BODY, FOOT, FOOT_X, SPEED,
         MAGE_EVERY, MAGE_V, CAST, KEEP, COOL, FROST }
     : null;
-const sizeAt = (y) => NEAR_S + (FAR_S - NEAR_S) * ((y - NEAR_Y) / (FAR_Y - NEAR_Y));
-/**
- * How big anything standing at this depth is against the same thing standing
- * at the bow's feet. Every distance on the ground that is not measured off a
- * unicorn's own size goes through this, or a castle at the horizon would
- * keep the reach and the doorstep of one at the front.
- * @param {number} y
- */
-const depthScale = (y) => sizeAt(y) / sizeAt(FOOT);
-/** The same, for main.js: how big to draw a thing standing at this depth. */
-export const depthAt = depthScale;
+
 
 /**
  * Start a run. The seed is the whole of what makes one run differ from
@@ -358,18 +398,17 @@ export function reset(s = 7) {
  * @param {{_x:number,_y:number,_side:number}} castle
  */
 function spawn(castle) {
-    // Out of the gate and a little to one side of it, both at the castle's
-    // own scale: a castle deep in the field turns its recruits out onto
-    // proportionately less ground.
-    const n = depthScale(castle._y);
-    const y = Math.max(NEAR_Y, castle._y - (0.02 + rnd() * 0.06) * n);
+    // Out of the gate and a little to one side of it. The same few strides of
+    // ground whichever castle it is: a deep one is not a smaller castle, it is
+    // a castle further off.
+    const y = Math.max(NEAR_Y, castle._y - (0.391 + rnd() * 1.172));
     // Whose turn it is to wear the cape. Counted rather than rolled: both
     // sides get the same one recruit in four, and the run stays reproducible
     // down to which of them it is.
     const mage = ++castle._n % MAGE_EVERY === 0;
     herd.push({
-        _x: castle._x + (rnd() - 0.5) * 0.1 * n,
-        _y: y, _s: sizeAt(y) * SCALE0,
+        _x: castle._x + (rnd() - 0.5) * 1.954,
+        _y: y, _s: BODY * SCALE0,
         _side: castle._side,
         _face: castle._side ? -1 : 1,
         _ph: rnd() * 6.283,
@@ -479,14 +518,13 @@ function foeHome(un) {
  */
 function capture(dt) {
     for (const c of castles) {
-        // What counts as standing on this castle. It shrinks with the
-        // castle's depth: one far up the field is a smaller thing to stand
-        // on, and its garrison gathers as tight as it looks.
-        const r = CAP_R * depthScale(c._y);
         let sun = 0, rain = 0;
         for (const un of herd) {
             if (un._hp <= 0) continue;
-            if ((un._x - c._x) ** 2 + (un._y - c._y) ** 2 > r * r) continue;
+            // What counts as standing on this castle: a circle of real ground,
+            // the same at every castle. One far up the field looks like a
+            // tighter gathering only because it is further away.
+            if ((un._x - c._x) ** 2 + (un._y - c._y) ** 2 > CAP_R * CAP_R) continue;
             // Size is the weight: a veteran presses harder than a recruit,
             // the same way it hits harder.
             const w = un._scale / SCALE0;
@@ -632,17 +670,12 @@ export function step(dt) {
         // a distance from something is a whole circle of places to stand, and
         // a unicorn shoved along that circle has nothing pulling it back.
         const goal = un._foe || rest || foeHome(un) || home(un) || castles[1];
-        // How large a thing that is to arrive at. A castle's doorstep, its
-        // ground and the lanes across it are all its own size, so one deep in
-        // the field is walked closer into and held tighter; a foe is measured
-        // off the pair's own sizes instead, which already follow their depth.
-        const near = un._foe ? 1 : depthScale(goal._y);
         // Marching on a castle it walks to its own lane, a little to one
         // side of the castle in depth, instead of at the castle's exact
         // depth. Every castle stands far enough inside the band for a lane
         // either side of it, so there is nothing to clamp.
         const march = !un._foe && !rest;
-        const dx = goal._x - un._x, dy = goal._y + (march ? un._lane * near : 0) - un._y;
+        const dx = goal._x - un._x, dy = goal._y + (march ? un._lane : 0) - un._y;
         const d = Math.hypot(dx, dy);
         // A mage walks no closer once it has something to cast at, and backs
         // away from anything that gets well inside that.
@@ -659,7 +692,7 @@ export function step(dt) {
         // for the exact middle of it: five of them cannot all stand on one
         // point, and any that try spend the watch shoving each other off it
         // and walking back. Anywhere on the stone will do.
-        const stop = un._foe ? REACH * (un._s + un._foe._s) : (rest ? 0.04 : 0.08) * near;
+        const stop = un._foe ? REACH * (un._s + un._foe._s) : (rest ? 0.781 : 1.563);
         // Once horn to horn it takes more than a shove from the crowd to
         // break it off, or the pair spend the fight stepping in and out of
         // range of each other.
@@ -683,7 +716,7 @@ export function step(dt) {
         // closer for trying, settles where it stands rather than circling
         // the walls for the rest of the watch.
         const healing = !frost && rest && !un._foe
-            && (d <= 0.07 * near || (arrived && d <= 0.18 * near));
+            && (d <= 1.368 || (arrived && d <= 3.517));
         // Near where it was going and getting no nearer: it stops walking.
         // A crowd round a castle is pushed off the doorstep as fast as it
         // reaches it, and without this the ones at the back spend the siege
@@ -691,7 +724,7 @@ export function step(dt) {
         // every three seconds, for as long as the siege lasted.
         // Never far enough out to be idling outside the very claim it came
         // for: the reach a castle is held from is the limit.
-        const stuck = arrived && d < Math.min(stop * 3, CAP_R * near * 0.9);
+        const stuck = arrived && d < Math.min(stop * 3, CAP_R * 0.9);
         // A mage is the slower animal, going or coming.
         const pace = SPEED * (un._mage ? MAGE_V : 1);
         let v = 0;
@@ -736,7 +769,7 @@ export function step(dt) {
         // its own rather than pushing back into the crowd. That is what lets
         // a garrison spread along the wall instead of stacking on the
         // doorstep: what the crowd settles in depth, nobody walks back out.
-        if (march && d < stop * 2) un._lane = (un._y - goal._y) / near;
+        if (march && d < stop * 2) un._lane = un._y - goal._y;
         // Horn to horn; and out of a fight, healing, four times as fast at home.
         un._eng = !!fighting;
         if (!fighting && !frost) un._hp = Math.min(un._max, un._hp + un._max / HEAL * dt * (healing ? 4 : 1));
@@ -749,9 +782,13 @@ export function step(dt) {
             if (mark && un._cast <= 0) {
                 un._cast = COOL;
                 mark._froze = FROST;
+                // Both ends are the ground each of them stands on, and the
+                // sizes with them. A horn and a head are above the ground,
+                // and nothing on this plain has a height to put them at, so
+                // main.js lifts each end once it has projected it.
                 casts.push({
-                    _x: un._x, _y: un._y + un._s, _s: un._s,
-                    _tx: mark._x, _ty: mark._y + mark._s * 0.6,
+                    _x: un._x, _y: un._y, _s: un._s,
+                    _tx: mark._x, _ty: mark._y, _ts: mark._s,
                 });
             }
         }
@@ -767,7 +804,7 @@ export function step(dt) {
         // A level's worth of size, taken on over a second.
         const scale = SCALE0 * (1 + GROW * un._lvl);
         if (un._scale < scale) un._scale = Math.min(scale, un._scale + SCALE0 * GROW * dt);
-        un._s = sizeAt(un._y) * un._scale;
+        un._s = BODY * un._scale;
         // Nothing to fight and nowhere it is actually getting: it stands, and
         // standing is all four feet down. The fighting pose is what plants
         // them — the stride fades out of it — and winding the phase down to
@@ -819,14 +856,23 @@ export function step(dt) {
 
     separate(dt);
 
-    // Nothing leaves the board. Depth is bounded as the walking and the
-    // shoving go, because both need to know what room they have left; across,
-    // once at the end of the step is enough, since nothing reads it. It is
-    // the whole animal that is kept in rather than the point it stands on, so
-    // a unicorn at the edge is a unicorn you can see all of.
+    // Nothing leaves the board. Most of the shoving bounds itself as it goes,
+    // because a shove has to know what room it has; this is the backstop that
+    // catches what does not — a walk to a lane marked out past the back of
+    // the band, and anything pushed across the sides, which nothing reads
+    // mid-step and so nothing has to bound until the step is over. Across it
+    // is the whole animal that is kept on rather than the point it stands on,
+    // so a unicorn at the side is one you can see all of. In depth it is the
+    // feet: the band is the ground, and a head above the back of it is only a
+    // head in the rain, which is what the back of the field should look like.
     for (const un of herd) {
-        const half = un._s * LONG * 0.5;
-        un._x = Math.min(edge - half, Math.max(half - edge, un._x));
+        un._y = Math.min(FAR_Y, Math.max(NEAR_Y, un._y));
+        // The board is not a rectangle. The picture is a wedge opening away
+        // from the camera, so the ground it shows at the back is wider than
+        // the ground it shows at the front, and the bound has to open with it
+        // or the far field would be fenced off where it is widest.
+        const wide = edge * un._y / FOCAL - un._s * LONG * 0.5;
+        un._x = Math.min(wide, Math.max(-wide, un._x));
     }
 
     // The trailing point creeps after everyone, shoves and all. A steady walk
@@ -879,7 +925,6 @@ function separate(dt) {
         if (m <= cap) continue;
         u._x = x + dx / m * cap;
         u._y = y + dy / m * cap;
-        u._s = sizeAt(u._y) * u._scale;
     }
 }
 
@@ -896,7 +941,7 @@ function walls() {
         if (un._hp <= 0 || un._ice > 0) continue;
         for (const c of castles) {
             if (un._rest && c._side === un._side) continue;
-            const w = c._w * depthScale(c._y);
+            const w = c._w;
             const ex = w + un._s * LONG * 0.5;
             const ey = w + un._s * DEEP * 0.5;
             const dx = un._x - c._x, dy = un._y - c._y;
@@ -906,7 +951,6 @@ function walls() {
             const y = un._y + (dy === 0 ? 1 : Math.sign(dy)) * oy;
             if (oy <= ox && y >= NEAR_Y && y <= FAR_Y) {
                 un._y = y;
-                un._s = sizeAt(un._y) * un._scale;
             } else {
                 un._x += (dx === 0 ? (un._x < c._x ? -1 : 1) : Math.sign(dx)) * ox;
             }
@@ -955,8 +999,6 @@ function sweep(sideways) {
             const left = oy - Math.abs(by - ay) + Math.abs(b._y - a._y);
             a._y = ay;
             b._y = by;
-            a._s = sizeAt(a._y) * a._scale;
-            b._s = sizeAt(b._y) * b._scale;
             if (left > 0) {
                 const sx = b._x === a._x ? (i & 1 ? 1 : -1) : Math.sign(b._x - a._x);
                 const give = Math.min(left / (w * DEEP), 1) * ox * 0.5;
@@ -968,15 +1010,20 @@ function sweep(sideways) {
 }
 
 /**
- * The unicorn nearest a point, if one is near enough to mean it.
- * @param {number} x in the herd's units
+ * The unicorn nearest a point, if one is near enough to mean it. The point is
+ * the player's, so it is a point on the screen, and the herd is met there
+ * rather than on the ground: what the player is aiming at is a picture, and
+ * two unicorns a long way apart on the plain can be a thumb's width apart in
+ * it. So each is projected and the pick is made in the picture.
+ * @param {number} x on the screen, the rainbow's units
  * @param {number} y
  */
 function nearest(x, y) {
     let best = null, bd = 0.02;
     for (const un of herd) {
         if (un._hp <= 0) continue;
-        const d = (un._x - x) ** 2 + (un._y - (y + un._s * 0.4)) ** 2;
+        const [px, py, ps] = project(un._x, un._y, un._s);
+        const d = (px - x) ** 2 + (py - (y + ps * 0.4)) ** 2;
         if (d < bd) { bd = d; best = un; }
     }
     return best;

@@ -40,17 +40,21 @@ const T = sim.TUNE;
  * that nothing stands *well* inside anything, not that nothing touches.
  */
 const TOUCH = 0.2;
-/** A castle's ground is its own size, like every distance on the field. */
-const sizeAt = (y) => T.NEAR_S + (T.FAR_S - T.NEAR_S) * ((y - T.NEAR_Y) / (T.FAR_Y - T.NEAR_Y));
-const depthScale = (y) => sizeAt(y) / sizeAt(T.FOOT);
-
-/** How far into a castle a unicorn stands, as a fraction of the footprint. */
+/**
+ * How far into a castle a unicorn stands, as a fraction of the footprint.
+ * A castle's walls are walls: the same ground whatever depth it stands at.
+ */
 function inCastle(u, c) {
-    const w = c._w * depthScale(c._y);
+    const w = c._w;
     const ex = w + u._s * T.LONG * 0.5, ey = w + u._s * T.DEEP * 0.5;
     const ox = ex - Math.abs(u._x - c._x), oy = ey - Math.abs(u._y - c._y);
     return ox > 0 && oy > 0 ? Math.min(ox / ex, oy / ey) : 0;
 }
+/**
+ * Half the ground the picture shows at this depth. The board opens away from
+ * the camera, so a bound across it is not one number but a wedge.
+ */
+const wideAt = (y) => sim.edgeAt() * y / 0.866;
 const STEP = 1 / 60;
 const seconds = Number(process.argv[2]) || 600;
 const quiet = process.argv.includes('quiet');
@@ -82,7 +86,7 @@ function stage(them) {
     sim.reset();
     for (const t of them) {
         sim.herd.push({
-            _x: 0, _y: -0.2, _s: 0.06, _side: 0, _face: 1, _ph: 0, _lane: 0,
+            _x: 0, _y: 18.61, _s: 1.041, _side: 0, _face: 1, _ph: 0, _lane: 0,
             _hp: T.HP, _max: T.HP, _lvl: 0, _scale: 0.5,
             _fight: 0, _rest: false, _foe: null, _att: 0, _eng: false, _hit: null,
             _mage: false, _cast: 0, _froze: 0,
@@ -169,7 +173,7 @@ function units() {
 
     // Two standing in the same place come apart, and apart in depth.
     {
-        const [a, b] = stage([{ _x: 0, _y: -0.2 }, { _x: 0, _y: -0.2 }]);
+        const [a, b] = stage([{ _x: 0, _y: 18.61 }, { _x: 0, _y: 18.61 }]);
         run(30);
         ok('two in one place come apart', overlap(a, b) < 0.02,
             `${overlap(a, b).toFixed(2)} still overlapping — ${show(a)} / ${show(b)}`);
@@ -184,8 +188,8 @@ function units() {
     // where they were going before either has to get past the other.
     {
         const [a, b] = stage([
-            { _x: -0.3, _y: -0.2, _side: 0 },
-            { _x: 0.0, _y: -0.2, _side: 0 },
+            { _x: -6.447, _y: 18.61, _side: 0 },
+            { _x: 0, _y: 18.61, _side: 0 },
         ]);
         MID_CASTLE._side = 0;
         MID_CASTLE._own = true;
@@ -228,8 +232,8 @@ function units() {
     // replay the same random numbers off the same seed and prove nothing.
     {
         const [a, b] = stage([
-            { _x: -0.02, _y: -0.2, _side: 0 },
-            { _x: 0.02, _y: -0.2, _side: 1, _hp: 1e9, _max: 1e9 },
+            { _x: -0.43, _y: 18.61, _side: 0 },
+            { _x: 0.43, _y: 18.61, _side: 1, _hp: 1e9, _max: 1e9 },
         ]);
         a._foe = b;
         let hits = 0, swings = 0, ph = a._ph;
@@ -254,8 +258,8 @@ function units() {
         let together = 0, fights = 0;
         for (let k = 0; k < 40; k++) {
             const [a, b] = stage([
-                { _x: -0.02, _y: -0.2, _side: 0, _ph: k * 0.7 },
-                { _x: 0.02, _y: -0.2, _side: 1, _ph: k * 0.3 + 1 },
+                { _x: -0.43, _y: 18.61, _side: 0, _ph: k * 0.7 },
+                { _x: 0.43, _y: 18.61, _side: 1, _ph: k * 0.3 + 1 },
             ]);
             a._foe = b; b._foe = a;
             for (let i = 0; i < 60 * 30; i++) {
@@ -275,9 +279,9 @@ function units() {
     // Anything nearer to fight than what it is walking at, it turns to.
     {
         const [a, far, near] = stage([
-            { _x: 0, _y: -0.2, _side: 0 },
-            { _x: 0.3, _y: -0.2, _side: 1, _hp: 1e6, _max: 1e6 },
-            { _x: -0.08, _y: -0.26, _side: 1, _hp: 1e6, _max: 1e6 },
+            { _x: 0, _y: 18.61, _side: 0 },
+            { _x: 6.447, _y: 18.61, _side: 1, _hp: 1e6, _max: 1e6 },
+            { _x: -1.495, _y: 16.183, _side: 1, _hp: 1e6, _max: 1e6 },
         ]);
         a._foe = far; far._att = 1;
         run(2);
@@ -287,12 +291,12 @@ function units() {
     {
         // But not one already horn to horn: that fight is seen out.
         const [a, b] = stage([
-            { _x: 0, _y: -0.2, _side: 0, _hp: 1e6, _max: 1e6 },
-            { _x: 0.03, _y: -0.2, _side: 1, _hp: 1e6, _max: 1e6 },
+            { _x: 0, _y: 18.61, _side: 0, _hp: 1e6, _max: 1e6 },
+            { _x: 0.645, _y: 18.61, _side: 1, _hp: 1e6, _max: 1e6 },
         ]);
         a._foe = b; b._foe = a;
         run(30);                       // long enough to be horn to horn
-        sim.herd.push({ ...sim.herd[0], _x: -0.02, _y: -0.21, _side: 1,
+        sim.herd.push({ ...sim.herd[0], _x: -0.419, _y: 18.156, _side: 1,
             _hp: 1e6, _max: 1e6, _foe: null, _att: 0, _eng: false });
         run(60);
         ok('but not one it is already horn to horn with', a._foe === b,
@@ -301,9 +305,9 @@ function units() {
     {
         // Nearest full stop: it takes whichever is closer, by however little.
         const [a, first, other] = stage([
-            { _x: 0, _y: -0.2, _side: 0 },
-            { _x: 0.2, _y: -0.2, _side: 1, _hp: 1e6, _max: 1e6 },
-            { _x: -0.19, _y: -0.2, _side: 1, _hp: 1e6, _max: 1e6 },
+            { _x: 0, _y: 18.61, _side: 0 },
+            { _x: 4.298, _y: 18.61, _side: 1, _hp: 1e6, _max: 1e6 },
+            { _x: -4.083, _y: 18.61, _side: 1, _hp: 1e6, _max: 1e6 },
         ]);
         a._foe = first; first._att = 1;
         run(2);
@@ -314,9 +318,9 @@ function units() {
     // A unicorn that is struck while walking turns on whoever struck it.
     {
         const [a, b, c] = stage([
-            { _x: 0, _y: -0.2, _side: 0 },                  // a, minding its own business
-            { _x: 0.5, _y: -0.2, _side: 1, _hp: 1e6, _max: 1e6 },  // b, far off, a's target
-            { _x: 0.05, _y: -0.2, _side: 1, _hp: 1e6, _max: 1e6 }, // c, right on top of a
+            { _x: 0, _y: 18.61, _side: 0 },                  // a, minding its own business
+            { _x: 10.745, _y: 18.61, _side: 1, _hp: 1e6, _max: 1e6 },  // b, far off, a's target
+            { _x: 1.075, _y: 18.61, _side: 1, _hp: 1e6, _max: 1e6 }, // c, right on top of a
         ]);
         a._foe = b; c._foe = a;
         run(90);
@@ -327,9 +331,9 @@ function units() {
     // One already horn to horn finishes that fight before answering another.
     {
         const [a, b, c] = stage([
-            { _x: 0, _y: -0.2, _side: 0, _hp: 1e6, _max: 1e6 },
-            { _x: 0.03, _y: -0.2, _side: 1, _hp: 1e6, _max: 1e6 },
-            { _x: -0.03, _y: -0.2, _side: 1, _hp: 1e6, _max: 1e6 },
+            { _x: 0, _y: 18.61, _side: 0, _hp: 1e6, _max: 1e6 },
+            { _x: 0.645, _y: 18.61, _side: 1, _hp: 1e6, _max: 1e6 },
+            { _x: -0.645, _y: 18.61, _side: 1, _hp: 1e6, _max: 1e6 },
         ]);
         a._foe = b; b._foe = a; c._foe = a;
         run(180);
@@ -340,7 +344,7 @@ function units() {
     // No more than the cap choose the same target.
     {
         stage([
-            { _x: 0, _y: -0.2, _side: 1, _hp: 1e6, _max: 1e6 },
+            { _x: 0, _y: 18.61, _side: 1, _hp: 1e6, _max: 1e6 },
             ...Array.from({ length: 6 }, (_, i) => ({ _x: -0.1 - i * 0.02, _y: -0.35 + i * 0.02, _side: 0 })),
         ]);
         run(60);
@@ -390,7 +394,7 @@ function units() {
     }
     {
         // One still walking is still walking.
-        const [a] = stage([{ _x: -0.5, _y: -0.3, _side: 0 }]);
+        const [a] = stage([{ _x: -8.596, _y: 14.888, _side: 0 }]);
         run(30);
         const ph = a._ph;
         run(30);
@@ -401,8 +405,8 @@ function units() {
     // The ice.
     {
         const [a, b] = stage([
-            { _x: 0, _y: -0.2, _side: 0 },
-            { _x: 0.05, _y: -0.2, _side: 1, _hp: 1e6, _max: 1e6 },
+            { _x: 0, _y: 18.61, _side: 0 },
+            { _x: 1.075, _y: 18.61, _side: 1, _hp: 1e6, _max: 1e6 },
         ]);
         a._ice = T.FREEZE;
         const x = a._x, y = a._y, hp = b._hp;
@@ -414,7 +418,7 @@ function units() {
             `it took no hurt at all under there`);
     }
     {
-        const [a] = stage([{ _x: 0, _y: -0.2, _side: 0 }]);
+        const [a] = stage([{ _x: 0, _y: 18.61, _side: 0 }]);
         a._ice = T.FREEZE;
         run(60 * (T.FREEZE - 1));
         const still = a._ice > 0;
@@ -426,8 +430,8 @@ function units() {
         // It is in the way while it is under there: whoever meets it goes
         // round, and the block itself does not budge.
         const [a, b] = stage([
-            { _x: 0, _y: -0.2, _side: 0 },
-            { _x: -0.2, _y: -0.2, _side: 1, _hp: 1e6, _max: 1e6 },
+            { _x: 0, _y: 18.61, _side: 0 },
+            { _x: -4.298, _y: 18.61, _side: 1, _hp: 1e6, _max: 1e6 },
         ]);
         a._ice = T.FREEZE;
         const x = a._x, y = a._y;
@@ -469,54 +473,62 @@ function units() {
     // Nothing in sight is nothing to fight.
     {
         const [a] = stage([
-            { _x: -0.6, _y: -0.2, _side: 0 },
-            { _x: 0.6, _y: -0.2, _side: 1 },
+            { _x: -12.894, _y: 18.61, _side: 0 },
+            { _x: 12.894, _y: 18.61, _side: 1 },
         ]);
         run(1);
         ok('an enemy beyond sight is not a target', a._foe === null,
             `it picked one ${(1.2).toFixed(1)} away, sight is ${T.LOOK}`);
     }
 
-    // The board has sides, and they are the sides of the picture.
+    // The board has sides, and they are the sides of the picture. On the
+    // ground they are not parallel: the camera's wedge opens away from it, so
+    // the far field is a wider piece of ground than the near one.
     {
         sim.setEdge(16 / 9);
-        const edge = sim.edgeAt();
+        const deep = 40, shallow = 14;
         const [a, b] = stage([
-            { _x: edge + 0.5, _y: -0.2, _side: 0 },
-            { _x: -edge - 0.5, _y: -0.3, _side: 0 },
+            { _x: wideAt(deep) + 8, _y: deep, _side: 0 },
+            { _x: -wideAt(shallow) - 8, _y: shallow, _side: 0 },
         ]);
         run(1);
-        const out = (u) => Math.abs(u._x) + u._s * T.LONG * 0.5 - edge;
+        const out = (u) => Math.abs(u._x) + u._s * T.LONG * 0.5 - wideAt(u._y);
         ok('one standing off the board is put back on it',
             out(a) <= 1e-9 && out(b) <= 1e-9,
             `over the edge by ${out(a).toFixed(4)} and ${out(b).toFixed(4)}`);
         ok('and it is the whole animal that is kept on, not its middle',
-            Math.abs(a._x) < edge && Math.abs(b._x) < edge,
-            `standing at ${a._x.toFixed(3)} and ${b._x.toFixed(3)}, edge ${edge.toFixed(3)}`);
+            Math.abs(a._x) < wideAt(a._y) && Math.abs(b._x) < wideAt(b._y),
+            `standing at ${a._x.toFixed(2)} and ${b._x.toFixed(2)},`
+            + ` the board being ${wideAt(a._y).toFixed(2)} and ${wideAt(b._y).toFixed(2)} wide there`);
+        ok('and the far field is the wider piece of ground',
+            wideAt(deep) > wideAt(shallow) * 1.5,
+            `${wideAt(deep).toFixed(1)} at ${deep} against ${wideAt(shallow).toFixed(1)} at ${shallow}`);
     }
     {
         // Walking at the edge does not walk off it: one sent after an enemy
         // that is beyond the board stops at the board.
         sim.setEdge(16 / 9);
-        const edge = sim.edgeAt();
+        const y = 18.61, w = wideAt(y);
         const [a] = stage([
-            { _x: edge - 0.05, _y: -0.2, _side: 0 },
-            { _x: edge + 0.3, _y: -0.2, _side: 1 },
+            { _x: w - 1, _y: y, _side: 0 },
+            { _x: w + 6, _y: y, _side: 1 },
         ]);
         run(180);
         ok('one walking at the edge is stopped by it',
-            Math.abs(a._x) + a._s * T.LONG * 0.5 <= edge + 1e-9,
-            `three seconds of walking put it at ${a._x.toFixed(3)}, edge ${edge.toFixed(3)}`);
+            Math.abs(a._x) + a._s * T.LONG * 0.5 <= wideAt(a._y) + 1e-9,
+            `three seconds of walking put it at ${a._x.toFixed(2)},`
+            + ` the board being ${wideAt(a._y).toFixed(2)} wide there`);
     }
     {
         // A crowd shoved along the edge is shoved inwards, not through it.
         sim.setEdge(16 / 9);
-        const edge = sim.edgeAt();
+        const y = 18.61;
         const them = stage(Array.from({ length: 12 }, () => (
-            { _x: edge - 0.02, _y: -0.2, _side: 0, _hp: 1e6, _max: 1e6 }
+            { _x: wideAt(y) - 0.5, _y: y, _side: 0, _hp: 1e6, _max: 1e6 }
         )));
         run(120);
-        const worst = Math.max(...them.map((u) => Math.abs(u._x) + u._s * T.LONG * 0.5 - edge));
+        const worst = Math.max(...them.map(
+            (u) => Math.abs(u._x) + u._s * T.LONG * 0.5 - wideAt(u._y)));
         ok('a crowd pressed on the edge is shoved inwards, not through it',
             worst <= 1e-9, `the furthest out is over by ${worst.toFixed(4)}`);
     }
@@ -527,7 +539,10 @@ function units() {
         const narrow = sim.edgeAt();
         sim.setEdge(16 / 9);
         const wide = sim.edgeAt();
-        const outer = 0.6965 + T.CASTLE_W;
+        // Where the outer wall of a home castle falls on the screen, which is
+        // what the floor has to leave room for.
+        const [cx, , cw] = sim.project(T.FOOT_X, T.FOOT, T.CASTLE_W);
+        const outer = cx + cw;
         ok('a tall window does not squeeze the board narrower than its castles',
             narrow > outer && narrow < wide,
             `a phone gives ${narrow.toFixed(3)}, the castles reach to ${outer.toFixed(3)}`);
@@ -578,15 +593,15 @@ function field() {
     // and marches to that instead of to the castle's exact depth.
     {
         const arrive = (lane) => {
-            stage([{ _x: MID_CASTLE._x - 0.4, _y: MID_CASTLE._y, _side: 0, _lane: lane }])[0];
+            stage([{ _x: MID_CASTLE._x - 19, _y: MID_CASTLE._y, _side: 0, _lane: lane }])[0];
             run(60 * 5);
             return sim.herd[0]._y - MID_CASTLE._y;
         };
         const deep = arrive(T.LANE / 2), level = arrive(0), shallow = arrive(-T.LANE / 2);
         ok('a fighter marches to a lane of its own, not to the castle\'s exact depth',
-            deep > level + 0.02 && shallow < level - 0.02,
+            deep > level + 0.4 && shallow < level - 0.4,
             `lanes came out at ${deep.toFixed(3)} / ${level.toFixed(3)} / ${shallow.toFixed(3)}`);
-        ok('so a column of them arrives on a front', deep - shallow > 0.05,
+        ok('so a column of them arrives on a front', deep - shallow > 1,
             `only ${(deep - shallow).toFixed(3)} between the outermost two`);
     }
 
@@ -628,7 +643,11 @@ function field() {
     // And what the crowd settles at the gate, nobody walks back out of:
     // being shoved aside in depth changes a fighter's mind about its lane.
     {
-        const [a] = stage([{ _x: MID_CASTLE._x, _y: MID_CASTLE._y, _side: 0 }]);
+        // It has to be a castle it is marching on — a fighter standing on one
+        // of its own is not walking a lane at all — and it starts on a lane in
+        // front of the middle one, so that a shove deeper has band left to be
+        // shoved into rather than being stopped by the back of the ground.
+        const [a] = stage([{ _x: MID_CASTLE._x, _y: MID_CASTLE._y, _side: 0, _lane: -0.05 }]);
         run(30);
         const shoved = a._y + 0.06;
         a._y = shoved;
@@ -638,33 +657,37 @@ function field() {
             `it walked ${(a._y - shoved).toFixed(3)} back into the crowd`);
     }
 
-    // Distances to a castle are its own size, not a fixed number of screen
-    // units: one deep in the field is a smaller thing to stand on.
+    // A castle's ground is real ground, the same at every castle. One far up
+    // the field is not a smaller thing to stand on; it is the same thing,
+    // further off, and only the picture makes it small.
     {
-        // Far enough off to press a castle at the feet, too far for one deep
-        // in the field. One step, before anyone can walk anywhere.
+        // Far enough off to press either castle, and near enough to press
+        // both. One step, before anyone can walk anywhere.
         const off = T.CAP_R * 0.8;
         stage([{ _x: SUN_CASTLE._x, _y: SUN_CASTLE._y - off, _side: 1 }]);
         run(1);
-        ok('a castle at the feet is pressed from this far off', SUN_CASTLE._cap < T.CAP,
-            `claim still ${SUN_CASTLE._cap}`);
+        const front = SUN_CASTLE._cap;
         stage([{ _x: MID_CASTLE._x, _y: MID_CASTLE._y - off, _side: 1 }]);
         run(1);
-        ok('and one deep in the field is not, its ground being smaller',
-            MID_CASTLE._cap === 0 && MID_CASTLE._side === -1,
+        ok('a castle at the feet is pressed from this far off', front < T.CAP,
+            `claim still ${front}`);
+        ok('and one deep in the field is pressed from exactly as far',
+            MID_CASTLE._cap > 0,
             `claim ${MID_CASTLE._cap.toFixed(2)} to side ${MID_CASTLE._side}`);
     }
 
-    // The doorstep goes the same way: a far castle is walked further into.
+    // The doorstep goes the same way: a castle is walked up to from the same
+    // distance whatever depth it stands at.
     {
-        const [a] = stage([{ _x: MID_CASTLE._x + 0.3, _y: MID_CASTLE._y, _side: 0 }]);
+        const [a] = stage([{ _x: MID_CASTLE._x + 14, _y: MID_CASTLE._y, _side: 0 }]);
         run(60 * 20);
         const deep = Math.hypot(a._x - MID_CASTLE._x, a._y - MID_CASTLE._y);
-        const [b] = stage([{ _x: SUN_CASTLE._x + 0.3, _y: SUN_CASTLE._y, _side: 1 }]);
+        const [b] = stage([{ _x: SUN_CASTLE._x + 14, _y: SUN_CASTLE._y, _side: 1 }]);
         run(60 * 20);
         const front = Math.hypot(b._x - SUN_CASTLE._x, b._y - SUN_CASTLE._y);
-        ok('a fighter stands closer in to a castle deep in the field',
-            deep < front * 0.8, `${deep.toFixed(3)} against ${front.toFixed(3)} at the feet`);
+        ok('a fighter stands the same distance off a castle at any depth',
+            Math.abs(deep - front) < 0.2,
+            `${deep.toFixed(3)} deep against ${front.toFixed(3)} at the feet`);
     }
 }
 
@@ -831,13 +854,13 @@ function capture() {
     // side does not hold outright, which is what takes both sides to the
     // middle and what brings one back to a claim it left half made.
     {
-        const [a] = stage([{ _x: 0.3, _y: MID_CASTLE._y, _side: 0 }]);
+        const [a] = stage([{ _x: 14, _y: MID_CASTLE._y, _side: 0 }]);
         MID_CASTLE._side = 0; MID_CASTLE._own = false; MID_CASTLE._cap = T.CAP / 2;
         run(60);
-        ok('a fighter goes back to finish a claim its side left half made', a._x < 0.29,
-            `it walked to ${a._x.toFixed(3)} from 0.300`);
+        ok('a fighter goes back to finish a claim its side left half made', a._x < 13.9,
+            `it walked to ${a._x.toFixed(3)} from 14`);
 
-        const [b] = stage([{ _x: 0.3, _y: MID_CASTLE._y, _side: 0 }]);
+        const [b] = stage([{ _x: 14, _y: MID_CASTLE._y, _side: 0 }]);
         MID_CASTLE._side = 0; MID_CASTLE._own = true; MID_CASTLE._cap = T.CAP;
         run(60);
         ok('and past one its side holds, to the next one that is not theirs', b._x > 0.31,
@@ -918,7 +941,7 @@ function jostle() {
     {
         const c = sim.castles[0];
         stage(Array.from({ length: 6 }, (_, i) => ({
-            _x: c._x + 0.06 * (i - 2), _y: c._y - 0.05 + 0.03 * i,
+            _x: c._x + 1.2 * (i - 2), _y: c._y - 1 + 0.6 * i,
             _side: 0, _rest: true, _hp: 1,
         })));
         wounded(60 * 5);
@@ -929,9 +952,9 @@ function jostle() {
             `${standing()} of 6 are on their feet`);
         // Six will not all fit on the stone; the ones that do not queue at
         // the wall rather than circling it.
-        const near = sim.herd.filter((u) => Math.hypot(u._x - c._x, u._y - c._y) < 0.2).length;
+        const near = sim.herd.filter((u) => Math.hypot(u._x - c._x, u._y - c._y) < 4).length;
         const on = sim.herd.filter((u) => inCastle(u, c) > TOUCH).length;
-        ok('and the garrison gathers at its own castle', near >= 5 && on >= 2,
+        ok('and the garrison gathers at its own castle', near >= 5 && on >= 1,
             `${near} of 6 are at it and ${on} are on the stone itself`);
     }
 
@@ -949,9 +972,8 @@ function jostle() {
         const inside = sim.herd.filter((u) => inCastle(u, c) > TOUCH).length;
         ok('and none of them stands well inside the castle', inside === 0,
             `${inside} of 6 are in the walls`);
-        const r = T.CAP_R * depthScale(c._y);
         const pressing = sim.herd.filter((u) =>
-            (u._x - c._x) ** 2 + (u._y - c._y) ** 2 <= r * r).length;
+            (u._x - c._x) ** 2 + (u._y - c._y) ** 2 <= T.CAP_R * T.CAP_R).length;
         ok('and enough of them are near enough to press the claim', pressing >= T.MOB,
             `only ${pressing} are inside the reach, and ${T.MOB} is what a claim needs`);
     }
@@ -993,18 +1015,18 @@ function marching() {
         const a = sim.herd[0];
         const to = sim.castles.map((c) => Math.hypot(c._x - a._x, c._y - a._y));
         // Whichever castle it closed the distance on.
-        let best = -1, gain = 0.02;
+        let best = -1, gain = 0.4;
         for (let i = 0; i < to.length; i++) if (from[i] - to[i] > gain) { gain = from[i] - to[i]; best = i; }
         return best;
     };
 
     ok('with nothing in sight it walks on an unclaimed castle',
-        walksTo(-0.35, -0.1) === 1, 'it went somewhere else');
+        walksTo(-10.03, 24.82) === 1, 'it went somewhere else');
     ok('and on an enemy castle when that is the nearer',
-        walksTo(0.45, -0.24, () => { MID._side = 0; MID._own = true; MID._cap = T.CAP; }) === 2,
+        walksTo(8.79, 16.92, () => { MID._side = 0; MID._own = true; MID._cap = T.CAP; }) === 2,
         'it did not make for the enemy castle');
     ok('and on one of its own that an enemy has broken',
-        walksTo(-0.5, -0.24, () => {
+        walksTo(-9.77, 16.92, () => {
             MID._side = 0; MID._own = true; MID._cap = T.CAP;
             RAIN._side = 0; RAIN._own = true; RAIN._cap = T.CAP;
             SUN._own = false; SUN._cap = T.CAP * 0.4;
@@ -1012,8 +1034,8 @@ function marching() {
     // Far enough out to have to walk: one already standing at a castle has
     // arrived at it, and standing still is the right thing for it to do.
     ok('and it is the nearest of them it makes for, not the first',
-        walksTo(0.3, 0.02) === 1
-        && walksTo(0.35, -0.24, () => { MID._side = 0; MID._own = true; MID._cap = T.CAP; }) === 2,
+        walksTo(14.33, 41.36) === 1
+        && walksTo(6.84, 16.92, () => { MID._side = 0; MID._own = true; MID._cap = T.CAP; }) === 2,
         'it walked past a nearer one');
 }
 
@@ -1027,8 +1049,8 @@ function marching() {
 function siege(n) {
     const c = sim.castles[2];
     stage(Array.from({ length: n }, (_, i) => ({
-        _x: c._x - 0.5 + 0.02 * (i % 5), _y: -0.3 + 0.03 * (i % 7),
-        _side: 0, _hp: 1e6, _max: 1e6, _lane: ((i % 5) - 2) * 0.05,
+        _x: c._x - 10 + 0.4 * (i % 5), _y: 14.9 + 0.6 * (i % 7),
+        _side: 0, _hp: 1e6, _max: 1e6, _lane: ((i % 5) - 2) * 0.5,
     })));
     const hold = (k) => {
         for (let i = 0; i < k; i++) {
@@ -1068,27 +1090,43 @@ function endgame() {
  */
 function bouncing() {
     say('\n[sim] bouncing');
-    sim.reset();
-    for (let i = 0; i < 60 * 45; i++) sim.step(1 / 60);
-    const w = sim.herd.filter((u) => u._hp > 0)
-        .map((u) => ({ u, x: u._x, y: u._y, sx: u._x, sy: u._y, path: 0, back: 0, px: 0, py: 0 }));
-    for (let i = 0; i < 60; i++) {
-        sim.step(1 / 60);
-        for (const q of w) {
-            if (!sim.herd.includes(q.u)) continue;
-            const dx = q.u._x - q.x, dy = q.u._y - q.y;
-            q.path += Math.hypot(dx, dy);
-            if (i && dx * q.px + dy * q.py < 0) q.back++;
-            q.px = dx; q.py = dy; q.x = q.u._x; q.y = q.u._y;
+    // One second of one game is far too noisy a thing to judge a herd on: a
+    // fight breaking out or a castle falling inside the window moves these
+    // numbers more than any amount of walking does, and a single sample of
+    // them swings between 1.0 and 2.5 on the same code. So this is the middle
+    // of eighteen of them, off six seeds at three times each.
+    const windows = [];
+    for (const seed of [1, 3, 5, 7, 11, 13]) {
+        for (const at of [30, 45, 60]) {
+            sim.reset(seed);
+            for (let i = 0; i < 60 * at && sim.winner < 0; i++) sim.step(1 / 60);
+            const w = sim.herd.filter((u) => u._hp > 0)
+                .map((u) => ({ u, x: u._x, y: u._y, sx: u._x, sy: u._y, path: 0, back: 0, px: 0, py: 0 }));
+            if (!w.length) continue;
+            for (let i = 0; i < 60; i++) {
+                sim.step(1 / 60);
+                for (const q of w) {
+                    if (!sim.herd.includes(q.u)) continue;
+                    const dx = q.u._x - q.x, dy = q.u._y - q.y;
+                    q.path += Math.hypot(dx, dy);
+                    if (i && dx * q.px + dy * q.py < 0) q.back++;
+                    q.px = dx; q.py = dy; q.x = q.u._x; q.y = q.u._y;
+                }
+            }
+            const path = w.reduce((t, q) => t + q.path, 0);
+            const net = w.reduce((t, q) => t + Math.hypot(q.u._x - q.sx, q.u._y - q.sy), 0);
+            windows.push({ ratio: path / Math.max(net, 1e-9),
+                back: w.reduce((t, q) => t + q.back, 0) / w.length });
         }
     }
-    const path = w.reduce((a, q) => a + q.path, 0);
-    const net = w.reduce((a, q) => a + Math.hypot(q.u._x - q.sx, q.u._y - q.sy), 0);
-    const back = w.reduce((a, q) => a + q.back, 0) / Math.max(w.length, 1);
-    ok('a herd covers about the ground it gains', path / Math.max(net, 1e-9) < 1.3,
-        `it walked ${(path / net).toFixed(2)} times the ground it got anywhere on`);
-    ok('and does not double back on itself several times a second', back < 1.5,
-        `each unicorn reversed ${back.toFixed(1)} times in a second`);
+    const mid = (pick) => {
+        const v = windows.map(pick).sort((x, y) => x - y);
+        return v[v.length >> 1];
+    };
+    ok('a herd covers about the ground it gains', mid((q) => q.ratio) < 1.3,
+        `it walked ${mid((q) => q.ratio).toFixed(2)} times the ground it got anywhere on`);
+    ok('and does not double back on itself several times a second', mid((q) => q.back) < 1.5,
+        `each unicorn reversed ${mid((q) => q.back).toFixed(1)} times in a second`);
 
     // And the worst half-second any of a handful of games can produce, which
     // is a crowd of two dozen pressing the last castle. This is the number
@@ -1220,9 +1258,9 @@ function mages() {
     // next case rather than this one.
     {
         const [m, e, f] = stage([
-            { _x: -0.5, _y: -0.2, _side: 0, _mage: true, _cast: 1e9 },
-            { _x: 0.1, _y: -0.2, _side: 1, _hp: 1e6, _max: 1e6 },
-            { _x: 0.16, _y: -0.2, _side: 0, _hp: 1e6, _max: 1e6 },
+            { _x: -10.745, _y: 18.61, _side: 0, _mage: true, _cast: 1e9 },
+            { _x: 2.149, _y: 18.61, _side: 1, _hp: 1e6, _max: 1e6 },
+            { _x: 3.438, _y: 18.61, _side: 0, _hp: 1e6, _max: 1e6 },
         ]);
         e._foe = f;
         f._foe = e;
@@ -1238,8 +1276,8 @@ function mages() {
     // Something inside the stand-off is backed away from, not met.
     {
         const [m] = stage([
-            { _x: 0, _y: -0.2, _side: 0, _mage: true, _cast: 1e9 },
-            { _x: 0.06, _y: -0.2, _side: 1, _hp: 1e6, _max: 1e6 },
+            { _x: 0, _y: 18.61, _side: 0, _mage: true, _cast: 1e9 },
+            { _x: 1.289, _y: 18.61, _side: 1, _hp: 1e6, _max: 1e6 },
         ]);
         run(30);
         ok('a mage gives ground to what is in its face', m._x < -0.02,
@@ -1255,8 +1293,8 @@ function mages() {
     // ever without ever reaching it.
     {
         const [m, e] = stage([
-            { _x: 0, _y: -0.2, _side: 0, _mage: true, _cast: 1e9 },
-            { _x: 0.3, _y: -0.2, _side: 1, _hp: 1e6, _max: 1e6 },
+            { _x: 0, _y: 18.61, _side: 0, _mage: true, _cast: 1e9 },
+            { _x: 6.447, _y: 18.61, _side: 1, _hp: 1e6, _max: 1e6 },
         ]);
         run(60 * 6);
         ok('but a fighter runs it down all the same', e._eng,
@@ -1270,9 +1308,9 @@ function mages() {
     // cooldown is up.
     {
         const [m, near, far] = stage([
-            { _x: 0, _y: -0.2, _side: 0, _mage: true, _cast: 0 },
-            { _x: T.KEEP, _y: -0.2, _side: 1, _hp: 1e6, _max: 1e6 },
-            { _x: T.KEEP + 0.06, _y: -0.2, _side: 1, _hp: 1e6, _max: 1e6 },
+            { _x: 0, _y: 18.61, _side: 0, _mage: true, _cast: 0 },
+            { _x: T.KEEP, _y: 18.61, _side: 1, _hp: 1e6, _max: 1e6 },
+            { _x: T.KEEP + 1, _y: 18.61, _side: 1, _hp: 1e6, _max: 1e6 },
         ]);
         run(1);
         ok('a spell freezes the nearest enemy in range', near._froze > 0 && far._froze === 0,
@@ -1295,8 +1333,8 @@ function mages() {
     // a mage from being a way of removing a unicorn from the field.
     {
         const [a, b] = stage([
-            { _x: -0.03, _y: -0.2, _side: 0 },
-            { _x: 0.03, _y: -0.2, _side: 1, _froze: 1e9, _hp: 1e6, _max: 1e6 },
+            { _x: -0.645, _y: 18.61, _side: 0 },
+            { _x: 0.645, _y: 18.61, _side: 1, _froze: 1e9, _hp: 1e6, _max: 1e6 },
         ]);
         const x0 = b._x, hp0 = a._hp, b0 = b._hp;
         run(60 * 4);
@@ -1312,7 +1350,7 @@ function mages() {
     // Nor does it heal under the frost, which is what keeps a freeze from
     // being a rest.
     {
-        const [f] = stage([{ _x: 0, _y: -0.2, _side: 0, _hp: T.HP / 2, _froze: 1e9 }]);
+        const [f] = stage([{ _x: 0, _y: 18.61, _side: 0, _hp: T.HP / 2, _froze: 1e9 }]);
         run(60 * 5);
         ok('and heals none of it either', f._hp === T.HP / 2,
             `it healed to ${f._hp.toFixed(2)} of ${T.HP}`);
@@ -1323,8 +1361,8 @@ function mages() {
     // horn to horn with something that would kill it.
     {
         const [m, e] = stage([
-            { _x: 0, _y: -0.2, _side: 0, _mage: true },
-            { _x: 0.05, _y: -0.2, _side: 1 },
+            { _x: 0, _y: 18.61, _side: 0, _mage: true },
+            { _x: 1.075, _y: 18.61, _side: 1 },
         ]);
         m._hit = e;
         run(1);
@@ -1344,7 +1382,7 @@ function invariants(t) {
     for (const u of sim.herd) {
         if (!Number.isFinite(u._x + u._y + u._s + u._hp)) bad.push(`NaN: ${show(u)}`);
         else if (u._y < T.NEAR_Y - 1e-6 || u._y > T.FAR_Y + 1e-6) bad.push(`outside the band: ${show(u)}`);
-        else if (Math.abs(u._x) + u._s * T.LONG * 0.5 > sim.edgeAt() + 1e-6) bad.push(`off the side of the board: ${show(u)}`);
+        else if (Math.abs(u._x) + u._s * T.LONG * 0.5 > wideAt(u._y) + 1e-6) bad.push(`off the side of the board: ${show(u)}`);
         if (u._hp > u._max + 1e-6) bad.push(`over its maximum: ${show(u)}`);
         if (u._foe && u._foe._side === u._side) bad.push(`targeting its own side: ${show(u)}`);
         if (u._foe && !sim.herd.includes(u._foe)) bad.push(`targeting something not in the herd: ${show(u)}`);

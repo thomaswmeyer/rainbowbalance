@@ -42,17 +42,24 @@ function step(dt) {
         state._elapsed += dt;
         sim.step(dt);
     }
-    for (const un of sim.fallen) burst(un._x, un._y, un._s, un._side);
+    for (const un of sim.fallen) burst(...sim.project(un._x, un._y, un._s), un._side);
     sim.fallen.length = 0;
-    for (const un of sim.promoted) shower(un._x, un._y, un._s);
+    for (const un of sim.promoted) shower(...sim.project(un._x, un._y, un._s));
     sim.promoted.length = 0;
     // A castle taken gets the same white shower a promotion does, at the
     // size of the castle rather than of a unicorn.
-    for (const c of sim.captured) shower(c._x, c._y, 0.1);
+    for (const c of sim.captured) shower(...sim.project(c._x, c._y, 2));
     sim.captured.length = 0;
     // And a spell is a streak of frost from the horn that cast it to whatever
     // is now standing still.
-    for (const c of sim.casts) bolt(c._x, c._y, c._tx, c._ty, c._s);
+    for (const c of sim.casts) {
+        // A spell goes horn to head, and the plain the spell was cast on has
+        // no height on it. Each end is lifted by its own drawn size once the
+        // camera has said how big that is.
+        const [ax, ay, as] = sim.project(c._x, c._y, c._s);
+        const [bx, by, bs] = sim.project(c._tx, c._ty, c._ts);
+        bolt(ax, ay + as, bx, by + bs * 0.6, as);
+    }
     sim.casts.length = 0;
     stepSparks(dt);
     if (!state._manual) state._balance = sim.balance;
@@ -162,9 +169,13 @@ function drawScene(balance) {
         // would have been does not matter; 0 keeps the branch cheap. The
         // claim only goes over a castle that is being fought for: full or
         // empty and nobody is pressing one, so there is nothing to show.
-        _draw: () => drawCastle(c._x, c._y, Math.max(c._side, 0), c._cap / sim.CAP,
+        // Where it stands on the ground, put through the one camera. The
+        // scale is what the same castle would draw at under the bow's feet,
+        // which is what sizes the claim bar over it.
+        _draw: () => drawCastle(...sim.project(c._x, c._y, 1).slice(0, 2),
+            Math.max(c._side, 0), c._cap / sim.CAP,
             sim.winner < 0 && c._cap > 0 && c._cap < sim.CAP ? c._cap / sim.CAP : -1,
-            c._side, sim.depthAt(c._y), balance),
+            c._side, sim.FOOT / c._y, balance),
     }));
     // The bow belongs at the depth of its own feet, not at the deepest
     // castle's: it is drawn over the herd behind that line and under the
