@@ -89,7 +89,7 @@ function stage(them) {
             _x: 0, _y: 18.61, _s: 1.041, _side: 0, _face: 1, _ph: 0, _lane: 0,
             _hp: T.HP, _max: T.HP, _lvl: 0, _scale: 0.5,
             _fight: 0, _rest: false, _foe: null, _att: 0, _eng: false, _hit: null,
-            _mage: false, _cast: 0, _froze: 0,
+            _mage: false, _cast: 0, _held: 0, _block: false,
             ...t,
         });
         // The trailing point starts under it, or it would read as walking
@@ -408,7 +408,8 @@ function units() {
             { _x: 0, _y: 18.61, _side: 0 },
             { _x: 1.075, _y: 18.61, _side: 1, _hp: 1e6, _max: 1e6 },
         ]);
-        a._ice = T.FREEZE;
+        a._held = T.FREEZE;
+        a._block = true;
         const x = a._x, y = a._y, hp = b._hp;
         run(60 * 3);
         ok('a unicorn under the ice does not move', Math.hypot(a._x - x, a._y - y) < 1e-9,
@@ -419,12 +420,13 @@ function units() {
     }
     {
         const [a] = stage([{ _x: 0, _y: 18.61, _side: 0 }]);
-        a._ice = T.FREEZE;
+        a._held = T.FREEZE;
+        a._block = true;
         run(60 * (T.FREEZE - 1));
-        const still = a._ice > 0;
+        const still = a._held > 0;
         run(60 * 2);
         ok('and the block melts off it in the time it should',
-            still && a._ice <= 0, `it had ${a._ice.toFixed(1)}s left`);
+            still && a._held <= 0, `it had ${a._held.toFixed(1)}s left`);
     }
     {
         // It is in the way while it is under there: whoever meets it goes
@@ -433,7 +435,8 @@ function units() {
             { _x: 0, _y: 18.61, _side: 0 },
             { _x: -4.298, _y: 18.61, _side: 1, _hp: 1e6, _max: 1e6 },
         ]);
-        a._ice = T.FREEZE;
+        a._held = T.FREEZE;
+        a._block = true;
         const x = a._x, y = a._y;
         run(60 * 4);
         ok('and nothing shoves the block aside', Math.hypot(a._x - x, a._y - y) < 1e-9,
@@ -1320,8 +1323,8 @@ function mages() {
             { _x: T.KEEP + 1, _y: 18.61, _side: 1, _hp: 1e6, _max: 1e6 },
         ]);
         run(1);
-        ok('a spell freezes the nearest enemy in range', near._froze > 0 && far._froze === 0,
-            `near ${near._froze.toFixed(2)}, far ${far._froze.toFixed(2)}`);
+        ok('a spell freezes the nearest enemy in range', near._held > 0 && far._held === 0,
+            `near ${near._held.toFixed(2)}, far ${far._held.toFixed(2)}`);
         ok('and is reported once, from the horn to what it was aimed at',
             sim.casts.length === 1 && Math.abs(sim.casts[0]._tx - near._x) < 1e-9,
             `${sim.casts.length} cast`);
@@ -1329,7 +1332,7 @@ function mages() {
         // A whole freeze goes by. Only the one cooldown has come round in it,
         // so only the one spell.
         run(Math.round(60 * T.FREEZE));
-        ok('the frost lets go after its time', near._froze === 0);
+        ok('the frost lets go after its time', near._held === 0);
         ok('and the spell comes round no faster than the cooldown',
             sim.casts.length <= Math.ceil(T.FREEZE / T.COOL),
             `${sim.casts.length} casts in ${T.FREEZE}s of a ${T.COOL}s cooldown`);
@@ -1341,7 +1344,7 @@ function mages() {
     {
         const [a, b] = stage([
             { _x: -0.645, _y: 18.61, _side: 0 },
-            { _x: 0.645, _y: 18.61, _side: 1, _froze: 1e9, _hp: 1e6, _max: 1e6 },
+            { _x: 0.645, _y: 18.61, _side: 1, _held: 1e9, _hp: 1e6, _max: 1e6 },
         ]);
         const x0 = b._x, hp0 = a._hp, b0 = b._hp;
         run(60 * 4);
@@ -1357,7 +1360,7 @@ function mages() {
     // Nor does it heal under the frost, which is what keeps a freeze from
     // being a rest.
     {
-        const [f] = stage([{ _x: 0, _y: 18.61, _side: 0, _hp: T.HP / 2, _froze: 1e9 }]);
+        const [f] = stage([{ _x: 0, _y: 18.61, _side: 0, _hp: T.HP / 2, _held: 1e9 }]);
         run(60 * 5);
         ok('and heals none of it either', f._hp === T.HP / 2,
             `it healed to ${f._hp.toFixed(2)} of ${T.HP}`);
@@ -1474,7 +1477,7 @@ function e2e() {
             for (const u of sim.herd) {
                 if (u._hp <= 0) continue;
                 st.living++;
-                if (u._froze > 0) st.frozen++;
+                if (u._held > 0 && !u._block) st.frozen++;
             }
             st.worst = Math.max(st.worst, worstOverlap().worst);
             // How much of the field the fight is actually spread over. The

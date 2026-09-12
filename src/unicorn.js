@@ -501,11 +501,16 @@ export function drawUnicorns(herd, from = 0, y = -Infinity) {
         // ground and the castles are drawn with.
         const [px, py, ps] = project(un._x, un._y, un._s);
         _batch.push(px, py, un._face * ps, un._ph, un._side, un._fight,
-            un._hp > 0 ? un._hp / un._max : un._hp, un._ice / FREEZE,
+            un._hp > 0 ? un._hp / un._max : un._hp,
+            // The one hold, told the two ways it is drawn: the player's ice is
+            // a block around the animal, a mage's frost is the animal itself
+            // gone pale. Never both at once, which is why the block can be
+            // drawn over the whole of it with no frost underneath to hide.
+            un._block ? un._held / FREEZE : 0,
             // A fighter has no cape, and says so with a negative; a mage sends
             // how charged its spell is in the same float.
             un._mage ? 1 - Math.min(1, un._cast / COOL) : -1,
-            Math.min(1, un._froze / FROST));
+            un._block ? 0 : Math.min(1, un._held / FROST));
     }
     gl.useProgram(_prog);
     _u({ uRes: [width, height], uTime: time });

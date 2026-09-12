@@ -284,7 +284,10 @@ export const COOL = 3.5, FROST = 1.6;
  * @property {number} _ph gallop phase
  * @property {number} _lane its own depth to walk a castle down at, so that a
  *   column marching on one arrives on a front rather than in single file
- * @property {number} _ice seconds of the block left over it, 0 when free
+ * @property {number} _held seconds of the hold left on it, 0 when free
+ * @property {boolean} _block the hold is the player's block of ice rather
+ *   than a mage's frost: it is drawn as a block, the crowd cannot shift it,
+ *   and the animal inside it settles onto its feet
  * @property {number} _ox where it stood when the last step ended, and
  * @property {number} _oy the same: the ground it covered since is what its
  *   legs are driven by, so a unicorn that is held still does not walk on the
@@ -307,7 +310,6 @@ export const COOL = 3.5, FROST = 1.6;
  * @property {Unicorn|null} _hit who landed a blow on it since its last step
  * @property {boolean} _mage it wears the cape: it casts rather than fights
  * @property {number} _cast seconds until its spell comes round again
- * @property {number} _froze seconds of frost left on it
  */
 
 /** @type {Unicorn[]} */
@@ -435,7 +437,8 @@ function spawn(castle) {
         _lane: (rnd() - 0.5) * LANE,
         _px: castle._x, _py: y,
         _ox: castle._x, _oy: y,
-        _ice: 0,
+        _held: 0,
+        _block: false,
         _hp: HP,
         _max: HP,
         _lvl: 0,
@@ -448,7 +451,6 @@ function spawn(castle) {
         _hit: null,
         _mage: mage,
         _cast: COOL,
-        _froze: 0,
     });
 }
 
@@ -466,6 +468,30 @@ function aim(un, foe) {
     if (un._foe && un._hp > 0 && un._foe._hp > 0) un._foe._att--;
     un._foe = foe;
     if (foe && un._hp > 0 && foe._hp > 0) foe._att++;
+}
+
+/**
+ * Hold a unicorn still: the player's block of ice, or a mage's frost. One
+ * state for the two, because they are one effect — a unicorn that cannot
+ * walk, cannot swing, cannot heal and cannot cast, and is still a target
+ * standing in everyone's way while it lasts.
+ *
+ * What the block flag carries is the two things that are not the same, both
+ * of them deliberate and both of them written down in the README: a block of
+ * ice is not shoved by the crowd where the frost leaves the animal in it, and
+ * the block is what the renderer draws around the animal rather than over it.
+ *
+ * A hold is never cut short by a shorter one, which is what keeps a mage
+ * casting into the player's ice from turning twenty seconds of block into a
+ * second and a half of frost.
+ * @param {Unicorn} un
+ * @param {number} secs
+ * @param {boolean} block the player's ice, rather than a mage's frost
+ */
+function holdStill(un, secs, block) {
+    if (secs <= un._held) return;
+    un._held = secs;
+    un._block = block;
 }
 
 /**
@@ -614,34 +640,40 @@ export function step(dt) {
             un._fight = Math.max(0, un._fight - dt * 4);
             continue;
         }
-        // Under the ice: it does nothing and nothing of its own changes,
-        // beyond the block melting off it. It keeps whatever it was after,
-        // to take that up again when it is free.
-        if (un._ice > 0) {
-            un._ice -= dt;
+        // Held, by the ice or by the frost: it does nothing and nothing of
+        // its own changes, beyond the hold wearing off it. It keeps whatever
+        // it was after, to take that up again when it is free — and it is
+        // still a target, still presses whatever claim it was standing on,
+        // and still stands in everyone's way, which is the whole of what a
+        // mage is worth.
+        //
+        // The pose is the one thing the block does differently, and it is the
+        // length of the two that asks for it. Twenty seconds of a neck held
+        // at the bottom of a lunge is a statue of a swing; the animal in the
+        // block settles onto its feet instead. A second and a half of frost
+        // is an animal stopped dead, and stopped dead is the stride it was
+        // caught in.
+        if (un._held > 0) {
+            un._held = Math.max(0, un._held - dt);
+            if (!un._held) un._block = false;
             un._eng = false;
-            un._fight += (1 - un._fight) * Math.min(1, dt * 6);
-            // The short way round to zero. Winding a phase of twenty down by
-            // thirds takes it through every lunge on the way, and a unicorn
-            // setting into the ice was throwing its neck up and down a dozen
-            // times on the way to standing still.
-            let ph = un._ph % 6.2832;
-            if (ph > 3.1416) ph -= 6.2832;
-            un._ph = ph * Math.max(0, 1 - dt * 4);
             un._ox = un._x;
             un._oy = un._y;
+            if (un._block) {
+                un._fight += (1 - un._fight) * Math.min(1, dt * 6);
+                // The short way round to zero. Winding a phase of twenty down
+                // by thirds takes it through every lunge on the way, and a
+                // unicorn setting into the ice was throwing its neck up and
+                // down a dozen times on the way to standing still.
+                let ph = un._ph % 6.2832;
+                if (ph > 3.1416) ph -= 6.2832;
+                un._ph = ph * Math.max(0, 1 - dt * 4);
+            }
             continue;
         }
 
         // A target that has fallen frees it.
         if (un._foe && un._foe._hp <= 0) aim(un, null);
-
-        // Frozen: the frost holds it where it stands. It neither walks nor
-        // swings nor heals until it lets go — but it is still a target, still
-        // presses whatever claim it was standing on, and still stands in
-        // everyone's way, which is the whole of what a mage is worth.
-        const frost = un._froze > 0;
-        if (frost) un._froze = Math.max(0, un._froze - dt);
 
         // Struck: it turns on whoever landed the blow, unless it is already
         // horn to horn with someone, in which case it finishes that fight.
@@ -730,7 +762,7 @@ export function step(dt) {
         // one that has queued up behind a full garrison, and is getting no
         // closer for trying, settles where it stands rather than circling
         // the walls for the rest of the watch.
-        const healing = !frost && rest && !un._foe
+        const healing = rest && !un._foe
             && (d <= 1.368 || (arrived && d <= 3.517));
         // Near where it was going and getting no nearer: it stops walking.
         // A crowd round a castle is pushed off the doorstep as fast as it
@@ -755,9 +787,7 @@ export function step(dt) {
         // that every step in a crowd shudders on the spot. It waits instead,
         // and the crowd moves on around it.
         const blocked = gx * dx + gy * dy < 0;
-        if (frost) {
-            // Nothing. The frost is the whole of it.
-        } else if (back) {
+        if (back) {
             // Away from the mark, not backwards along the way it was walking:
             // what it is giving ground to is the enemy, not the castle.
             v = pace;
@@ -787,16 +817,16 @@ export function step(dt) {
         if (march && d < stop * 2) un._lane = un._y - goal._y;
         // Horn to horn; and out of a fight, healing, four times as fast at home.
         un._eng = !!fighting;
-        if (!fighting && !frost) un._hp = Math.min(un._max, un._hp + un._max / HEAL * dt * (healing ? 4 : 1));
+        if (!fighting) un._hp = Math.min(un._max, un._hp + un._max / HEAL * dt * (healing ? 4 : 1));
 
         // The spell. It does not travel and it does not miss: what a mage
         // brings to a fight is not damage but a target that cannot answer for
-        // FROST seconds. Frozen itself, it cannot work either.
-        if (un._mage && !frost) {
+        // FROST seconds. A mage that is held itself never gets this far.
+        if (un._mage) {
             un._cast -= dt;
             if (mark && un._cast <= 0) {
                 un._cast = COOL;
-                mark._froze = FROST;
+                holdStill(mark, FROST, false);
                 // Both ends are the ground each of them stands on, and the
                 // sizes with them. A horn and a head are above the ground,
                 // and nothing on this plain has a height to put them at, so
@@ -831,15 +861,10 @@ export function step(dt) {
         // of it, and walks in again: it is trying the whole time and getting
         // nowhere, and it should be standing there like anything else that
         // has arrived.
-        //
-        // Under the frost none of it moves: face, pose and phase are held
-        // wherever the spell caught them.
         const still = !fighting && arrived;
-        if (!still && !frost && Math.abs(dx) > 0.01) un._face = dx > 0 ? 1 : -1;
-        if (!frost) un._fight += ((fighting || still ? 1 : 0) - un._fight) * Math.min(1, dt * 6);
-        if (frost) {
-            // The lunge is held where the frost caught it.
-        } else if (still) {
+        if (!still && Math.abs(dx) > 0.01) un._face = dx > 0 ? 1 : -1;
+        un._fight += ((fighting || still ? 1 : 0) - un._fight) * Math.min(1, dt * 6);
+        if (still) {
             // The short way round to zero, so the neck does not swing through
             // a whole lunge on the way.
             let ph = un._ph % 6.2832;
@@ -953,7 +978,7 @@ function separate(dt) {
  */
 function walls() {
     for (const un of herd) {
-        if (un._hp <= 0 || un._ice > 0) continue;
+        if (un._hp <= 0 || un._block) continue;
         for (const c of castles) {
             if (un._rest && c._side === un._side) continue;
             const w = c._w;
@@ -982,7 +1007,7 @@ function sweep(sideways) {
             const b = herd[j];
             if (b._hp <= 0) continue;
             // A block of ice does not give way; whoever met it goes round.
-            if (a._ice > 0 && b._ice > 0) continue;
+            if (a._block && b._block) continue;
             const w = (a._s + b._s) * 0.5;
             const oy = w * DEEP - Math.abs(b._y - a._y);
             if (oy <= 0) continue;
@@ -1004,8 +1029,8 @@ function sweep(sideways) {
             let da = -dir * oy * 0.5, db = dir * oy * 0.5;
             // One of them pinned at the edge of the band pushes the other
             // twice as far, and so does one under the ice.
-            if (a._ice > 0 || a._y + da < NEAR_Y || a._y + da > FAR_Y) { db -= da; da = 0; }
-            if (b._ice > 0 || b._y + db < NEAR_Y || b._y + db > FAR_Y) { da -= db; db = 0; }
+            if (a._block || a._y + da < NEAR_Y || a._y + da > FAR_Y) { db -= da; da = 0; }
+            if (b._block || b._y + db < NEAR_Y || b._y + db > FAR_Y) { da -= db; db = 0; }
             const ay = Math.min(FAR_Y, Math.max(NEAR_Y, a._y + da));
             const by = Math.min(FAR_Y, Math.max(NEAR_Y, b._y + db));
             // What the edge of the band ate, they give way sideways instead.
@@ -1053,7 +1078,7 @@ function nearest(x, y) {
  */
 export function freeze(x, y) {
     const un = nearest(x, y);
-    if (un) un._ice = FREEZE;
+    if (un) holdStill(un, FREEZE, true);
 }
 
 export function smite(x, y) {
