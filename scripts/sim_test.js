@@ -45,7 +45,7 @@ const TOUCH = 0.2;
  * A castle's walls are walls: the same ground whatever depth it stands at.
  */
 function inCastle(u, c) {
-    const w = c._w;
+    const w = T.CASTLE_W;
     const ex = w + u._s * T.LONG * 0.5, ey = w + u._s * T.DEEP * 0.5;
     const ox = ex - Math.abs(u._x - c._x), oy = ey - Math.abs(u._y - c._y);
     return ox > 0 && oy > 0 ? Math.min(ox / ex, oy / ey) : 0;

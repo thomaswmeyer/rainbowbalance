@@ -62,7 +62,9 @@ function step(dt) {
     }
     sim.casts.length = 0;
     stepSparks(dt);
-    if (!state._manual) state._balance = sim.balance;
+    // __DEBUG__ is false in the build, so this folds to the assignment on
+    // its own: nothing but debug.js ever sets _manual.
+    if (!__DEBUG__ || !state._manual) state._balance = sim.balance;
 }
 
 /**
@@ -184,8 +186,8 @@ function drawScene(balance) {
     items.push({ _y: sim.FOOT + 1e-3, _draw: () => drawBow(balance) });
     items.sort((a, b) => b._y - a._y);
     let i = 0;
-    for (const it of items) { i = drawUnicorns(sim.herd, i, it._y); it._draw(); }
-    drawUnicorns(sim.herd, i);
+    for (const it of items) { i = drawUnicorns(i, it._y); it._draw(); }
+    drawUnicorns(i);
     drawSparks();
 }
 

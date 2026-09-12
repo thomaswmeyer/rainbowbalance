@@ -344,7 +344,13 @@ void main(){
   // with the horizon on HORIZON. The frame is scaled so the reference's fov
   // means the same thing: its frame is ±1 tall, p is ±0.5.
   vec3 rd = normalize(vec3(-p.x, p.y - HORIZON, -0.5 / tan(radians(FOV))));
-  vec3 ro = vec3(0.0, terrain(vec2(0.0)) + EYE, 0.0);
+  // The eye stands EYE over the ground under it, and the ground under it is
+  // at nought: terrain() is octaves of noise2(), noise2() is hash22() at the
+  // corners of a cell, and hash22(vec2(0.0)) is fract(0.0), which is zero.
+  // Every octave samples the origin, so every octave returns zero. Worth
+  // saying because it is a silent dependency on that hash, and worth doing
+  // because it takes a three-octave terrain out of every fragment here.
+  vec3 ro = vec3(0.0, EYE, 0.0);
   float t = ground(ro, rd);
 
   // ---- what the ray hit, and the sky beyond it ---------------------------
@@ -524,12 +530,6 @@ float noise2(vec2 x){
              mix(hash22(p + vec2(0, 1)).x, hash22(p + vec2(1, 1)).x, f.x), f.y);
 }
 
-float fractal2(vec2 x){
-  float w = 0.7, f = 0.0;
-  for (int i = 0; i < 3; i++) { f += noise2(x) * w; w *= 0.6; x *= 2.0; }
-  return f;
-}
-
 float terrain(vec2 p){
   p *= HILL_FREQ;
   float w = HILL_AMP, f = 0.0;
@@ -557,12 +557,6 @@ float ground(vec3 ro, vec3 rd){
     if (q.y - terrain(q.xz) < 0.05) t = m; else old = m;
   }
   return t;
-}
-
-vec3 normal(vec2 xz){
-  vec2 e = vec2(0.1, 0.0);
-  float h = terrain(xz);
-  return normalize(vec3(h - terrain(xz + e), e.x, h - terrain(xz + e.yx)));
 }
 
 // ---- castles ---------------------------------------------------------------
@@ -688,7 +682,13 @@ void main(){
   float b = clamp(uBalance, -1.0, 1.0);
   float asp = uRes.x / uRes.y;
   vec3 rd = normalize(vec3(-p.x, p.y - HORIZON, -0.5 / tan(radians(FOV))));
-  vec3 ro = vec3(0.0, terrain(vec2(0.0)) + EYE, 0.0);
+  // The eye stands EYE over the ground under it, and the ground under it is
+  // at nought: terrain() is octaves of noise2(), noise2() is hash22() at the
+  // corners of a cell, and hash22(vec2(0.0)) is fract(0.0), which is zero.
+  // Every octave samples the origin, so every octave returns zero. Worth
+  // saying because it is a silent dependency on that hash, and worth doing
+  // because it takes a three-octave terrain out of every fragment here.
+  vec3 ro = vec3(0.0, EYE, 0.0);
 
   // Where the ray through this castle's place on the field meets the
   // terrain, by a few rounds of dropping a plumb line from the last guess.

@@ -330,7 +330,6 @@ export const herd = [];
  * @property {number} _t seconds to its next spawn
  * @property {number} _n recruits it has turned out, for whose turn it is to
  *   wear the cape
- * @property {number} _w half the ground it stands on, at the bow's feet
  */
 
 /**
@@ -346,10 +345,10 @@ export const herd = [];
  * @type {Castle[]}
  */
 export const castles = [
-    { _x: -FOOT_X, _y: FOOT, _from: 0, _side: 0, _cap: CAP, _own: true, _rate: 1, _t: 1, _n: 0, _w: CASTLE_W },
-    { _x: 0, _y: MID_Y, _from: -1, _side: -1, _cap: 0, _own: false, _rate: OUTPOST, _t: 1, _n: 0, _w: CASTLE_W },
-    { _x: FOOT_X, _y: FOOT, _from: 1, _side: 1, _cap: CAP, _own: true, _rate: 1, _t: 1, _n: 0, _w: CASTLE_W },
-    { _x: 0, _y: NEAR_MID_Y, _from: -1, _side: -1, _cap: 0, _own: false, _rate: OUTPOST, _t: 1, _n: 0, _w: CASTLE_W },
+    { _x: -FOOT_X, _y: FOOT, _from: 0, _side: 0, _cap: CAP, _own: true, _rate: 1, _t: 1, _n: 0 },
+    { _x: 0, _y: MID_Y, _from: -1, _side: -1, _cap: 0, _own: false, _rate: OUTPOST, _t: 1, _n: 0 },
+    { _x: FOOT_X, _y: FOOT, _from: 1, _side: 1, _cap: CAP, _own: true, _rate: 1, _t: 1, _n: 0 },
+    { _x: 0, _y: NEAR_MID_Y, _from: -1, _side: -1, _cap: 0, _own: false, _rate: OUTPOST, _t: 1, _n: 0 },
 ];
 
 /** −1 rainicorns ahead … +1 sunicorns ahead, smoothed. */
@@ -1011,7 +1010,7 @@ function walls() {
         if (un._hp <= 0 || un._block) continue;
         for (const c of castles) {
             if (un._rest && c._side === un._side) continue;
-            const w = c._w;
+            const w = CASTLE_W;
             const ex = w + un._s * LONG * 0.5;
             const ey = w + un._s * DEEP * 0.5;
             const dx = un._x - c._x, dy = un._y - c._y;

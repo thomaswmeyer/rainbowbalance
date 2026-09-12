@@ -471,7 +471,7 @@ void main(){
 // The swarms
 // ---------------------------------------------------------------------------
 
-import { MAX, FREEZE, COOL, FROST, project } from './sim.js';
+import { MAX, FREEZE, COOL, FROST, project, herd } from './sim.js';
 
 let _prog, _u, _batch;
 
@@ -486,12 +486,11 @@ export function initUnicorns() {
  * Draw the herd from index `from`, back to front, as far as the first animal
  * whose depth is not behind `y`, and return that index — so main.js can draw
  * something at depth y in between. The sim keeps the herd sorted by depth.
- * @param {import('./sim.js').Unicorn[]} herd
- * @param {number} [from]
+ * @param {number} from
  * @param {number} [y] screen y; everything with _y > y is drawn
  * @returns {number}
  */
-export function drawUnicorns(herd, from = 0, y = -Infinity) {
+export function drawUnicorns(from, y = -Infinity) {
     _batch.clear();
     let i = from;
     for (; i < herd.length && herd[i]._y > y; i++) {

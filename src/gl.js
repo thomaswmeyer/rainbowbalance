@@ -40,12 +40,12 @@ export let height = 1;
  * @returns {boolean}
  */
 export function initGl(canvas) {
+    // Only what is not already the default: an opaque canvas, because the page
+    // behind it is never meant to show through, and a preference for the big
+    // GPU. Multisampling and a throwaway framebuffer are what the spec gives
+    // unasked, and asking costs bytes to be told the same thing.
     gl = /** @type {WebGL2RenderingContext} */ (canvas.getContext('webgl2', {
         alpha: false,
-        antialias: true,
-        // The compositor never needs to read these back, and saying so lets the
-        // driver keep the framebuffer where it is.
-        preserveDrawingBuffer: false,
         powerPreference: 'high-performance',
     }));
     if (!gl) return false;
@@ -127,7 +127,6 @@ export function uniforms(p, names) {
         for (const n in values) {
             const v = values[n];
             const l = loc[n];
-            if (l == null) continue;
             if (typeof v === 'number') gl.uniform1f(l, v);
             else if (v.length === 2) gl.uniform2f(l, v[0], v[1]);
             else if (v.length === 3) gl.uniform3f(l, v[0], v[1], v[2]);
