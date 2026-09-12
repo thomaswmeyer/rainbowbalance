@@ -18,12 +18,16 @@
  * comparison allows a difference of TOLERANCE per channel. Anything a person
  * could see is far outside that.
  *
- * Needs a browser: `npm i -D puppeteer`, or `npm i --no-save puppeteer-core`
- * with PUPPETEER_PATH=puppeteer-core and CHROME_PATH pointing at a Chrome
- * binary. Without one it skips rather than fails, so it never blocks a build.
+ * Needs a browser. puppeteer-core is a devDependency and finding one is this
+ * script's job — the usual places on macOS and Linux, and the browser
+ * Playwright keeps if there is one. CHROME_PATH overrides all of that, and
+ * PUPPETEER_PATH names a different driver to import. Only if there is no
+ * browser anywhere does it skip rather than fail, saying what it looked for:
+ * this check spent an unknown length of time skipping quietly, which is worse
+ * than not having it.
  */
 
-import { readFileSync, readdirSync } from 'fs';
+import { existsSync, readFileSync, readdirSync } from 'fs';
 import { join, dirname, basename } from 'path';
 import { fileURLToPath } from 'url';
 import { minifyGlsl, SHADER_TEMPLATE } from './glsl.js';
@@ -118,11 +122,35 @@ const CASES = [
 ];
 
 async function loadPuppeteer() {
-    for (const spec of [process.env.PUPPETEER_PATH, 'puppeteer']) {
+    for (const spec of [process.env.PUPPETEER_PATH, 'puppeteer', 'puppeteer-core']) {
         if (!spec) continue;
-        try { return (await import(spec)).default; } catch { /* try the next */ }
+        try { return { spec, mod: (await import(spec)).default }; } catch { /* the next */ }
     }
     return null;
+}
+
+/**
+ * Where a Chrome or Chromium is, if there is one to be had. Full puppeteer
+ * brings its own and wants to be left alone about it, which is what undefined
+ * says; puppeteer-core brings none and has to be told.
+ */
+function findChrome() {
+    if (process.env.CHROME_PATH) return process.env.CHROME_PATH;
+    const pw = process.env.PLAYWRIGHT_BROWSERS_PATH;
+    const places = [
+        '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
+        '/Applications/Chromium.app/Contents/MacOS/Chromium',
+        '/usr/bin/google-chrome', '/usr/bin/google-chrome-stable',
+        '/usr/bin/chromium', '/usr/bin/chromium-browser', '/snap/bin/chromium',
+    ];
+    // Playwright keeps its browsers in a directory of versioned names.
+    if (pw && existsSync(pw)) {
+        for (const d of readdirSync(pw).filter((f) => f.startsWith('chromium-'))) {
+            places.push(join(pw, d, 'chrome-linux', 'chrome'),
+                join(pw, d, 'chrome-mac', 'Chromium.app/Contents/MacOS/Chromium'));
+        }
+    }
+    return places.find(existsSync);
 }
 
 // Collect every complete shader in src/. A file that brings its own vertex
@@ -162,17 +190,26 @@ for (const s of shaders) {
     }
 }
 
-const puppeteer = await loadPuppeteer();
-if (!puppeteer) {
-    console.log('[check] SKIPPED — no puppeteer. `npm i -D puppeteer`, or set PUPPETEER_PATH.');
+const driver = await loadPuppeteer();
+if (!driver) {
+    console.log('[check] SKIPPED — no puppeteer. `npm i` should bring puppeteer-core;'
+        + ' or set PUPPETEER_PATH to a driver to import.');
     process.exit(0);
 }
+const puppeteer = driver.mod;
+const chrome = findChrome();
+if (!chrome && driver.spec !== 'puppeteer') {
+    console.log(`[check] SKIPPED — ${driver.spec} found, but no browser to drive.`
+        + ' Install Chrome or Chromium, or point CHROME_PATH at one.');
+    process.exit(0);
+}
+console.log(`[check] ${driver.spec}${chrome ? ` driving ${chrome}` : ''}`);
 
 // Each pair minified, vertex stage included.
 const pairs = shaders.map((s) => ({ ...s, min: minifyGlsl(s.src, s.name), vsMin: minifyGlsl(s.vs, s.name) }));
 
 const browser = await puppeteer.launch({
-    executablePath: process.env.CHROME_PATH || undefined,
+    executablePath: chrome,
     headless: 'new',
     args: ['--no-sandbox', '--disable-dev-shm-usage',
         '--use-gl=swiftshader', '--enable-unsafe-swiftshader'],

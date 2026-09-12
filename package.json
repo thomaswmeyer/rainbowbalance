@@ -15,6 +15,7 @@
   "devDependencies": {
     "@gfx/zopfli": "^1.0.15",
     "esbuild": "^0.28.2",
+    "puppeteer-core": "^25.10.0",
     "roadroller": "^2.1.0",
     "shader-minifier-js": "github:thomaswmeyer/shader-minifier-js#cff30a2653399ff268aed7780b4574f8a77ad923",
     "terser": "^5.51.2"

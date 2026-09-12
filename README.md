@@ -21,10 +21,13 @@ npm run sim      # the fight, headless: unit tests, then ten minutes of play
 npm run sim -- games 100   # a hundred whole games, and who won them
 ```
 
-`check` needs a browser: `npm i -D puppeteer`, or the lighter
-`npm i --no-save puppeteer-core` plus `PUPPETEER_PATH=puppeteer-core` and
-`CHROME_PATH` pointing at a Chrome binary. Without one it skips rather than
-fails.
+`check` needs a browser and goes looking for one itself: `puppeteer-core` comes
+with `npm install`, and Chrome or Chromium is picked up from the usual places
+on macOS and Linux, or from wherever `PLAYWRIGHT_BROWSERS_PATH` keeps one.
+`CHROME_PATH` overrides that, `PUPPETEER_PATH` names a different driver to
+import. Only with no browser anywhere does it skip rather than fail, and it
+says what it looked for — it had been skipping quietly for an unknown length
+of time, which is worse than not having the check.
 
 The shaders are minified by `shader-minifier-js`, the TypeScript port of
 Shader Minifier, pulled from GitHub at a pinned commit (it is not on npm).
