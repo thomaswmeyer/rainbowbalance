@@ -7,8 +7,9 @@
  * last, over everything, premultiplied.
  *
  * Instance data, six floats: x, y, size, age 0…1; side; u, a place along the
- * mane's hue sweep, −1 for the body colour, −2 for white, or −3 for the ice a
- * spell is made of.
+ * mane's hue sweep, or one of the flat colours below it: −1 the body colour,
+ * −2 white, and then one for each of the three spells — −3 a frost, −4 a
+ * smite, −5 a rage.
  */
 
 import { g, program, uniforms, gl, time, width, height, Batch } from './gl.js';
@@ -48,7 +49,9 @@ vec3 hsv(float h, float s, float v){
 // The unicorn shader's mane colours, and its body colours with the
 // rainicorn's lifted out of the near-black, which does not read as a spark.
 vec3 colour(float u, float side, float t){
-  if (u < -2.5) return vec3(0.45, 0.82, 1.0);     // a spell's frost
+  if (u < -4.5) return vec3(1.0, 0.31, 0.10);     // a rage, the red it beats
+  if (u < -3.5) return vec3(1.0, 0.86, 0.42);     // a smite, hot gold
+  if (u < -2.5) return vec3(0.45, 0.82, 1.0);     // a frost
   if (u < -1.5) return vec3(1.0);                 // a promotion's white shower
   if (u < 0.0) return mix(vec3(0.99, 0.95, 0.88), vec3(0.55, 0.40, 0.75), side);
   vec3 sun = hsv(fract(0.95 + u * 0.45 + t * 0.03), 0.7, 1.0);
@@ -127,8 +130,11 @@ export function shower(x, y, s) {
  * @param {number} x1 what it is aimed at
  * @param {number} y1
  * @param {number} s the caster's size
+ * @param {number} kind which spell: 0 a frost, 1 a smite, 2 a rage. They are
+ *   laid the same way and only the colour of them differs — a hold, a blow
+ *   and a blessing all being one streak from a horn to something.
  */
-export function bolt(x0, y0, x1, y1, s) {
+export function bolt(x0, y0, x1, y1, s, kind) {
     const k = s / NEAR_S;
     const dx = x1 - x0, dy = y1 - y0;
     for (let i = 0; i <= 24 && _sparks.length < CAP; i++) {
@@ -144,7 +150,9 @@ export function bolt(x0, y0, x1, y1, s) {
             _vx: dx * 0.35, _vy: dy * 0.35 + 0.05 * k,
             _s: (0.005 + Math.random() * 0.005) * k,
             _age: 0, _life: 0.3 + Math.random() * 0.25,
-            _side: 0, _u: -3,
+            // The three spells sit next to each other below the body colour,
+            // so which one it is is the only arithmetic here.
+            _side: 0, _u: -3 - kind,
         });
     }
 }

@@ -44,9 +44,14 @@
  *   aState.w   the cape: −1 for a fighter, which has none, and 0…1 for a mage,
  *              which is how charged the spell on its horn is. One float for
  *              both because the sign already says which animal this is
- *   aFrost     a mage's frost, 0…1: how much of its freeze is still on it.
- *              Not the same thing as the ice, and the two can both be on one
- *              animal — the player's block over a unicorn a mage has frozen
+ *   aFrost     what a wizard has put on it, and which way round says which:
+ *              0…1 is a mage's frost, how much of the freeze is still on it,
+ *              and −1…0 is a rage, how much of that is left. One float for
+ *              the two the same way aState.w carries the cape, and the frost
+ *              wins it when a berserker is frozen — an animal that cannot
+ *              move is the more important of the two to show. Frost is not
+ *              the same thing as the ice, and those two can both be on one
+ *              animal: the player's block over a unicorn a mage has frozen
  *
  * Who is where, and what they are doing, is sim.js's business; this file
  * only draws what it is handed.
@@ -416,6 +421,17 @@ void main(){
     c.rgb = mix(c.rgb, iceC * (0.95 + 0.16 * cr) * c.a, 0.62 * vFrost);
   }
 
+  // In a rage: the same float the other way up. The neck is already going at
+  // twice the speed, which is the half of it anybody reads first; this is so
+  // that a berserker standing in a crowd of forty can be picked out of it.
+  // It beats rather than holds, because a colour that sits still on an animal
+  // reads as what the animal is and a colour that pulses reads as what has
+  // been done to it.
+  else if (vFrost < 0.0) {
+    float beat = 0.72 + 0.28 * sin(uTime * 17.0);
+    c.rgb = mix(c.rgb, vec3(1.0, 0.31, 0.10) * beat * c.a, -0.55 * vFrost);
+  }
+
   // Health, over the horn, while it is hurt. It fills left to right on the
   // screen whichever way the animal faces.
   if (vHp > 0.0 && vHp < 0.999) {
@@ -472,7 +488,7 @@ void main(){
 // The swarms
 // ---------------------------------------------------------------------------
 
-import { MAX, FREEZE, COOL, FROST, project, herd } from './sim.js';
+import { MAX, FREEZE, COOL, FROST, RAGE, project, herd } from './sim.js';
 
 let _prog, _u, _batch;
 
@@ -510,7 +526,10 @@ export function drawUnicorns(from, y = -Infinity) {
             // A fighter has no cape, and says so with a negative; a mage sends
             // how charged its spell is in the same float.
             un._mage ? 1 - Math.min(1, un._cast / COOL) : -1,
-            un._block ? 0 : Math.min(1, un._held / FROST));
+            // The frost, or a rage the other way up. Never both: what is
+            // held is not fighting, and the frost is what the float says.
+            un._block ? 0
+                : un._held > 0 ? Math.min(1, un._held / FROST) : -un._rage / RAGE);
     }
     gl.useProgram(_prog);
     _u({ uRes: [width, height], uTime: time });

@@ -7,8 +7,9 @@
  * and a second bow appears.
  *
  * The fight itself is sim.js: castles spawn fighters, fighters pair off and
- * fight horn to horn, and balance is who has more left. What is here is the
- * loop, the page, the clock, the drawing order and the player's one verb.
+ * fight horn to horn, both sides research as they go, and balance is who has
+ * more left. What is here is the loop, the page, the clock, the panel of what
+ * the two sides have learned, the drawing order and the player's one verb.
  */
 
 import { initGl, resize, setTime } from './gl.js';
@@ -50,17 +51,29 @@ function step(dt) {
     // size of the castle rather than of a unicorn.
     for (const c of sim.captured) shower(...sim.project(c._x, c._y, 2));
     sim.captured.length = 0;
-    // And a spell is a streak of frost from the horn that cast it to whatever
-    // is now standing still.
+    // And a spell is a streak from the horn that cast it to whatever it was
+    // cast at, in the colour of which spell it was: frost blue for a hold,
+    // gold for a bolt, red for a rage put on one of the caster's own.
     for (const c of sim.casts) {
         // A spell goes horn to head, and the plain the spell was cast on has
         // no height on it. Each end is lifted by its own drawn size once the
         // camera has said how big that is.
         const [ax, ay, as] = sim.project(c._x, c._y, c._s);
         const [bx, by, bs] = sim.project(c._tx, c._ty, c._ts);
-        bolt(ax, ay + as, bx, by + bs * 0.6, as);
+        bolt(ax, ay + as, bx, by + bs * 0.6, as, c._k);
     }
     sim.casts.length = 0;
+    // A power bought is a white shower over every castle its side holds —
+    // the same one a promotion and a capture get, and for the same reason.
+    // It is the only thing on the field that says the run just got harder,
+    // and it wants saying somewhere other than a panel in the corner.
+    for (let s = 0; s < 2; s++) {
+        if (sim.tech[s]._got === _powers[s]) continue;
+        _powers[s] = sim.tech[s]._got;
+        for (const c of sim.castles) {
+            if (c._side === s && c._own) shower(...sim.project(c._x, c._y, 2));
+        }
+    }
     stepSparks(dt);
     // __DEBUG__ is false in the build, so this folds to the assignment on
     // its own: nothing but debug.js ever sets _manual.
@@ -82,8 +95,12 @@ function smite(cx, cy) {
     sim.strike(x, y, !!power);
 }
 
+/** How many powers each side had last step, so a new one can be noticed. */
+const _powers = [0, 0];
+
 export function reset() {
     state._balance = state._elapsed = 0;
+    _powers[0] = _powers[1] = 0;
     // A fresh seed, or every run would be the one run.
     sim.reset(Date.now() & 0x7fffffff);
 }
@@ -107,9 +124,17 @@ document.body.innerHTML =
     + '#p{position:fixed;left:12px;top:12px;display:flex;gap:10px;user-select:none}'
     + '#p b{width:64px;height:64px;display:grid;place-content:center;font-size:34px;'
     + 'border-radius:14px;background:#0006;border:3px solid #fff3;cursor:pointer}'
-    + '#p b.on{background:#fff3;border-color:#fff}</style>'
+    + '#p b.on{background:#fff3;border-color:#fff}'
+    + '#r{position:fixed;left:12px;bottom:12px;display:grid;'
+    + 'grid-template-columns:repeat(5,32px) auto;gap:4px 5px;align-items:center;'
+    + 'font:15px system-ui,sans-serif;color:#fff;text-shadow:0 1px 2px #000c;'
+    + 'user-select:none;pointer-events:none}'
+    + '#r u{text-decoration:none;text-align:center;opacity:.75}'
+    + '#r i{height:8px;border-radius:4px;background:#fff2}'
+    + '#r b{letter-spacing:3px;padding-left:4px}</style>'
     + '<canvas id=c></canvas><div id=t></div>'
-    + '<div id=p><b>\u2728</b><b>\u2744\ufe0f</b></div><div id=o></div>';
+    + '<div id=p><b>\u2728</b><b>\u2744\ufe0f</b></div>'
+    + '<div id=r></div><div id=o></div>';
 
 // --- the clock --------------------------------------------------------------
 
@@ -152,6 +177,57 @@ function showClock() {
     _shownPace = speed;
     clock.textContent = formatClock(s)
         + (speed === 1 ? '' : speed ? ` ×${speed}` : ' ‖');
+}
+
+// --- what the two sides have learned ----------------------------------------
+
+/**
+ * The panel, bottom left: a row for each side, five bars of how far it has
+ * got in each of the five areas, and the powers it has bought at the end of
+ * the row. A player who cannot see this is being asked to guess why the side
+ * that was level a minute ago is walking through the other one.
+ *
+ * The glyphs across the top are the areas in sim.js's own order — how fast it
+ * walks, how fast it swings, how far it sees, how far it reaches, how fast
+ * its castles fill — and the ones at the end of a row are the god's own two
+ * hands and then a third the god does not have, which is the whole joke of
+ * the tech tree: the sides are learning this from watching the player.
+ */
+// The three that are not emoji by default get the selector that makes them
+// so, which is what the snowflake on the freezing hand already carries: a
+// text-presentation glyph in a row of emoji reads as a missing character.
+const AREAS = ['\u{1F3C3}', '\u2694\ufe0f', '\u{1F441}\ufe0f', '\u2194\ufe0f', '\u{1F3F0}'];
+const POWERS = ['\u2744\ufe0f', '\u2728', '\u{1F525}'];
+/** Sandstone and obsidian, near enough that a row is read without a label. */
+const STONE = ['#ffcf6b', '#b48ce8'];
+
+const board = /** @type {HTMLElement} */ (document.getElementById('r'));
+board.innerHTML = AREAS.map((g) => `<u>${g}</u>`).join('') + '<u></u>'
+    + '<i></i><i></i><i></i><i></i><i></i><b></b>'.repeat(2);
+const pips = /** @type {HTMLElement[]} */ ([...board.querySelectorAll('i')]);
+const learned = /** @type {HTMLElement[]} */ ([...board.querySelectorAll('b')]);
+
+let _panel = '';
+
+/**
+ * Redraw it, and only when there is something new on it. Research moves every
+ * step, so without the check this would rewrite ten inline styles sixty times
+ * a second for a picture that changes about once.
+ */
+function showTech() {
+    const key = sim.tech.map((t) => t._p.map((p) => p | 0) + '' + t._got) + '';
+    if (key === _panel) return;
+    _panel = key;
+    sim.tech.forEach((t, s) => {
+        t._p.forEach((p, i) => {
+            // The bar is the effect and not the points. They are not the same
+            // shape — the points go in on a square root — and what the other
+            // side has to live with is the effect.
+            pips[s * 5 + i].style.background = `linear-gradient(90deg,${STONE[s]} `
+                + `${Math.sqrt(p / sim.FULL) * 100}%,#fff2 0)`;
+        });
+        learned[s].textContent = POWERS.slice(0, t._got).join('');
+    });
 }
 
 // --- drawing ----------------------------------------------------------------
@@ -291,6 +367,7 @@ if (!initGl(canvas)) {
         resize(canvas);
         drawScene(state._balance);
         showClock();
+        showTech();
         showWinner();
     });
 }
