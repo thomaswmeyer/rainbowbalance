@@ -129,7 +129,7 @@ stages.push(['roadroller', packed.length]);
 //    the canvas and the styling, so that they are packed rather than merely
 //    deflated. The body tag is there so document.body exists when it runs.
 if (packed.includes('</script')) fail('packed payload contains </script — it would end the tag early');
-const html = '<!doctype html><meta charset=utf-8><title>Endless Rainbows</title><body><script>'
+const html = '<!doctype html><meta charset=utf-8><title>Rainbow Balance</title><body><script>'
     + packed + '</script>';
 writeFileSync(join(OUT, 'index.html'), html);
 

@@ -1,5 +1,5 @@
 /**
- * Endless Rainbows — boot, loop, and the one rule the whole game is about.
+ * Rainbow Balance — boot, loop, and the one rule the whole game is about.
  *
  * Two swarms fight; the player never commands either. What the player does is
  * keep them level, and the rainbow is the readout: it fades from whichever

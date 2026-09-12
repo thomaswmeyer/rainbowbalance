@@ -1,4 +1,4 @@
-# Endless Rainbows
+# Rainbow Balance
 
 A js13kGames 2026 entry — theme **Unicorns and Rainbows**. Submissions close
 13 September 2026. The whole game must fit in a 13,312-byte zip, with no
