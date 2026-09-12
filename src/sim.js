@@ -167,7 +167,7 @@ const MOB = 3;
  * unicorn can reach is not scaled by the depth it stands at, and a spell is
  * reach.
  */
-const MAGE_EVERY = 4, MAGE_V = 0.75, MARK = 1;
+const MAGE_EVERY = 4, MAGE_V = 0.75;
 const CAST = 0.3, KEEP = 0.19;
 export const COOL = 3.5, FREEZE = 1.6;
 
@@ -352,11 +352,7 @@ function seek(un, look, crowd) {
     let best = null, bd = look * look;
     for (const e of herd) {
         if (e._side === un._side || e._hp <= 0 || e._att >= crowd) continue;
-        // A fighter picks the cape out of a crowd: a mage counts as MARK of
-        // its real distance away — nearer than it is, and seen from further
-        // off — so the one unicorn on the field that cannot fight back is the
-        // one most likely to be come for.
-        const d = ((e._x - un._x) ** 2 + (e._y - un._y) ** 2) * (e._mage ? MARK : 1);
+        const d = (e._x - un._x) ** 2 + (e._y - un._y) ** 2;
         if (d < bd) { bd = d; best = e; }
     }
     return best;
