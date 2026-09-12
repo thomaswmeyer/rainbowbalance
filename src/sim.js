@@ -377,10 +377,24 @@ export let balance = 0;
 
 /** Who fell this step, for main.js to make sparks of. Drained by the reader. */
 export const fallen = [];
+/** Who came out of a gate this step, likewise. */
+export const spawned = [];
 /** Who came up a level this step, likewise. */
 export const promoted = [];
 /** Which castles came up to a full claim this step, likewise. */
 export const captured = [];
+/**
+ * And which had the claim on them broken back to nobody's — the other half of
+ * taking a castle, and the half that is a loss for whoever held it.
+ */
+export const broken = [];
+/**
+ * Who was struck this step. A blow is the commonest thing that happens on the
+ * field by a wide margin, so this is the whole of what is kept about one: who
+ * took it, which is where on the picture it landed.
+ * @type {Unicorn[]}
+ */
+export const blows = [];
 /**
  * The spells cast this step, for main.js to draw the streak of: from the
  * caster's horn to whoever it was aimed at. The freeze itself has already
@@ -424,8 +438,11 @@ export function reset(s = 7) {
     seed = s;
     herd.length = 0;
     fallen.length = 0;
+    spawned.length = 0;
     promoted.length = 0;
     captured.length = 0;
+    broken.length = 0;
+    blows.length = 0;
     casts.length = 0;
     winner = -1;
     balance = 0;
@@ -450,7 +467,7 @@ function spawn(castle) {
     // sides get the same one recruit in four, and the run stays reproducible
     // down to which of them it is.
     const mage = ++castle._n % MAGE_EVERY === 0;
-    herd.push({
+    const un = {
         _x: castle._x + (rnd() - 0.5) * 1.954,
         _y: y, _s: BODY * SCALE0,
         _side: castle._side,
@@ -472,7 +489,9 @@ function spawn(castle) {
         _hit: null,
         _mage: mage,
         _cast: COOL,
-    });
+    };
+    herd.push(un);
+    spawned.push(un);
 }
 
 /**
@@ -599,7 +618,7 @@ function capture(dt) {
             // Breaking someone else's claim. At nothing the castle is
             // nobody's, and stops spawning until a claim is full again.
             c._cap -= BREAK * force * dt;
-            if (c._cap <= 0) { c._cap = 0; c._side = -1; c._own = false; }
+            if (c._cap <= 0) { c._cap = 0; c._side = -1; c._own = false; broken.push(c); }
         } else {
             // Building one's own: on an unclaimed castle, or back up on one
             // of its own that an enemy left half broken.
@@ -923,6 +942,7 @@ function decide(dt) {
                 // of the herd before anyone noticed it had fallen.
                 un._foe._hp = Math.max(0, un._foe._hp - DMG * (0.75 + 0.5 * rnd()));
                 un._foe._hit = un;
+                blows.push(un._foe);
             }
             un._ph = next;
         } else {
@@ -1129,10 +1149,13 @@ function nearest(x, y) {
  * @param {number} x on the screen, the rainbow's units
  * @param {number} y
  * @param {boolean} ice the freezing hand, rather than the smiting one
+ * @returns {Unicorn|null} who it landed on, so the caller can put a sound and
+ *   a light where it happened, or null if the field was empty
  */
 export function strike(x, y, ice) {
     const un = nearest(x, y);
-    if (!un) return;
+    if (!un) return null;
     // Zero, not below: zero is where the fade starts.
     if (ice) holdStill(un, FREEZE, true); else un._hp = 0;
+    return un;
 }
