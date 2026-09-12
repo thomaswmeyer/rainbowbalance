@@ -64,9 +64,9 @@ const INSTANCES = {
     // over the whole animal, so the one case that is under a block is the one
     // case with no cape and no frost to hide.
     unicorn: (c) => [0, -0.14, 0.62, c.uTime * 1.7, c.uBalance > 0 ? 1 : 0, 0.6, 0.45,
-        c.uIntegrity > 0.8 ? 0.7 : 0,
+        c.spell > 0.8 ? 0.7 : 0,
         c.uBalance ? Math.abs(c.uBalance) : -1,
-        c.uIntegrity < 0.5 ? 1 - c.uIntegrity : 0],
+        c.spell < 0.5 ? 1 - c.spell : 0],
     // x, y; size; age; side; place on the mane's hue sweep, or one of the
     // three colours behind it: −1 the body, −2 a promotion's white, −3 the
     // frost of a spell.
@@ -87,19 +87,34 @@ const attribsOf = (vs) =>
         .sort((a, b) => a.loc - b.loc);
 
 /**
- * Uniform values to sweep. Time is fixed so both renders see the same frame.
- * uCastle is the castle pass's: where one stands on the field in the herd's
- * x and y, the stone of whoever holds it, and how much of a claim there is on
- * it. Both stones, a castle deep in the field held by nobody, and one part
- * way through changing hands are all worth a case, since each is a branch of
- * its own in the shader and depth is what sets its size.
+ * The cases to sweep. Time is fixed so both renders see the same frame.
+ *
+ * A key beginning with `u` is a uniform and is set as one; anything else is
+ * here only to vary the instance samples above, and is not offered to the
+ * shader. `spell` is one of those — it was a `uIntegrity` uniform once, and
+ * no shader has declared that in a long while.
+ *
+ * uCastle is the castle pass's: where one stands, on the screen and through
+ * the same camera the game puts it through, the stone of whoever holds it,
+ * and how much of a claim there is on it. There are four castles — a home one
+ * under each foot of the bow, one far up the field and one in the foreground
+ * — and each depth is a different size on the screen, so each gets a case.
+ * Both stones, a castle held by nobody, and one part way through changing
+ * hands are each a branch of their own in the shader besides.
  */
 const CASES = [
-    { uTime: 3.0, uBalance: 0.0, uIntegrity: 1.0, uCastle: [-0.6965, -0.24, 0, 1] },
-    { uTime: 3.0, uBalance: 0.75, uIntegrity: 0.35, uCastle: [0.6965, -0.24, 1, 1] },
-    { uTime: 7.5, uBalance: -0.4, uIntegrity: 0.7, uCastle: [0, 0.02, 0, 0] },
-    { uTime: 11.0, uBalance: 1.0, uIntegrity: 0.0, uCastle: [0, 0.02, 1, 0.5] },
-    { uTime: 0.25, uBalance: -1.0, uIntegrity: 0.5, uCastle: [-0.6965, -0.24, 0, 0.5] },
+    // The left foot of the bow, sandstone, held outright.
+    { uTime: 3.0, uBalance: 0.0, spell: 1.0, uCastle: [-0.6825, -0.1545, 0, 1] },
+    // The right foot, obsidian, held outright.
+    { uTime: 3.0, uBalance: 0.75, spell: 0.35, uCastle: [0.6825, -0.1545, 1, 1] },
+    // Far up the field, nobody's: the smallest a castle ever draws.
+    { uTime: 7.5, uBalance: -0.4, spell: 0.7, uCastle: [0, 0.02, 0, 0] },
+    // The same, half way to being someone's.
+    { uTime: 11.0, uBalance: 1.0, spell: 0.0, uCastle: [0, 0.02, 1, 0.5] },
+    // The foreground castle, the nearest and so the biggest, part claimed.
+    { uTime: 5.0, uBalance: 0.2, spell: 0.9, uCastle: [0, -0.3134, 1, 0.5] },
+    // A foot castle part way through changing hands.
+    { uTime: 0.25, uBalance: -1.0, spell: 0.5, uCastle: [-0.6825, -0.1545, 0, 0.5] },
 ];
 
 async function loadPuppeteer() {
@@ -194,7 +209,10 @@ const results = await page.evaluate(async (pairs, cases, tolerance, w, h) => {
             else gl.uniform4f(l, v[0], v[1], v[2], v[3]);
         };
         set('uRes', [w, h]);
-        for (const k in values) set(k, values[k]);
+        // Only the uniforms. The rest of a case is there to vary the instance
+        // samples, and handing a shader a name it never declared is how the
+        // last one outlived every shader that read it.
+        for (const k in values) if (k[0] === 'u') set(k, values[k]);
         gl.viewport(0, 0, w, h);
         // A shader that discards leaves whatever the last draw wrote, and the
         // two programs are rendered one after the other into the same buffer.

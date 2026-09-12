@@ -75,7 +75,9 @@ function step(dt) {
  */
 function smite(cx, cy) {
     if (sim.winner >= 0) { reset(); return; }
-    // Pixels to the herd's units: the rainbow's space, y up, height 1.
+    // Pixels to the screen's own units — the rainbow's space, y up, height 1.
+    // Not to the herd's: the herd walks in world units, and what the player
+    // is aiming at is the picture, which is where sim.strike() meets it.
     const x = (cx - innerWidth / 2) / innerHeight, y = (innerHeight / 2 - cy) / innerHeight;
     sim.strike(x, y, !!power);
 }
@@ -155,6 +157,13 @@ function showClock() {
 // --- drawing ----------------------------------------------------------------
 
 /**
+ * How big a castle standing under a foot of the bow draws. Every castle's
+ * claim bar is sized against this one, and it never changes, so it is asked
+ * for once.
+ */
+const FOOT_S = sim.project(0, sim.FOOT, 1)[2];
+
+/**
  * Back to front, with no depth buffer: the world first, then the herd and
  * the castles interleaved by depth, with the bow just behind the castles so
  * it lies over the far herd and under the near one and the walls. The
@@ -165,20 +174,27 @@ function showClock() {
  */
 function drawScene(balance) {
     drawRainbow(balance);
-    const items = sim.castles.map((c) => ({
-        _y: c._y,
-        // Nobody's castle shows no stone of either side, so which side's it
-        // would have been does not matter; 0 keeps the branch cheap. The
-        // claim only goes over a castle that is being fought for: full or
-        // empty and nobody is pressing one, so there is nothing to show.
-        // Where it stands on the ground, put through the one camera. The
-        // scale is what the same castle would draw at under the bow's feet,
-        // which is what sizes the claim bar over it.
-        _draw: () => drawCastle(...sim.project(c._x, c._y, 1).slice(0, 2),
-            Math.max(c._side, 0), c._cap / sim.CAP,
-            sim.winner < 0 && c._cap > 0 && c._cap < sim.CAP ? c._cap / sim.CAP : -1,
-            c._side, sim.FOOT / c._y, balance),
-    }));
+    const items = sim.castles.map((c) => {
+        // Where it stands on the ground, put through the one camera — the
+        // same one the castle shader plants it with. The third of those is
+        // how big it draws, and against a foot castle's that is what sizes
+        // the claim bar over it, so one deep in the field wears a smaller
+        // bar. A ratio of two projections rather than a division of the two
+        // depths: project() is the only place perspective happens.
+        const [px, py, ps] = sim.project(c._x, c._y, 1);
+        return {
+            _y: c._y,
+            // Nobody's castle shows no stone of either side, so which side's
+            // it would have been does not matter; 0 keeps the branch cheap.
+            // The claim only goes over a castle that is being fought for:
+            // full or empty and nobody is pressing one, so there is nothing
+            // to show.
+            _draw: () => drawCastle(px, py,
+                Math.max(c._side, 0), c._cap / sim.CAP,
+                sim.winner < 0 && c._cap > 0 && c._cap < sim.CAP ? c._cap / sim.CAP : -1,
+                c._side, ps / FOOT_S, balance),
+        };
+    });
     // The bow belongs at the depth of its own feet, not at the deepest
     // castle's: it is drawn over the herd behind that line and under the
     // herd in front of it, which is what puts a marching column half in

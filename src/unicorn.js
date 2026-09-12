@@ -81,10 +81,11 @@ const float FEET = 0.4695;
 const float OUTLINE = 1.5;
 
 void main(){
-  // gl.js exports QUAD_CORNER for exactly this, but concatenating it would
-  // split this shader across two tagged templates, and both the GLSL minifier
-  // and the equivalence check want one whole translation unit per template.
-  // One line is cheaper than that seam.
+  // The unit quad's corner, off the vertex id. sparks.js opens with the same
+  // line, and sharing it would mean pasting a chunk into both templates —
+  // which the shader-source tag cannot do, and which the GLSL minifier and
+  // the equivalence check would both refuse, each wanting one whole
+  // translation unit per template. One line is cheaper than that seam.
   vec2 c = (vec2(float(gl_VertexID & 1), float((gl_VertexID >> 1) & 1)) - 0.5)
          * BOX + BOX_MID;
   float s = abs(aBody.z);

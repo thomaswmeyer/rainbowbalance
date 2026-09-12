@@ -512,10 +512,6 @@ const int   HILL_STEPS   = 31;
 const float FAR          = 1000.0;     // ground beyond this is sky
 const float SUN_ELEV     = 35.04;  // degrees above the horizon, behind the viewer
 const float AMBIENT      = 0.4;  // light on a slope facing away from the sun
-// A ray flatter than this sees the clouds as if at this slant. Below it the
-// cloud march takes one sample and quits, or walks backwards and finds
-// nothing, so ground that falls away or is beyond FAR, and the fog on the
-// way there, would show bare gradient in the shape of the hills.
 // Dave Hoskins, "Hash without Sine", https://www.shadertoy.com/view/4djSRW (MIT).
 vec2 hash22(vec2 p){
   vec3 p3 = fract(vec3(p.xyx) * vec3(0.1031, 0.1030, 0.0973));

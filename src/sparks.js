@@ -12,6 +12,7 @@
  */
 
 import { g, program, uniforms, gl, time, width, height, Batch } from './gl.js';
+import { NEAR_S } from './sim.js';
 
 const CAP = 384;
 
@@ -80,7 +81,7 @@ export function initSparks() {
  * @param {number} side
  */
 export function burst(x, y, s, side) {
-    const k = s / 0.155;
+    const k = s / NEAR_S;
     for (let i = 0; i < 28 && _sparks.length < CAP; i++) {
         const a = Math.random() * 6.283, v = (0.12 + Math.random() * 0.3) * k;
         _sparks.push({
@@ -100,7 +101,7 @@ export function burst(x, y, s, side) {
  * @param {number} s its size
  */
 export function shower(x, y, s) {
-    const k = s / 0.155;
+    const k = s / NEAR_S;
     for (let i = 0; i < 24 && _sparks.length < CAP; i++) {
         const a = Math.random() * 6.283;
         _sparks.push({
@@ -128,7 +129,7 @@ export function shower(x, y, s) {
  * @param {number} s the caster's size
  */
 export function bolt(x0, y0, x1, y1, s) {
-    const k = s / 0.155;
+    const k = s / NEAR_S;
     const dx = x1 - x0, dy = y1 - y0;
     for (let i = 0; i <= 24 && _sparks.length < CAP; i++) {
         // Three quarters of them strung along the line, the rest scattered

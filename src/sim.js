@@ -119,6 +119,17 @@ export const NEAR_Y = 11.632, FAR_Y = 66.467;
  * the field does not shrink. The picture shrinks it.
  */
 const BODY = 2.0818;
+/**
+ * How big one of those draws standing at the front of the band: BODY through
+ * project() at NEAR_Y, which is as big as a unicorn ever gets on the screen.
+ * Nothing in here wants it. It is what sparks.js measures a burst against —
+ * a burst off a big animal near the camera is the whole of one, and one off a
+ * recruit deep in the field a fraction — and this is the only place that
+ * knows all three numbers it is made of. It was NEAR_S here before the
+ * world-space conversion took it out, and three copies of 0.155 in sparks.js
+ * have been standing in for it since.
+ */
+export const NEAR_S = BODY * FOCAL / NEAR_Y;
 
 /**
  * How far the ground reaches across, kept as the screen measure it is: half

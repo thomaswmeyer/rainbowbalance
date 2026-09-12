@@ -81,8 +81,9 @@ It stops short rather than holding a distance, and the difference is the
 whole of why it stays on the field: holding a spell's length from the nearest
 enemy is a circle of places to stand, so a mage shoved along that circle had
 nothing pulling it back, and the crowd squeezed mages out one at a time —
-out past x −2.7, with the fight they were casting into half a screen behind
-them.
+off the side of the board, and a long way behind the fight they were casting
+into. (How far was measured in the screen coordinates the herd walked in
+before the world-space conversion, and has not been taken again.)
 
 Two things about the mage are not settled, and both are visible in
 `npm run sim`. A mage that gives ground freezes its pursuer every three and a
@@ -107,48 +108,51 @@ ice is a block standing on the ground with the unicorn inside it, the frost is
 the unicorn itself gone pale and crystalline — and which of them stays, or
 whether both do, is a question for after playing them.
 
-Castles change hands, which is what a fighter with nothing in front of it
-walks off to do. There are three: one at each foot of the bow, held from the
-first frame, and one standing unclaimed far up the field between them. What
-moves a claim is who is standing on the castle — every fighter within reach
-presses with its
-size, so a veteran counts for more than a recruit, and only the difference
-between the two sides tells, so a castle with as many defenders on it as
-attackers is held however big the crowd. Past three recruits' worth a crowd
-does no more, or a side that is already winning would take a castle in the
-second it arrived. Taking a held one is two jobs, and that is what makes it
-worth fighting over: the claim on it has to be broken first, which leaves it
-nobody's and silent, and only then can a claim of your own be built up to
-full — breaking goes twice as fast as building. A castle spawns at the rate
-of the claim on it, so one being broken falls quiet well before it changes
-hands, and it is no place to heal at until its claim is full again. The
-middle castle spawns at a third of a home castle's rate on top of that: it
-is an outpost, not a barracks. Held at the full rate it doubled its holder's
-spawning and put it half a field closer to the last castle standing, both
-corners of the triangle marching on the third, which is more than a castle
-in the middle of the ground ought to be worth. All of
-that is on the field to read: a castle nobody holds is bare grey stone, and
-the claim on one is how much of its holder's sandstone or obsidian has come
-in, so a castle changing hands bleaches and then takes the other colour on.
-Taken, it goes up in the same white shower a promotion does.
+Castles change hands, which is what a fighter with nothing in front of it walks
+off to do. There are four: one at each foot of the bow, held from the first
+frame, and two standing unclaimed for the two sides to meet over — one far up
+the field between them, one in the foreground under the middle of the arch.
+What moves a claim is who is standing on the castle — every fighter within
+reach presses with its size, so a veteran counts for more than a recruit, and
+only the difference between the two sides tells, so a castle with as many
+defenders on it as attackers is held however big the crowd. Past three
+recruits' worth a crowd does no more, or a side that is already winning would
+take a castle in the second it arrived. Taking a held one is two jobs, and that
+is what makes it worth fighting over: the claim on it has to be broken first,
+which leaves it nobody's and silent, and only then can a claim of your own be
+built up to full — breaking goes twice as fast as building. A castle spawns at
+the rate of the claim on it, so one being broken falls quiet well before it
+changes hands, and it is no place to heal at until its claim is full again. An
+unclaimed castle spawns at half a home castle's rate on top of that: an
+outpost, not a barracks. At the full rate one of them doubled its holder's
+spawning, from ground half a field closer to the last castle standing, and the
+fight was over as soon as either changed hands. Half is worth going for — the
+recruits, the forward ground, and the denying of it — without being a second
+army on its own, and taking both is worth as much again as a home castle, which
+is the point: there are two of them, at opposite ends of the field, and a side
+cannot sit on both. All of that is on the field to read: a castle nobody holds
+is bare grey stone, and the claim on one is how much of its holder's sandstone
+or obsidian has come in, so a castle changing hands bleaches and then takes the
+other colour on. Taken, it goes up in the same white shower a promotion does.
 
-Where that third castle stands is what makes the fight two-dimensional. It
-is most of the way back to the horizon, so both sides walk to it on the
-diagonal and meet across the middle of the ground rather than along the one
-line the bow's feet make: over ten minutes of play the fighting has moved
-from y −0.24, which is that line to the tenth of a unit, to y −0.17, and the
-front rank of the field is empty except when someone is driven back onto it.
-Two rules come with that. Everything on the ground that is a distance rather
-than a unicorn's own size — a castle's reach, the doorstep a fighter stops
-at, the ground its recruits come out onto — is scaled by the depth it is at,
-because the field is drawn in perspective and a castle at the horizon is a
-smaller thing to walk to and to hold; and a fighter marching on a castle
-walks to a lane of its own a little to one side of it in depth, so that a
-column arrives on a front rather than in single file. A lane is half the
-reach at most, so the far edge of the front is still standing on the castle.
-What the crowd settles at a gate is left settled: once a fighter is on a
-castle's ground it stops correcting its depth, so a garrison shoved along
-the wall stays spread along it instead of packing back onto the doorstep.
+Where the two unclaimed castles stand is what makes the fight two-dimensional.
+One is most of the way back to the horizon and one is in the foreground, so
+both sides walk the diagonals and meet across the whole ground rather than
+along the one line the bow's feet make: over ten minutes of play the mean depth
+of a fight is 17.0, where that line stands at 21, and the front of the field is
+busy rather than empty, there being a castle down there to be taken. Two rules
+come with that. Everything on the ground that is a distance rather than a
+unicorn's own size — a castle's reach, the doorstep a fighter stops at, the
+ground its recruits come out onto — is the one distance wherever it is, because
+the herd walks a flat plain in world units and only the picture of it is drawn
+in perspective: a castle deep in the field is not a smaller thing to walk to,
+to stand on or to hold, it only looks smaller because it is further away. And a
+fighter marching on a castle walks to a lane of its own a little to one side of
+it in depth, so that a column arrives on a front rather than in single file. A
+lane is half the reach at most, so the far edge of the front is still standing
+on the castle. What the crowd settles at a gate is left settled: once a fighter
+is on a castle's ground it stops correcting its depth, so a garrison shoved
+along the wall stays spread along it instead of packing back onto the doorstep.
 
 Capture has a consequence worth writing down: a side that loses a castle
 loses the spawns it needed to take one back, so a board left to itself is
