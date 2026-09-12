@@ -155,6 +155,16 @@ let edge = 16 / 9 / 2;
 export const setEdge = (aspect) => { edge = Math.max(0.84, aspect / 2); };
 /** What the bound came out as, which only the tests ask. */
 export const edgeAt = () => edge;
+/**
+ * Half the ground the picture holds at that depth. The board is not a
+ * rectangle — the camera's wedge opens away from the viewer, so the far field
+ * is wider than the near — and this is where that wedge is worked out.
+ * settle() bounds the herd with it, and the harness checks the bound against
+ * it rather than against a second copy of the arithmetic with the focal
+ * length written out again.
+ * @param {number} y away from the camera, world units
+ */
+export const wideAt = (y) => edge * y / FOCAL;
 
 /** Fighters alive at once, both sides together. The batch is sized to it. */
 export const MAX = 64;
@@ -739,7 +749,7 @@ function decide(dt) {
         // no crowd can reach: it would take the whole herd on one unicorn.)
         const mark = un._mage ? seek(un, CAST, MAX) : null;
         // How far off that is, which is the only thing a mage's walk asks.
-        const hold = mark ? Math.hypot(mark._x - un._x, mark._y - un._y) : 1e9;
+        const gap = mark ? Math.hypot(mark._x - un._x, mark._y - un._y) : 1e9;
 
         // Its foe, or the castle it is resting at, or the nearest castle its
         // side does not hold. With nothing left to take it walks home. A mage
@@ -758,7 +768,7 @@ function decide(dt) {
         const d = Math.hypot(dx, dy);
         // A mage walks no closer once it has something to cast at, and backs
         // away from anything that gets well inside that.
-        const back = hold > 1e-6 && hold < KEEP * 0.75;
+        const back = gap > 1e-6 && gap < KEEP * 0.75;
         // Where to stop, and from how close the horns connect: a little
         // further out than the stop, so a pair that eases to a halt at the
         // stop is fighting by the time it gets there.
@@ -789,11 +799,11 @@ function decide(dt) {
         un._ox = un._x;
         un._oy = un._y;
         // Standing on the castle, unmolested: four times the healing, and no
-        // walking. The hold is roomier than the stop so that being shoved
-        // aside by another of its own does not send it walking back — and
-        // one that has queued up behind a full garrison, and is getting no
-        // closer for trying, settles where it stands rather than circling
-        // the walls for the rest of the watch.
+        // walking. The reach it heals from is roomier than the stop, so that
+        // being shoved aside by another of its own does not send it walking
+        // back — and one that has queued up behind a full garrison, and is
+        // getting no closer for trying, settles where it stands rather than
+        // circling the walls for the rest of the watch.
         const healing = rest && !un._foe
             && (d <= 1.368 || (arrived && d <= 3.517));
         // Near where it was going and getting no nearer: it stops walking.
@@ -823,12 +833,12 @@ function decide(dt) {
             // Away from the mark, not backwards along the way it was walking:
             // what it is giving ground to is the enemy, not the castle.
             v = pace;
-            un._x += (un._x - mark._x) / hold * v * dt;
+            un._x += (un._x - mark._x) / gap * v * dt;
             // Walking backwards is the one walk with nothing in front of it
             // to stop at, so the band has to.
             un._y = Math.min(FAR_Y, Math.max(NEAR_Y,
-                un._y + (un._y - mark._y) / hold * v * dt));
-        } else if (d > stop && hold > KEEP && !healing && !stuck && !un._eng && !blocked) {
+                un._y + (un._y - mark._y) / gap * v * dt));
+        } else if (d > stop && gap > KEEP && !healing && !stuck && !un._eng && !blocked) {
             // Full speed the whole way, and never a step past the thing it is
             // walking to. It used to ease off over the last little way
             // instead, and then nothing could close on anything that was
@@ -951,7 +961,7 @@ function settle(dt) {
         // from the camera, so the ground it shows at the back is wider than
         // the ground it shows at the front, and the bound has to open with it
         // or the far field would be fenced off where it is widest.
-        const wide = edge * un._y / FOCAL - un._s * LONG * 0.5;
+        const wide = wideAt(un._y) - un._s * LONG * 0.5;
         un._x = Math.min(wide, Math.max(-wide, un._x));
     }
 
