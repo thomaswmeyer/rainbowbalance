@@ -56,19 +56,24 @@ const MID_Y = 41.357;
  */
 const NEAR_MID_Y = 14.5;
 /**
- * What the middle castle turns recruits out at, against a home castle's
- * rate. It is an outpost, not a barracks: at a home castle's rate it doubled
- * its holder's spawning, from ground half a field closer to the last castle
- * standing, with both corners of the triangle then marching on the third.
- * A third of the rate is still worth taking — the recruits, the forward
- * ground, and the denying of it — without being a second army.
+ * What an unclaimed castle turns recruits out at once it is taken, against a
+ * home castle's rate. Both of them use it: the one far up the field and the
+ * one in the foreground.
+ *
+ * An outpost, not a barracks. At a home castle's full rate one of them
+ * doubled its holder's spawning, from ground half a field closer to the last
+ * castle standing, and the fight was over as soon as either changed hands.
+ * Half is worth going for — the recruits, the forward ground, and the denying
+ * of it — without being a second army on its own. Taking both is worth as
+ * much again as the home castle, which is the point: there are two of them
+ * now, at opposite ends of the field, and a side cannot sit on both.
  *
  * It is not what makes a run end quickly, and the measurement is worth
  * keeping: with the middle spawning nothing at all, a run still ends eight
  * seconds after the middle falls, because a claim takes half a minute of
  * standing on a castle unopposed and by then the field is already won.
  */
-const OUTPOST = 1 / 3;
+const OUTPOST = 1 / 2;
 
 /**
  * The camera. These three are the world shader's own: it puts the horizon at

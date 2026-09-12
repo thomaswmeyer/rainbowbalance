@@ -831,7 +831,7 @@ function capture() {
         // says besides: the bound is what makes this a test of the rule
         // rather than of the constant agreeing with itself.
         ok('the middle castle turns recruits out slower than a home castle',
-            Math.abs(home - 1) < 0.02 && outpost < home * 0.5
+            Math.abs(home - 1) < 0.02 && outpost < home
             && Math.abs(outpost - T.OUTPOST) < 0.02,
             `a second took ${outpost.toFixed(3)}s off the middle's spawn` +
             ` against ${home.toFixed(3)}s off a home castle's`);
@@ -848,7 +848,7 @@ function capture() {
         };
         const outposts = count(MID_CASTLE), homes = count(SUN_CASTLE);
         ok('and it turns out about that fraction of the recruits',
-            outposts < homes * 0.5 && Math.abs(outposts / homes - T.OUTPOST) < 0.05,
+            outposts < homes && Math.abs(outposts / homes - T.OUTPOST) < 0.05,
             `${outposts} out of the middle against ${homes} out of a home castle`);
     }
 
