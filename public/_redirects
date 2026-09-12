@@ -1,0 +1,6 @@
+# Cloudflare Pages redirects — https://developers.cloudflare.com/pages/configuration/redirects/
+# Status 200 means rewrite: serve that asset, leave the URL alone.
+
+# Something for an uptime check to poll that is not the game itself — loading
+# that means unpacking 13KB and starting a WebGL context.
+/healthz  /healthz.json  200

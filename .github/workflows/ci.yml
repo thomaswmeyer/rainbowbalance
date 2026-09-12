@@ -1,0 +1,30 @@
+# CI on every push/PR (infra-parity convention shared with lordoftheswarm):
+# install, the headless sim tests, then the size-gated build and the deploy
+# tree Cloudflare Pages publishes from `release`.
+name: CI
+
+on:
+  push:
+    branches: [main, release]
+  pull_request:
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      # Not --omit=dev: the whole build is devDependencies, and one of them
+      # (shader-minifier-js) is a pinned git dependency that builds on install.
+      - run: npm ci
+
+      - run: npm run sim
+
+      # Builds dist/index.html — which fails over 13,312 bytes — and then
+      # assembles and verifies dist/pages/, exactly what Pages deploys.
+      - run: npm run build:pages

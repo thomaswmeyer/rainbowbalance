@@ -1,0 +1,39 @@
+# Cloudflare Pages header rules — https://developers.cloudflare.com/pages/configuration/headers/
+# Only the Pages deploy reads this file. scripts/dev_server.js does not, so
+# nothing here can be confirmed from the dev loop — check it against a Pages
+# preview URL, where a mistake shows up as a blank screen and one console
+# error rather than as a failed build.
+
+# The shipped page is one inline <script> and nothing else: it fetches
+# nothing, loads no images, opens no workers, and talks to no origin — the
+# whole game is WebGL on a canvas main.js makes. So everything is refused by
+# default and only what the payload actually does is granted back:
+#
+#   - script-src 'unsafe-inline': the build inlines the packed payload in a
+#     <script> block. The competition forbids a second file, so there is
+#     nowhere else to put it; the only way to tighten this is a per-deploy
+#     hash of the payload.
+#   - script-src 'unsafe-eval': Roadroller's decoder is eval(Function(…)) —
+#     it unpacks the game at load. Without it the page is blank.
+#     scripts/build_pages.js fails the build if this line loses either one,
+#     because nothing else would notice until someone opened the site.
+#   - style-src 'unsafe-inline': main.js writes the stylesheet into the
+#     document as an inline <style> block and sets .style on the overlay.
+#
+# frame-ancestors 'self' means nobody else can frame the site. The js13k entry
+# is the zip, which the competition serves from its own domain, so this costs
+# nothing there; widen it if the game is ever embedded somewhere on purpose.
+/*
+  Content-Security-Policy: default-src 'none'; script-src 'unsafe-inline' 'unsafe-eval'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'; frame-ancestors 'self'
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin
+  Permissions-Policy: camera=(), microphone=(), geolocation=(), usb=(), payment=()
+
+# One stable filename, rebuilt from scratch on every deploy, so it has to
+# revalidate or a release would never reach anyone who has already played.
+# This is also the Pages default; it is written down so that it is a decision
+# rather than something inherited.
+/
+  Cache-Control: public, max-age=0, must-revalidate
+/index.html
+  Cache-Control: public, max-age=0, must-revalidate

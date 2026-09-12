@@ -15,6 +15,7 @@ bow appears above it. What ends a run is not decided yet.
 npm install
 npm run dev      # http://localhost:8080 — raw ES modules, no build, debug panel
 npm run build    # → dist/index.html and dist/rainbowbalance.zip, size-gated
+npm run build:pages  # the same, plus dist/pages/ — what Cloudflare Pages deploys
 npm run size     # the byte count on its own
 npm run check    # do the minified shaders render what the source rendered?
 npm run sim      # the fight, headless: unit tests, then ten minutes of play
@@ -33,6 +34,60 @@ is slow. To move the pin, change the hash in `package.json` and reinstall.
 
 `npm run dev` serves the source as written — save, refresh, done. esbuild is
 not in that loop; it only runs for the build.
+
+## Deploy to rainbow.tom.to (Cloudflare Pages)
+
+The zip is the entry; this is the same page on the web, for handing someone a
+link and for playing it on a phone. It is a **Cloudflare Pages** project — the
+same hosting tom.to and swarm.tom.to use — built from the `release` branch, so
+"push to release" means deploy here as it does in the sibling repos.
+
+`npm run build:pages` runs the ordinary build and then assembles `dist/pages/`:
+`dist/index.html`, `public/_headers`, `public/_redirects`, and a static
+`healthz.json` for uptime checks. It then verifies that tree, because Pages
+publishes a broken directory as readily as a good one and everything that can
+go wrong here looks the same from outside — a black screen with one line in a
+console nobody has open. It checks that the page deployed is the built one and
+not the dev skeleton, that nothing in it points at a second file, and that the
+CSP still admits both the inline payload and the `eval` Roadroller's unpacker
+runs.
+
+| Pages project setting | Value |
+| --- | --- |
+| Build command | `npm ci && npm run build:pages` |
+| Output directory | `dist/pages` |
+| Production branch | `release` |
+| Node version | `NODE_VERSION` env var, matching `.nvmrc` (24.18.0) |
+| Build env vars | none — the page has no configuration in it |
+
+**Not `npm ci --omit=dev`**, which is what the sibling repos use: the whole
+build is devDependencies here, and one of them (`shader-minifier-js`) is a
+pinned git dependency that builds itself on install, which is why the first
+install is slow on a cold Pages cache too.
+
+DNS is the Cloudflare zone for `tom.to`; attaching `rainbow.tom.to` as a
+custom domain on the Pages project creates the record.
+
+### Branches: test vs release
+
+Two tracks, matching lordoftheswarm:
+
+| Branch | Role | Served at |
+| --- | --- | --- |
+| `release` | **production** | `rainbow.tom.to` |
+| `main` | test / staging | `main.<project>.pages.dev` |
+| anything else | per-branch preview | `<branch>.<project>.pages.dev` |
+
+Push `main` freely — it never touches production. To release, fast-forward
+`release` to a commit you have looked at on its preview URL:
+
+```bash
+git push origin main:release
+```
+
+`public/_headers` and `public/_redirects` are read by Pages and by nothing
+else — `npm run dev` serves the source and ignores both — so a change to
+either is only ever confirmed on a preview URL, never locally.
 
 ## Where it stands
 
