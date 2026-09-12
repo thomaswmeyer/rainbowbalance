@@ -491,33 +491,27 @@ function seek(un, look, crowd) {
 }
 
 /**
- * The nearest castle of this unicorn's own side, or null if it has none left.
- * One its side is still working its claim up on is no home: a castle that
- * cannot spawn cannot heal anyone either.
+ * The nearest castle of a kind, or null if this unicorn has none of that kind
+ * left. A castle is its own when its side holds it with a full claim, which
+ * is the only sort that is any use to it: one its side is still working a
+ * claim up on is no home, because a castle that cannot spawn cannot heal
+ * anyone either.
+ *
+ * Which makes the other kind everything else — the enemy's, nobody's, and one
+ * of its own with a part-made claim on it — and that is where a unicorn with
+ * nothing in sight to fight walks. It is what sends both sides to the middle
+ * of the field, and what brings them back to finish a claim they walked away
+ * from.
+ *
+ * One search rather than two: the kinds are exact opposites, so the only
+ * thing that differs is which side of the test to keep.
  * @param {Unicorn} un
+ * @param {boolean} own its own castles, or the ones it has yet to hold
  */
-function home(un) {
+function nearestCastle(un, own) {
     let best = null, bd = Infinity;
     for (const c of castles) {
-        if (c._side !== un._side || !c._own) continue;
-        const d = (c._x - un._x) ** 2 + (c._y - un._y) ** 2;
-        if (d < bd) { bd = d; best = c; }
-    }
-    return best;
-}
-
-/**
- * The nearest castle this unicorn's side does not hold outright — where it
- * goes when there is nothing in sight to fight. An unclaimed one counts, and
- * so does one of its own that the side is still working a claim up on: that
- * is what sends both sides to the middle of the field, and what brings them
- * back to finish a claim they walked away from.
- * @param {Unicorn} un
- */
-function foeHome(un) {
-    let best = null, bd = Infinity;
-    for (const c of castles) {
-        if (c._side === un._side && c._own) continue;
+        if ((c._side === un._side && c._own) !== own) continue;
         const d = (c._x - un._x) ** 2 + (c._y - un._y) ** 2;
         if (d < bd) { bd = d; best = c; }
     }
@@ -662,7 +656,7 @@ export function step(dt) {
 
         // A unicorn that has withdrawn looks for no fight until it is whole,
         // but it answers one that comes to it.
-        const rest = un._rest ? home(un) : null;
+        const rest = un._rest ? nearestCastle(un, true) : null;
         if (!rest) un._rest = false;
         // The nearest enemy it can see, every step. Packed into a crowd it
         // is forever being carried away from whatever it first picked, and
@@ -689,7 +683,8 @@ export function step(dt) {
         // somewhere, or the crowd would squeeze it out of the field. Holding
         // a distance from something is a whole circle of places to stand, and
         // a unicorn shoved along that circle has nothing pulling it back.
-        const goal = un._foe || rest || foeHome(un) || home(un) || castles[1];
+        const goal = un._foe || rest
+            || nearestCastle(un, false) || nearestCastle(un, true) || castles[1];
         // Marching on a castle it walks to its own lane, a little to one
         // side of the castle in depth, instead of at the castle's exact
         // depth. Every castle stands far enough inside the band for a lane
