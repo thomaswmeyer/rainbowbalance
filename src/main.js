@@ -248,6 +248,10 @@ if (!initGl(canvas)) {
         // multiplies the delta rather than the cap.
         acc += Math.min(last ? t - last : 0, 0.25) * speed;
         last = t;
+        // Where the board ends is where the picture ends, so the sim is told
+        // the window's shape before it steps anyone: a unicorn shoved at the
+        // edge has to know, this frame, what room is on the other side of it.
+        sim.setEdge(canvas.clientWidth / canvas.clientHeight);
         // And a frame only ever runs so many steps, however far behind it is.
         for (let n = 0; acc >= STEP && n < 300; n++) { step(STEP); acc -= STEP; }
 

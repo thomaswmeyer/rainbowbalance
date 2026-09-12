@@ -476,6 +476,62 @@ function units() {
         ok('an enemy beyond sight is not a target', a._foe === null,
             `it picked one ${(1.2).toFixed(1)} away, sight is ${T.LOOK}`);
     }
+
+    // The board has sides, and they are the sides of the picture.
+    {
+        sim.setEdge(16 / 9);
+        const edge = sim.edgeAt();
+        const [a, b] = stage([
+            { _x: edge + 0.5, _y: -0.2, _side: 0 },
+            { _x: -edge - 0.5, _y: -0.3, _side: 0 },
+        ]);
+        run(1);
+        const out = (u) => Math.abs(u._x) + u._s * T.LONG * 0.5 - edge;
+        ok('one standing off the board is put back on it',
+            out(a) <= 1e-9 && out(b) <= 1e-9,
+            `over the edge by ${out(a).toFixed(4)} and ${out(b).toFixed(4)}`);
+        ok('and it is the whole animal that is kept on, not its middle',
+            Math.abs(a._x) < edge && Math.abs(b._x) < edge,
+            `standing at ${a._x.toFixed(3)} and ${b._x.toFixed(3)}, edge ${edge.toFixed(3)}`);
+    }
+    {
+        // Walking at the edge does not walk off it: one sent after an enemy
+        // that is beyond the board stops at the board.
+        sim.setEdge(16 / 9);
+        const edge = sim.edgeAt();
+        const [a] = stage([
+            { _x: edge - 0.05, _y: -0.2, _side: 0 },
+            { _x: edge + 0.3, _y: -0.2, _side: 1 },
+        ]);
+        run(180);
+        ok('one walking at the edge is stopped by it',
+            Math.abs(a._x) + a._s * T.LONG * 0.5 <= edge + 1e-9,
+            `three seconds of walking put it at ${a._x.toFixed(3)}, edge ${edge.toFixed(3)}`);
+    }
+    {
+        // A crowd shoved along the edge is shoved inwards, not through it.
+        sim.setEdge(16 / 9);
+        const edge = sim.edgeAt();
+        const them = stage(Array.from({ length: 12 }, () => (
+            { _x: edge - 0.02, _y: -0.2, _side: 0, _hp: 1e6, _max: 1e6 }
+        )));
+        run(120);
+        const worst = Math.max(...them.map((u) => Math.abs(u._x) + u._s * T.LONG * 0.5 - edge));
+        ok('a crowd pressed on the edge is shoved inwards, not through it',
+            worst <= 1e-9, `the furthest out is over by ${worst.toFixed(4)}`);
+    }
+    {
+        // A window narrower than the castles stand does not squeeze the
+        // board: the picture shows less of it instead.
+        sim.setEdge(9 / 19.5);
+        const narrow = sim.edgeAt();
+        sim.setEdge(16 / 9);
+        const wide = sim.edgeAt();
+        const outer = 0.6965 + T.CASTLE_W;
+        ok('a tall window does not squeeze the board narrower than its castles',
+            narrow > outer && narrow < wide,
+            `a phone gives ${narrow.toFixed(3)}, the castles reach to ${outer.toFixed(3)}`);
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -1288,6 +1344,7 @@ function invariants(t) {
     for (const u of sim.herd) {
         if (!Number.isFinite(u._x + u._y + u._s + u._hp)) bad.push(`NaN: ${show(u)}`);
         else if (u._y < T.NEAR_Y - 1e-6 || u._y > T.FAR_Y + 1e-6) bad.push(`outside the band: ${show(u)}`);
+        else if (Math.abs(u._x) + u._s * T.LONG * 0.5 > sim.edgeAt() + 1e-6) bad.push(`off the side of the board: ${show(u)}`);
         if (u._hp > u._max + 1e-6) bad.push(`over its maximum: ${show(u)}`);
         if (u._foe && u._foe._side === u._side) bad.push(`targeting its own side: ${show(u)}`);
         if (u._foe && !sim.herd.includes(u._foe)) bad.push(`targeting something not in the herd: ${show(u)}`);

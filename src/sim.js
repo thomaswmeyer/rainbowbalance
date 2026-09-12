@@ -64,6 +64,30 @@ const OUTPOST = 1 / 3;
 export const NEAR_Y = -0.44, FAR_Y = 0.15;
 const NEAR_S = 0.155, FAR_S = 0.038;
 
+/**
+ * And how far the ground reaches across: half of what the window shows, so
+ * the edge of the board is the edge of the picture. Nothing walks or is
+ * shoved past it — a fight that spilled off the side would be a fight the
+ * player cannot see.
+ *
+ * It will not go narrower than the ground the castles stand on, though. A
+ * home castle's outer wall is at FOOT_X + CASTLE_W, and a fighter wants room
+ * to stand beside it; on a tall phone half the aspect is a third of that, and
+ * squeezing the board to fit would pile both armies onto their own castles.
+ * So a narrow window shows less of the board rather than the board being made
+ * smaller, and the fight stays where the castles are.
+ */
+let edge = 16 / 9 / 2;
+/**
+ * Tell it the window's shape. main.js calls this at the top of every frame,
+ * before it steps anything, since a window can be dragged narrower between
+ * one frame and the next.
+ * @param {number} aspect width over height
+ */
+export const setEdge = (aspect) => { edge = Math.max(0.84, aspect / 2); };
+/** What the bound came out as, which only the tests ask. */
+export const edgeAt = () => edge;
+
 /** Fighters alive at once, both sides together. The batch is sized to it. */
 export const MAX = 64;
 /** Seconds between a castle's spawns. */
@@ -794,6 +818,16 @@ export function step(dt) {
     }
 
     separate(dt);
+
+    // Nothing leaves the board. Depth is bounded as the walking and the
+    // shoving go, because both need to know what room they have left; across,
+    // once at the end of the step is enough, since nothing reads it. It is
+    // the whole animal that is kept in rather than the point it stands on, so
+    // a unicorn at the edge is a unicorn you can see all of.
+    for (const un of herd) {
+        const half = un._s * LONG * 0.5;
+        un._x = Math.min(edge - half, Math.max(half - edge, un._x));
+    }
 
     // The trailing point creeps after everyone, shoves and all. A steady walk
     // leaves it a tenth of a unit behind; a unicorn going nowhere is sat on
