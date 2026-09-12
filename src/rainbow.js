@@ -656,22 +656,32 @@ void main(){
   vec2 p = (gl_FragCoord.xy - 0.5 * uRes) / uRes.y;
 
   // The claim, over the castle. The simulation puts each castle at a place
-  // on the screen and the shader builds its ray from that same place, so
-  // the bar needs no projecting: it goes straight above uCastle.xy, at the
-  // castle's own size, and is drawn before the stone so a wall cannot hide
-  // it. Broken by one side and made by the other, it empties in the
-  // holder's colour and fills again in the taker's.
+  // on the screen and the shader builds its ray from that same place, so the
+  // bar needs no projecting: it goes straight above uCastle.xy, at the
+  // castle's own size. It empties in the holder's colour and fills again in
+  // the taker's.
+  //
+  // It is worked out here and written at the very end, and the discards
+  // below are told to spare its fragments, rather than the bar returning out
+  // of main over their heads. An early return costs everything: once main
+  // can be left from two places the compiler cannot let a discard end the
+  // fragment, so every pixel on the screen runs the terrain march that the
+  // discard is there to skip. That one return was 82 frames a second down
+  // to 57 at this size.
+  vec4 bar = vec4(0.0);
   if (uBar.x >= 0.0) {
     float n = uBar.z;
     vec2 bp = p - vec2(uCastle.x, uCastle.y + 0.175 * n);
     float box = max(abs(bp.x) - 0.075 * n, abs(bp.y) - 0.011 * n);
     if (box < 0.0) {
-      float aa = fwidth(box);
+      // The pixel size, rather than a derivative: fwidth would be the
+      // natural way to say it and costs nothing here, but nothing in this
+      // shader else needs derivatives and this keeps it that way.
+      float aa = 1.5 / uRes.y;
       float fill = smoothstep(aa, -aa, bp.x - (uBar.x * 2.0 - 1.0) * 0.075 * n);
       vec3 col = uBar.y < -0.5 ? vec3(0.62, 0.62, 0.66)
                : uBar.y < 0.5 ? vec3(1.00, 0.78, 0.35) : vec3(0.58, 0.58, 0.98);
-      o = vec4(mix(vec3(0.05, 0.04, 0.08), col, fill), 1.0);
-      return;
+      bar = vec4(mix(vec3(0.05, 0.04, 0.08), col, fill), 1.0);
     }
   }
 
@@ -696,10 +706,10 @@ void main(){
   vec2 cf = normalize(ro.xz - cp.xz);
 
   float tc = castleHit(ro, rd, cp, cf);
-  if (tc < 0.0) discard;
-  // A hill in front of it hides it.
+  if (tc < 0.0 && bar.a == 0.0) discard;
+  // A hill in front of it hides it; the bar it cannot hide.
   float t = ground(ro, rd);
-  if (t >= 0.0 && t < tc) discard;
+  if (t >= 0.0 && t < tc && bar.a == 0.0) discard;
 
   vec3 pos = ro + rd * tc;
   vec3 nor = castleNormal(pos, cp, cf);
@@ -734,7 +744,7 @@ void main(){
     c = mix(c, vec3(0.03, 0.03, 0.04) * light * base
                + spec * vec3(0.9, 0.85, 0.75) + fresnel * sky * 0.8, uCastle.w);
   }
-  o = vec4(mix(c, sky, clamp(tc * tc * FOG, 0.0, 1.0)), 1.0);
+  o = bar.a > 0.0 ? bar : vec4(mix(c, sky, clamp(tc * tc * FOG, 0.0, 1.0)), 1.0);
 }`;
 
 let _prog, _u, _bowProg, _bowU, _castleProg, _castleU;
