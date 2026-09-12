@@ -278,7 +278,10 @@ export const COOL = 3.5, FROST = 1.6;
  * @typedef {object} Unicorn
  * @property {number} _x
  * @property {number} _y
- * @property {number} _s size, from y
+ * @property {number} _s how big it is, in world units: BODY at full grown,
+ *   half of that as a recruit, and a quarter of a recruit more for every
+ *   level it has won. It does not change with the depth it stands at — the
+ *   picture shrinks a unicorn walking up the field, the field does not
  * @property {number} _side 0 sunicorn, 1 rainicorn
  * @property {number} _face +1 looks right, -1 looks left
  * @property {number} _ph gallop phase
@@ -300,7 +303,6 @@ export const COOL = 3.5, FROST = 1.6;
  * @property {number} _hp above 0 alive; 0 down to −1 is the half-second it fades out
  * @property {number} _max hit points at its level
  * @property {number} _lvl how many fights it has won its way up
- * @property {number} _scale size multiplier, eased toward its level's
  * @property {number} _fight 0…1, the fighting pose, eased so it does not snap
  * @property {boolean} [_fell] reported to `fallen` already
  * @property {boolean} [_rest] withdrawing to a friendly castle to heal
@@ -442,7 +444,6 @@ function spawn(castle) {
         _hp: HP,
         _max: HP,
         _lvl: 0,
-        _scale: SCALE0,
         _fight: 0,
         _rest: false,
         _foe: null,
@@ -566,8 +567,9 @@ function capture(dt) {
             // tighter gathering only because it is further away.
             if ((un._x - c._x) ** 2 + (un._y - c._y) ** 2 > CAP_R * CAP_R) continue;
             // Size is the weight: a veteran presses harder than a recruit,
-            // the same way it hits harder.
-            const w = un._scale / SCALE0;
+            // the same way it hits harder. A recruit is BODY * SCALE0 across,
+            // and counts one.
+            const w = un._s / (BODY * SCALE0);
             if (un._side) rain += w; else sun += w;
         }
         const lead = sun - rain;
@@ -847,9 +849,8 @@ export function step(dt) {
             promoted.push(un);
         }
         // A level's worth of size, taken on over a second.
-        const scale = SCALE0 * (1 + GROW * un._lvl);
-        if (un._scale < scale) un._scale = Math.min(scale, un._scale + SCALE0 * GROW * dt);
-        un._s = BODY * un._scale;
+        const grown = BODY * SCALE0 * (1 + GROW * un._lvl);
+        if (un._s < grown) un._s = Math.min(grown, un._s + BODY * SCALE0 * GROW * dt);
         // Nothing to fight and nowhere it is actually getting: it stands, and
         // standing is all four feet down. The fighting pose is what plants
         // them — the stride fades out of it — and winding the phase down to
@@ -1070,18 +1071,19 @@ function nearest(x, y) {
 }
 
 /**
- * God mode: freeze the unicorn nearest the point into a block of ice. It
- * stands there, out of the fight but still in the way of it, until the block
- * has melted off it.
- * @param {number} x
+ * God mode, whichever hand is out: the unicorn nearest the point is either
+ * struck down where it stands, or frozen into a block of ice — out of the
+ * fight but still in the way of it until the block has melted off.
+ *
+ * One function for the two because they are the same three lines: find the
+ * nearest unicorn to a point on the screen, and set one field on it.
+ * @param {number} x on the screen, the rainbow's units
  * @param {number} y
+ * @param {boolean} ice the freezing hand, rather than the smiting one
  */
-export function freeze(x, y) {
+export function strike(x, y, ice) {
     const un = nearest(x, y);
-    if (un) holdStill(un, FREEZE, true);
-}
-
-export function smite(x, y) {
-    const best = nearest(x, y);
-    if (best) best._hp = 0;   // zero, not below: that is where the fade starts
+    if (!un) return;
+    // Zero, not below: zero is where the fade starts.
+    if (ice) holdStill(un, FREEZE, true); else un._hp = 0;
 }

@@ -75,7 +75,7 @@ function smite(cx, cy) {
     if (sim.winner >= 0) { reset(); return; }
     // Pixels to the herd's units: the rainbow's space, y up, height 1.
     const x = (cx - innerWidth / 2) / innerHeight, y = (innerHeight / 2 - cy) / innerHeight;
-    if (power) sim.freeze(x, y); else sim.smite(x, y);
+    sim.strike(x, y, !!power);
 }
 
 export function reset() {

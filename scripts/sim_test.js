@@ -87,7 +87,7 @@ function stage(them) {
     for (const t of them) {
         sim.herd.push({
             _x: 0, _y: 18.61, _s: 1.041, _side: 0, _face: 1, _ph: 0, _lane: 0,
-            _hp: T.HP, _max: T.HP, _lvl: 0, _scale: 0.5,
+            _hp: T.HP, _max: T.HP, _lvl: 0,
             _fight: 0, _rest: false, _foe: null, _att: 0, _eng: false, _hit: null,
             _mage: false, _cast: 0, _held: 0, _block: false,
             ...t,
@@ -135,7 +135,7 @@ const on = (c, side, n, lvl = 0) => Array.from({ length: n }, (_, i) => ({
     _y: c._y,
     _side: side,
     _lvl: lvl,
-    _scale: 0.5 * (1 + 0.25 * lvl),
+    _s: T.BODY * 0.5 * (1 + 0.25 * lvl),
     _hp: 1e6,
     _max: 1e6,
 }));
@@ -1462,7 +1462,7 @@ function e2e() {
                 for (const u of sim.herd) {
                     if (u._side === side && u._hp > 0 && (!best || u._lvl > best._lvl)) best = u;
                 }
-                if (best) { sim.smite(best._x, best._y - best._s * 0.4); st.smitten++; }
+                if (best) { sim.strike(best._x, best._y - best._s * 0.4, false); st.smitten++; }
             }
         }
 
