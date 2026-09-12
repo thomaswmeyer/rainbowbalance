@@ -1462,7 +1462,18 @@ function e2e() {
                 for (const u of sim.herd) {
                     if (u._side === side && u._hp > 0 && (!best || u._lvl > best._lvl)) best = u;
                 }
-                if (best) { sim.strike(best._x, best._y - best._s * 0.4, false); st.smitten++; }
+                if (best) {
+                    // Through the camera first. The pick is made in the
+                    // picture and not on the plain — what a player aims at is
+                    // a screen — so the harness has to aim at one too. These
+                    // were the herd's own x and y until the world-space
+                    // conversion, and every smite since has missed the field
+                    // entirely, which is why the run below was one-sided.
+                    const [px, py, ps] = sim.project(best._x, best._y, best._s);
+                    sim.strike(px, py - ps * 0.4, false);
+                    // Counted where it landed, rather than where it was aimed.
+                    if (best._hp <= 0) st.smitten++;
+                }
             }
         }
 
