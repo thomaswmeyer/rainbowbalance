@@ -14,7 +14,7 @@ bow appears above it. What ends a run is not decided yet.
 ```bash
 npm install
 npm run dev      # http://localhost:8080 — raw ES modules, no build, debug panel
-npm run build    # → dist/index.html and dist/endlessrainbows.zip, size-gated
+npm run build    # → dist/index.html and dist/rainbowbalance.zip, size-gated
 npm run size     # the byte count on its own
 npm run check    # do the minified shaders render what the source rendered?
 npm run sim      # the fight, headless: unit tests, then ten minutes of play

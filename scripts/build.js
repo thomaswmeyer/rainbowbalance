@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * The size-gated build — src/ → dist/index.html → dist/endlessrainbows.zip.
+ * The size-gated build — src/ → dist/index.html → dist/rainbowbalance.zip.
  *
  *   npm run build      # build, report, fail if over budget
  *   npm run size       # the same, one line of output
@@ -152,7 +152,7 @@ const end = Buffer.alloc(22);
 end.writeUInt32LE(0x06054b50, 0); end.writeUInt16LE(1, 8); end.writeUInt16LE(1, 10);
 end.writeUInt32LE(central.length + name.length, 12); end.writeUInt32LE(cdOffset, 16);
 const zip = Buffer.concat([local, name, comp, central, name, end]);
-writeFileSync(join(OUT, 'endlessrainbows.zip'), zip);
+writeFileSync(join(OUT, 'rainbowbalance.zip'), zip);
 
 /** @param {Buffer} buf @returns {number} */
 function crc32(buf) {
