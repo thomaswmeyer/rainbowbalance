@@ -196,6 +196,9 @@ it out of reach.
 
 ## The tech tree
 
+The whole of it, with the measurements behind every number and what was left
+out of Lord of the Swarm's version, is in [`doc/TECH_TREE.md`](doc/TECH_TREE.md).
+
 Both sides research, and neither is told to. It is the one thing on the field
 that only goes one way: a run held level is not a run in which nothing
 happens, and the hand that kept the two sides level in the first minute is not
@@ -391,6 +394,7 @@ from there and give the lines their ranges back to tune again.
 | `src/debug.js` | frame rate under the clock, and the `?b=` and `?off=` URL switches. Never ships |
 | `scripts/build.js` | esbuild → shader-minifier-js → terser → Roadroller → zopfli zip, with the budget gate. The page is a skeleton; `main.js` makes the markup so it is packed, not just deflated |
 | `scripts/glsl.js` | the shader minifier seam around shader-minifier-js |
+| `doc/TECH_TREE.md` | the tech tree: income, the five areas and what each is worth measured, the three powers and the rule that chooses between them, and how to add a fourth |
 | `scripts/check_shaders.js` | renders source vs minified shader and compares pixels |
 | `scripts/dev_server.js` | static files, no dependencies |
 
