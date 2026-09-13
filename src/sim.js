@@ -396,9 +396,34 @@ const THINK = 20, SWAP = 0.5;
  *
  * More belong here. Another is a cost in this list and a case in that rule.
  */
-const COST = [45, 140, 250];
+const COST = [45, 120, 140, 200, 250, 400];
+/**
+ * And which power each one needs first, or −1 for one that starts a branch.
+ * There are two, and they are bought out of the same saved pool, so a side
+ * that wants down one of them is choosing not to go down the other yet.
+ *
+ *   the wizard's spells   freeze → smite → rage → turncoat
+ *   what comes out of the gate   berserk → ninja
+ *
+ * The first branch is the god's own hands, learned by watching the sky. The
+ * second is not a spell at all: it is a side breeding for it, and what it
+ * buys arrives in the recruits rather than in a cape. COST is in order, so
+ * the first entry a side can afford and is allowed is the cheapest it can
+ * have, and _got is a bit per power rather than a count.
+ */
+const PREREQ = [-1, -1, 0, 1, 2, 4];
+/** Whether a side has learned one. @param {Tech} t @param {number} i */
+const has = (t, i) => t._got >> i & 1;
 /** What a wizard's bolt takes off, against a recruit's HP hit points. */
 const SMITE = 2.5;
+/**
+ * One recruit in this many comes out of the gate permanently enraged, and
+ * one in this many a ninja, once its side has learned how. Rarer than the
+ * cape, because neither of them ever wears off: a wizard's rage is six
+ * seconds and these are for the life of the animal, so a side that bred for
+ * them is fielding a few of them among many rather than an army of them.
+ */
+const BERSERK_EVERY = 7, NINJA_EVERY = 9;
 /**
  * The rage: how long it is on a unicorn, and how much faster it swings while
  * it is. Twice the swings is twice the damage, which is a great deal for six
@@ -573,7 +598,8 @@ export const TUNE = typeof __DEBUG__ === 'undefined' || __DEBUG__
         SPAWN, SCALE0, CAP, CAP_R, TAKE, BREAK, MOB, LANE, OUTPOST, FREEZE,
         CASTLE_W, BODY, FOOT, FOOT_X, SPEED,
         MAGE_EVERY, MAGE_V, CAST, KEEP, COOL, FROST,
-        RESEARCH, BOUNTY, GAIN, FULL, THINK, SWAP, COST, SMITE, RAGE, FURY,
+        RESEARCH, BOUNTY, GAIN, FULL, THINK, SWAP, COST, PREREQ, SMITE, RAGE, FURY,
+        BERSERK_EVERY, NINJA_EVERY,
         PACE, SWING, SIGHT, HORN, GATE }
     : null;
 
@@ -627,7 +653,14 @@ function spawn(castle) {
     // castle has turned out, not what it has turned out in capes — so a side
     // that learns to freeze halfway through a run does not owe itself three
     // wizards for the ones it did not send.
-    const mage = ++castle._n % MAGE_EVERY === 0 && tech[castle._side]._got > 0;
+    const t = tech[castle._side];
+    const n = ++castle._n;
+    const mage = n % MAGE_EVERY === 0 && has(t, 0);
+    // A wizard is never also a berserker or a ninja: it has no fight to rage
+    // through and nothing to hide from, and an animal wearing three things at
+    // once is one nobody can read off the field.
+    const ber = !mage && n % BERSERK_EVERY === 0 && has(t, 1);
+    const nin = !mage && !ber && n % NINJA_EVERY === 0 && has(t, 3);
     const un = {
         _x: castle._x + (rnd() - 0.5) * 1.954,
         _y: y, _s: BODY * SCALE0,
@@ -651,6 +684,8 @@ function spawn(castle) {
         _mage: mage,
         _cast: COOL,
         _rage: 0,
+        _ber: ber,
+        _nin: nin,
     };
     herd.push(un);
     spawned.push(un);
@@ -710,7 +745,12 @@ function seek(un, look, crowd) {
     for (const e of herd) {
         // One foe at a time, up to the cap — whoever it is already after is
         // of course still allowed, or it could not keep the foe it has.
-        if (e._side === un._side || e._hp <= 0
+        // A ninja is not picked out at all. It is not invulnerable and it is
+        // not intangible — it is still shoved by the crowd, still struck by
+        // whatever it walks into, and still pressing its claim. What it has
+        // is that nobody sets off after it, so it arrives at a fight nobody
+        // chose to have.
+        if (e._side === un._side || e._hp <= 0 || e._nin
             || (e._att >= crowd && e !== un._foe)) continue;
         const d = (e._x - un._x) ** 2 + (e._y - un._y) ** 2;
         if (d < bd) { bd = d; best = e; }
@@ -871,11 +911,13 @@ function research(dt) {
             if (rnd() < SWAP) t._on = pick(t);
         }
         // And the next power, bought outright the moment it is affordable.
-        // One at a time, cheapest first: the list is a chain, so how many a
-        // side has is the whole of which ones it has.
-        if (t._got < COST.length && t._saved >= COST[t._got]) {
-            t._saved -= COST[t._got];
-            t._got++;
+        // One at a time, cheapest first: COST is in order, so the first entry
+        // a side does not have and is allowed to take is the cheapest one
+        // open to it, down either branch.
+        for (let i = 0; i < COST.length; i++) {
+            if (has(t, i) || (PREREQ[i] >= 0 && !has(t, PREREQ[i]))) continue;
+            if (t._saved >= COST[i]) { t._saved -= COST[i]; t._got |= 1 << i; }
+            break;
         }
         // What the points come to, worked out here and read everywhere: the
         // field asks for these several times per unicorn per step, and none
@@ -1199,14 +1241,22 @@ function decide(dt) {
                 // above the freeze does not bury the freeze.
                 //
                 // And otherwise the frost, which is what it started with.
-                const got = tech[un._side]._got;
-                const friend = got > 2 ? ally(un, CAST * m[SIGHT]) : null;
+                //
+                // The turncoat goes above all of it, being both the dearest
+                // and the only one that takes an animal off the board without
+                // killing it: a side down a fighter and an enemy up one is
+                // worth two of anything else, so a wizard that can do it does
+                // it whenever it has a mark that is worth the taking.
+                const t = tech[un._side];
+                const friend = has(t, 4) ? ally(un, CAST * m[SIGHT]) : null;
                 let at = mark, k = 0;
-                if (mark && mark._held > 0 && got > 1) k = 1;
+                if (mark && has(t, 5) && mark._lvl >= 1) k = 3;
+                else if (mark && mark._held > 0 && has(t, 2)) k = 1;
                 else if (friend) { at = friend; k = 2; }
                 if (at) {
                     un._cast = COOL;
-                    if (k === 1) wound(un, at, SMITE);
+                    if (k === 3) turn(at, un._side);
+                    else if (k === 1) wound(un, at, SMITE);
                     else if (k === 2) at._rage = RAGE;
                     else holdStill(at, FROST, false);
                     // Both ends are the ground each of them stands on, and
@@ -1258,7 +1308,7 @@ function decide(dt) {
             // The blow lands at the bottom of the lunge, or misses there. A
             // pair spawned with different phases swing out of step, which is
             // most of why they no longer fall together.
-            const next = un._ph + dt * LUNGE * m[SWING] * (un._rage ? FURY : 1);
+            const next = un._ph + dt * LUNGE * m[SWING] * (un._rage || un._ber ? FURY : 1);
             if (Math.floor(next / 6.2832 - 0.5) > Math.floor(un._ph / 6.2832 - 0.5)
                 && rnd() < HIT) {
                 wound(un, un._foe, DMG * (0.75 + 0.5 * rnd()));
@@ -1472,12 +1522,46 @@ function nearest(x, y) {
  * @returns {Unicorn|null} who it landed on, so the caller can put a sound and
  *   a light where it happened, or null if the field was empty
  */
-export function strike(x, y, ice) {
+/**
+ * Change a unicorn's side. Everything it had it keeps — its level, its size,
+ * its wounds and its cape — because what makes this worth the price is that
+ * it is the enemy's best animal that walks back at them, not a fresh one.
+ *
+ * Whatever it was doing it stops doing: its foe is now one of its own, and
+ * whoever was set on it is set on nothing. Those are let go here rather than
+ * left for the next step to sort out, since a pair still pointed at each
+ * other across a change of side would swing once more before noticing.
+ *
+ * @param {Unicorn} un @param {number} side
+ */
+function turn(un, side) {
+    if (un._side === side) return;
+    un._side = side;
+    un._face = side ? -1 : 1;
+    aim(un, null);
+    un._rest = false;
+    un._hit = null;
+    for (const o of herd) if (o._foe === un) aim(o, null);
+}
+
+export const turncoat = typeof __DEBUG__ === 'undefined' || __DEBUG__
+    ? (/** @type {Unicorn} */ un) => turn(un, un._side ^ 1) : null;
+
+export function strike(x, y, hand) {
     const un = nearest(x, y);
     if (!un) return null;
     // Zero, not below: zero is where the fade starts. And not through
     // wound(), which pays a side the bounty on what it felled: this one was
     // felled by the sky, and neither side is owed for it.
-    if (ice) holdStill(un, FREEZE, true); else un._hp = 0;
+    //
+    // The three past the first two are for the life of the animal rather than
+    // for a few seconds, which is what makes them worth a scarcer hand: a
+    // ninja stays unseen, a berserker stays roaring, and a turncoat stays
+    // turned. Nothing here can be undone by the other side.
+    if (hand === 1) holdStill(un, FREEZE, true);
+    else if (hand === 2) un._nin = true;
+    else if (hand === 3) un._ber = true;
+    else if (hand === 4) turn(un, un._side ^ 1);
+    else un._hp = 0;
     return un;
 }

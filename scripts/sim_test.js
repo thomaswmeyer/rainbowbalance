@@ -143,7 +143,7 @@ function pinned(n, spawning = false) {
         sim.tech.forEach((t, k) => {
             t._p.splice(0, 5, ...was[k]._p);
             t._on = was[k]._on;
-            for (let g = was[k]._got; g < t._got; g++) t._saved += T.COST[g];
+            for (let g = 0; g < T.COST.length; g++) if ((t._got & ~was[k]._got) >> g & 1) t._saved += T.COST[g];
             t._got = was[k]._got;
             t._t = 1e9;
         });
@@ -177,11 +177,11 @@ const on = (c, side, n, lvl = 0) => Array.from({ length: n }, (_, i) => ({
  * its own as soon as a test ran long enough to afford it, and a test of what
  * two powers do is not a test of three.
  * @param {number} side
- * @param {number} n how many of the chain it has
+ * @param {...number} which powers by index, _got being a bit apiece
  */
-function powers(side, n) {
+function powers(side, ...which) {
     const t = sim.tech[side];
-    t._got = n;
+    t._got = which.reduce((g, i) => g | 1 << i, 0);
     // Far enough below the next cost that no run in here reaches it.
     t._saved = -1e9;
 }
@@ -1316,7 +1316,7 @@ function mages() {
         sim.reset();
         for (let i = 0; i < 60 * 120; i++) {
             for (const c of sim.castles) if (c !== SUN_CASTLE) c._t = 1e9;
-            powers(0, 1);
+            powers(0, 0);
             sim.step(STEP);
         }
         const sun = sim.herd.filter((u) => !u._side);
@@ -1645,8 +1645,8 @@ function techTree() {
         sim.reset();
         for (let i = 0; i < 60 * 120; i++) {
             for (const c of sim.castles) if (c !== SUN_CASTLE) c._t = 1e9;
-            powers(0, 0);
-            powers(1, 0);
+            powers(0);
+            powers(1);
             sim.step(STEP);
         }
         const capes = sim.herd.filter((u) => u._mage).length;
@@ -1851,20 +1851,25 @@ function techTree() {
     {
         sim.reset();
         const t = sim.tech[0];
+        // COST is in order, so handing a side exactly the next cost buys it
+        // exactly the next thing, whichever branch that is on.
+        let want = 0;
         for (let n = 0; n < T.COST.length; n++) {
             const areas = t._p.slice();
             t._saved = T.COST[n];
             t._t = 1e9;
             sim.step(STEP);
+            want |= 1 << n;
             ok(`power ${n + 1} of ${T.COST.length} costs its ${T.COST[n]} out of the saved pool`,
-                t._got === n + 1 && t._saved < T.COST[n],
-                `it has ${t._got} of them, with ${t._saved.toFixed(1)} saved`);
+                t._got === want && t._saved < T.COST[n],
+                `it has ${t._got.toString(2)}, wanted ${want.toString(2)},`
+                + ` with ${t._saved.toFixed(1)} saved`);
             t._p.splice(0, 5, ...areas);
         }
         t._saved = 1e9;
         sim.step(STEP);
         ok('and there is nothing past the last of them to buy',
-            t._got === T.COST.length, `it has ${t._got}`);
+            t._got === (1 << T.COST.length) - 1, `it has ${t._got.toString(2)}`);
     }
 
     // The wizard's rule for choosing a spell, one case at a time.
@@ -1873,7 +1878,7 @@ function techTree() {
             { _x: 0, _y: 18.61, _side: 0, _mage: true, _cast: 0 },
             { _x: 3.5, _y: 18.61, _side: 1, _hp: T.HP, _max: T.HP, _held: 5 },
         ]);
-        powers(0, 2);
+        powers(0, 0, 2);
         const hp = e._hp;
         pinned(1);
         ok('a wizard blasts a mark that is already standing still',
@@ -1887,7 +1892,7 @@ function techTree() {
             { _x: 0, _y: 18.61, _side: 0, _mage: true, _cast: 0 },
             { _x: 3.5, _y: 18.61, _side: 1, _hp: T.HP, _max: T.HP },
         ]);
-        powers(0, 2);
+        powers(0, 0, 2);
         const hp = e._hp;
         pinned(1);
         ok('and it freezes one that is not', sim.casts.length === 1
@@ -1901,7 +1906,7 @@ function techTree() {
             { _x: 0, _y: 18.61, _side: 0, _mage: true, _cast: 0 },
             { _x: 3.5, _y: 18.61, _side: 1, _hp: T.HP, _max: T.HP, _held: 5 },
         ]);
-        powers(0, 1);
+        powers(0, 0);
         const hp = e._hp;
         pinned(1);
         ok('a wizard with only the freeze has nothing better to do with a held one',
@@ -1918,7 +1923,7 @@ function techTree() {
         ]);
         f._foe = e;
         f._eng = true;
-        powers(0, 3);
+        powers(0, 0, 2, 4);
         pinned(1);
         ok('a wizard with the rage puts it on one of its own that is fighting',
             sim.casts[0]?._k === 2 && Math.abs(f._rage - T.RAGE) < 0.02,
@@ -1937,7 +1942,7 @@ function techTree() {
         ]);
         f._foe = e;
         f._eng = true;
-        powers(0, 3);
+        powers(0, 0, 2, 4);
         pinned(1);
         ok('a wizard does not pile the rage onto one already roaring',
             sim.casts[0]?._k === 0 && e._held > 0, `kind ${sim.casts[0]?._k}`);
@@ -1980,6 +1985,199 @@ function techTree() {
         ok('a rage burns down while its owner is held still',
             Math.abs(a._rage - (T.RAGE - 2)) < 0.05,
             `${a._rage.toFixed(2)} left of ${T.RAGE} after two seconds held`);
+    }
+
+    // --- the second branch: what comes out of the gate ----------------------
+
+    // A ninja is not picked out. That is the whole of it: it is not harder to
+    // hurt and not harder to shove, it is only never chosen.
+    {
+        const [a] = stage([
+            { _x: 0, _y: 18.61, _side: 0 },
+            { _x: 3, _y: 18.61, _side: 1, _nin: true, _hp: 1e6, _max: 1e6 },
+        ]);
+        pinned(30);
+        ok('nobody sets off after a ninja', a._foe === null,
+            'it picked one out all the same');
+    }
+    {
+        // And the same pair with the cloak off, so the test above is about
+        // the ninja and not about the distance.
+        const [a] = stage([
+            { _x: 0, _y: 18.61, _side: 0 },
+            { _x: 3, _y: 18.61, _side: 1, _hp: 1e6, _max: 1e6 },
+        ]);
+        pinned(30);
+        ok('and it would have, were it not one', a._foe !== null,
+            'it took no target at that range either way');
+    }
+    {
+        // Unseen is not untouchable: whoever it walks up to still fights it.
+        const [a, n] = stage([
+            { _x: -0.5, _y: 18.61, _side: 0, _hp: 1e6, _max: 1e6 },
+            { _x: 0.5, _y: 18.61, _side: 1, _nin: true },
+        ]);
+        n._foe = a;
+        const hp = n._hp;
+        pinned(60 * 8);
+        ok('a ninja still takes what it walks into', n._hp < hp,
+            `it came through eight seconds of a fight on ${n._hp.toFixed(2)}`);
+    }
+
+    // A berserker bred for it swings like one a wizard enraged, and does not
+    // stop, which is the only difference between the two.
+    {
+        const swings = (born) => {
+            const [a, b] = stage([
+                { _x: -0.43, _y: 18.61, _side: 0, _hp: 1e9, _max: 1e9, _ber: born },
+                { _x: 0.43, _y: 18.61, _side: 1, _hp: 1e9, _max: 1e9 },
+            ]);
+            a._foe = b;
+            let n = 0, ph = a._ph;
+            for (let i = 0; i < 60 * 20; i++) {
+                pinned(1);
+                if (Math.floor(a._ph / 6.2832 - 0.5) > Math.floor(ph / 6.2832 - 0.5)) n++;
+                ph = a._ph;
+            }
+            return n;
+        };
+        const plain = swings(false), born = swings(true);
+        ok('a berserker out of the gate swings FURY times as often',
+            Math.abs(born / plain - T.FURY) < 0.1,
+            `${born} against ${plain} over twenty seconds`);
+    }
+    {
+        const [a] = stage([{ _x: 0, _y: 18.61, _side: 0, _ber: true }]);
+        pinned(60 * (T.RAGE + 4));
+        ok('and it never wears off', a._ber === true, 'it calmed down');
+    }
+
+    // The branches are branches: neither can be entered from the other.
+    {
+        sim.reset();
+        const t = sim.tech[0];
+        t._got = 0;
+        t._saved = 1e9;
+        t._t = 1e9;
+        sim.step(STEP);
+        ok('with everything saved a side still takes one power at a time',
+            t._got === 1, `it took ${t._got.toString(2)}`);
+        const cheapest = T.COST[0];
+        ok('and the cheapest of them', t._saved < 1e9 - cheapest + 1,
+            `it spent ${(1e9 - t._saved).toFixed(0)} of ${cheapest}`);
+    }
+    {
+        // Nothing is ever learned before the thing it is built on, however
+        // much a side has saved. Watched over a whole tree's worth of buying
+        // rather than asserted once, since one step only ever buys one.
+        sim.reset();
+        const t = sim.tech[0];
+        t._got = 0;
+        t._t = 1e9;
+        let bad = '';
+        for (let i = 0; i < 200 && t._got !== (1 << T.COST.length) - 1; i++) {
+            t._saved = 1e9;
+            sim.step(STEP);
+            T.PREREQ.forEach((need, k) => {
+                if (need >= 0 && (t._got >> k & 1) && !(t._got >> need & 1)) {
+                    bad = `power ${k} arrived without power ${need},`
+                        + ` at ${t._got.toString(2)}`;
+                }
+            });
+        }
+        ok('nothing is learned before what it is built on', !bad, bad);
+        ok('and both branches fill up in the end',
+            t._got === (1 << T.COST.length) - 1,
+            `it ended on ${t._got.toString(2)}`);
+    }
+
+    // What the gate branch actually buys: a share of the recruits.
+    {
+        const bred = (...got) => {
+            sim.reset();
+            const t = sim.tech[0];
+            t._got = got.reduce((g, i) => g | 1 << i, 0);
+            t._saved = -1e9;
+            t._t = 1e9;
+            const seen = new Set();
+            let ber = 0, nin = 0, mage = 0, all = 0;
+            for (let i = 0; i < 60 * 400; i++) {
+                for (const c of sim.castles) if (c._side !== 0) c._t = 1e9;
+                sim.step(STEP);
+                t._got = got.reduce((g, i2) => g | 1 << i2, 0);
+                for (const u of sim.herd) {
+                    if (u._side !== 0 || seen.has(u)) continue;
+                    seen.add(u);
+                    all++;
+                    if (u._ber) ber++;
+                    if (u._nin) nin++;
+                    if (u._mage) mage++;
+                }
+            }
+            return { ber, nin, mage, all };
+        };
+        const none = bred();
+        ok('with neither bred for, none of them comes out either',
+            none.ber === 0 && none.nin === 0,
+            `${none.ber} berserkers and ${none.nin} ninjas out of ${none.all}`);
+        const b = bred(1);
+        ok('a side that has bred for it turns out berserkers',
+            b.ber > 0 && b.nin === 0,
+            `${b.ber} berserkers and ${b.nin} ninjas out of ${b.all}`);
+        ok('and about one recruit in BERSERK_EVERY of them',
+            Math.abs(b.all / Math.max(b.ber, 1) - T.BERSERK_EVERY) < 1.5,
+            `one in ${(b.all / Math.max(b.ber, 1)).toFixed(1)}`
+            + ` against one in ${T.BERSERK_EVERY}`);
+        const n = bred(1, 3);
+        ok('and one that has gone on to the ninja turns out both',
+            n.ber > 0 && n.nin > 0,
+            `${n.ber} berserkers and ${n.nin} ninjas out of ${n.all}`);
+        const m = bred(0, 1, 3);
+        ok('a wizard is never also one of them',
+            m.mage > 0 && m.ber > 0 && m.nin > 0,
+            `${m.mage} capes, ${m.ber} berserkers, ${m.nin} ninjas out of ${m.all}`);
+    }
+
+    // Turncoat: the enemy's best animal walks back at them.
+    {
+        const [w, e] = stage([
+            { _x: 0, _y: 18.61, _side: 0, _mage: true, _cast: 0 },
+            { _x: 3.5, _y: 18.61, _side: 1, _lvl: 2, _hp: T.HP, _max: T.HP },
+        ]);
+        powers(0, 0, 2, 4, 5);
+        const lvl = e._lvl;
+        pinned(1);
+        ok('a wizard with the turncoat takes a veteran off the other side',
+            e._side === 0 && sim.casts.length === 1 && sim.casts[0]._k === 3,
+            `side ${e._side}, kind ${sim.casts[0]?._k}`);
+        ok('and it keeps everything it had', e._lvl === lvl,
+            `it came over on level ${e._lvl} against ${lvl}`);
+    }
+    {
+        // A recruit is not worth the cast; the spell is for what a side has
+        // spent a run making.
+        const [, e] = stage([
+            { _x: 0, _y: 18.61, _side: 0, _mage: true, _cast: 0 },
+            { _x: 3.5, _y: 18.61, _side: 1, _lvl: 0, _hp: T.HP, _max: T.HP },
+        ]);
+        powers(0, 0, 2, 4, 5);
+        pinned(1);
+        ok('and it leaves a recruit alone', e._side === 1,
+            'it turned one that was not worth turning');
+    }
+    {
+        // Nobody is left swinging at one of their own across the change.
+        const [a, b] = stage([
+            { _x: -0.43, _y: 18.61, _side: 0, _hp: 1e6, _max: 1e6 },
+            { _x: 0.43, _y: 18.61, _side: 1, _hp: 1e6, _max: 1e6 },
+        ]);
+        pinned(30);
+        const paired = a._foe === b || b._foe === a;
+        sim.turncoat(b);
+        ok('turning one breaks whatever fight it was in', paired
+            && a._foe !== b && b._foe !== a,
+            `they were ${paired ? '' : 'not '}paired, and are now`
+            + ` ${a._foe === b || b._foe === a ? 'still' : 'not'} pointed at each other`);
     }
 
     // The same seed researches the same things in the same order, which is
