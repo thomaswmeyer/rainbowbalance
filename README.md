@@ -291,14 +291,13 @@ two trees of two:
   one recruit in four comes out a wizard, and before it a side has none at
   all. Turncoat, 250, gives those wizards a second spell, which walks an enemy
   veteran over to their side with everything it had.
-- **The fighter's tree: Stealth, then Berserk.** Stealth, 45, is the ninja:
-  one recruit in nine comes out unseen, so nobody sets off after it, though it
-  is still shoved and still presses its claim, and half the blows that land on
-  it miss. Berserk, 250, sends one recruit in seven out of the gate a
-  berserker, swinging twice as fast and walking half again as fast for the
-  whole of its life. Neither is a
-  spell: they are a side breeding for something, and what they buy arrives in
-  the recruits.
+- **The fighter's tree: Berserk, then Stealth.** Berserk, 45, sends one
+  recruit in seven out of the gate a berserker, swinging twice as fast and
+  walking half again as fast for the whole of its life. Stealth, 250, is the
+  ninja: one recruit in nine comes out unseen, so nobody sets off after it,
+  though it is still shoved and still presses its claim, and half the blows
+  that land on it miss. Neither is a spell: they are a side breeding for
+  something, and what they buy arrives in the recruits.
 
 At the start of a run a coin flip off the seed gives one side the mage's tree
 first and the other side the fighter's, and a side buys strictly in order: its

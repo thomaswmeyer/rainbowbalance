@@ -405,7 +405,7 @@ const THINK = 20, SWAP = 0.5;
  * The powers: two trees of two, and what each costs out of the saved pool.
  *
  *   the mage's tree      freeze, then turncoat
- *   the fighter's tree   stealth, then berserk
+ *   the fighter's tree   berserk, then stealth
  *
  * At the start of a run one side is given the mage's tree to go down first and
  * the other side the fighter's, fifty-fifty off the seed, and a side finishes
@@ -417,9 +417,9 @@ const THINK = 20, SWAP = 0.5;
  * in the recruits, a share of which simply come out of the gate that way.
  */
 const P_FREEZE = 0, P_TURNCOAT = 1, P_STEALTH = 2, P_BERSERK = 3;
-const COST = [45, 250, 45, 250];
+const COST = [45, 250, 250, 45];
 /** Each tree, in the order it is bought. */
-const TREES = [[P_FREEZE, P_TURNCOAT], [P_STEALTH, P_BERSERK]];
+const TREES = [[P_FREEZE, P_TURNCOAT], [P_BERSERK, P_STEALTH]];
 /**
  * The order a side buys everything in: its first tree, then the other.
  * @param {Tech} t
