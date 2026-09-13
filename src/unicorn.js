@@ -483,7 +483,7 @@ void main(){
 // The swarms
 // ---------------------------------------------------------------------------
 
-import { MAX, COOL, RAGE, project, herd } from './sim.js';
+import { MAX, COOL, project, herd } from './sim.js';
 
 let _prog, _u, _batch;
 
@@ -522,10 +522,9 @@ export function drawUnicorns(from, y = -Infinity) {
             // fighter can be that changes how it is drawn and not what it is
             // wearing.
             un._mage ? 1 - Math.min(1, un._cast / COOL) : un._nin ? -2 : -1,
-            // A rage, as a negative. None while held: an animal in a block of
-            // ice is not raging at anything. A berserker bred for it is simply
-            // always at the far end of the rage a wizard's paints.
-            un._held > 0 ? 0 : un._ber ? -1 : -un._rage / RAGE);
+            // A berserker, as a negative, and none while held: an animal in a
+            // block of ice is not raging at anything.
+            un._held > 0 || !un._ber ? 0 : -1);
     }
     gl.useProgram(_prog);
     _u({ uR: [width, height], uT: [time] });

@@ -194,7 +194,7 @@ const HAND_MAX = [1, 3, 2, 2, 1];
  * there: a run starts before anyone has learned anything, and it is the one
  * intervention the balance was tuned against.
  */
-const HAND_POWER = [-1, 0, 3, 1, 5];
+const HAND_POWER = [-1, 0, 2, 3, 1];
 /** Whether a hand is on offer yet. @param {number} i */
 const known = (i) => HAND_POWER[i] < 0
     || ((sim.tech[0]._got | sim.tech[1]._got) >> HAND_POWER[i] & 1) === 1;
@@ -351,7 +351,7 @@ function showClock() {
 // so, which is what the snowflake on the freezing hand already carries: a
 // text-presentation glyph in a row of emoji reads as a missing character.
 const AREAS = ['\u{1F3C3}', '\u2694\ufe0f', '\u{1F441}\ufe0f', '\u2194\ufe0f', '\u{1F3F0}'];
-const POWERS = ['\u2744\ufe0f', '\u{1F525}', '\u2728', '\u{1F977}', '\u{1F621}', '\u{1F504}'];
+const POWERS = ['\u2744\ufe0f', '\u{1F504}', '\u{1F977}', '\u{1F525}'];
 /** The claim bars' yellow and blue, so a row is read without a label. */
 const STONE = ['#ffd61f', '#387aff'];
 
@@ -385,7 +385,7 @@ function showTech() {
                 + `${Math.sqrt(p / sim.FULL) * 100}%,#fff2 0)`;
         });
         // Right to left for the rainicorns, so the first learned is nearest the bars.
-        const got = POWERS.filter((_, i) => t._got >> i & 1);
+        const got = sim.sequence(t).filter((i) => t._got >> i & 1).map((i) => POWERS[i]);
         learned[s].textContent = (s ? got.reverse() : got).join('');
     });
 }
@@ -464,7 +464,7 @@ const hands = /** @type {HTMLElement[]} */ ([...document.querySelectorAll('#p b'
  * is the same number the button spends, read after the decimal point.
  */
 /** What each hand is called on the banner that says it has arrived. */
-const HAND_NAME = ['', 'Freeze', 'Ninja', 'Berserk', 'Turncoat'];
+const HAND_NAME = ['', 'Freeze', 'Stealth', 'Berserk', 'Turncoat'];
 const banner = /** @type {HTMLElement} */ (document.getElementById('u'));
 /** Which hands were on offer at the last paint, a bit apiece. */
 let _known = 1, _bannerT = 0;

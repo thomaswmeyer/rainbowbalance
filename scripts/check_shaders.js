@@ -63,7 +63,7 @@ const OUTLIERS = 1e-5;
 const INSTANCES = {
     // x, y at the hooves; scale, signed by facing; phase; side; fighting;
     // health; the block of ice over it; the cape, −1 for a fighter and 0…1
-    // for how charged a mage's spell is; a rage, as a negative. The sweep has
+    // for how charged a mage's spell is; a berserker, as a negative. The sweep has
     // to reach all three and keep them apart while it does: the ice is drawn
     // over the whole animal, so the one case under a block has no cape and no
     // rage to hide. `rage` on a case is what asks for it.
@@ -73,7 +73,7 @@ const INSTANCES = {
         c.rage ? -c.rage : 0],
     // x, y; size; age; side; place on the mane's hue sweep, or one of the
     // flat colours behind it: −1 the body, −2 a promotion's white, and −3
-    // to −6 the frost, smite, rage and turncoat lines. `hue` on
+    // and −4 the frost and turncoat lines. `hue` on
     // a case names one outright; the rest come off the balance.
     sparks: (c) => [0, 0, 0.3, 0.3, c.uB > 0 ? 1 : 0,
         c.hue ?? (c.uB < -0.5 ? -3 : c.uB > 0.5 ? -2 : 0.5)],

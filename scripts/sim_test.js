@@ -91,7 +91,7 @@ function stage(them) {
             _x: 0, _y: 18.61, _s: 1.041, _side: 0, _face: 1, _ph: 0, _lane: 0,
             _hp: T.HP, _max: T.HP, _lvl: 0,
             _fight: 0, _rest: false, _foe: null, _att: 0, _eng: false, _hit: null,
-            _mage: false, _cast: 0, _held: 0, _full: 0, _rage: 0,
+            _mage: false, _cast: 0, _held: 0, _full: 0,
             ...t,
         });
         // The trailing point starts under it, or it would read as walking
@@ -1655,7 +1655,7 @@ function e2e() {
                 if (u._hp <= 0) continue;
                 st.living++;
                 if (u._held > 0) st.frozen++;
-                if (u._rage > 0) st.roaring++;
+                if (u._ber) st.roaring++;
             }
             st.worst = Math.max(st.worst, worstOverlap().worst);
             // How much of the field the fight is actually spread over. The
@@ -1689,15 +1689,15 @@ function e2e() {
     row('smitten by the harness', st.smitten);
     row('mages', `${live.filter((u) => u._mage).length} alive, `
         + `${st.capes} of ${st.deaths} deaths`);
-    row('spells cast', `${st.casts} — ${st.spells[0]} frost, ${st.spells[1]} smite,`
-        + ` ${st.spells[2]} rage, holding ${(st.frozen / Math.max(st.living, 1) * 100).toFixed(1)}%`
-        + ` of the living frozen and ${(st.roaring / Math.max(st.living, 1) * 100).toFixed(1)}% roaring`);
+    row('spells cast', `${st.casts} — ${st.spells[0]} frost, ${st.spells[1]} turncoat,`
+        + ` holding ${(st.frozen / Math.max(st.living, 1) * 100).toFixed(1)}%`
+        + ` of the living frozen and ${(st.roaring / Math.max(st.living, 1) * 100).toFixed(1)}% berserkers`);
     // What each side put its research into, and what it bought with the rest.
     // The two rows are the whole point of the tree: if they come out the same
     // over ten minutes, it is not doing anything.
     row('researched', sim.tech.map((t, i) => `${i ? 'rainicorn' : 'sunicorn'} `
         + t._p.map((p) => (p / T.FULL * 100).toFixed(0) + '%').join('/')
-        + ` +${t._got} power${t._got === 1 ? '' : 's'}`).join('   '));
+        + ` +${t._got.toString(2).split('1').length - 1} powers`).join('   '));
     row('recruits', st.recruits);
     row('blows landed', st.blows);
     row('castles taken', `${st.taken}, and ${st.lost} claims broken`);
@@ -1990,145 +1990,42 @@ function techTree() {
         sim.reset(7, 60);
     }
 
-    // The powers come in order, each for what it costs, out of the saved pool
-    // and not out of the areas.
+    // The powers come in the side's own order, each for what it costs, out of
+    // the saved pool and not out of the areas.
     {
         sim.reset(7, 60);
         const t = sim.tech[0];
-        // COST is in order, so handing a side exactly the next cost buys it
-        // exactly the next thing, whichever branch that is on.
+        const order = sim.sequence(t);
         let want = 0;
-        for (let n = 0; n < T.COST.length; n++) {
+        order.forEach((pw, n) => {
             const areas = t._p.slice();
-            t._saved = T.COST[n];
+            t._saved = T.COST[pw];
             t._t = 1e9;
             sim.step(STEP);
-            want |= 1 << n;
-            ok(`power ${n + 1} of ${T.COST.length} costs its ${T.COST[n]} out of the saved pool`,
-                t._got === want && t._saved < T.COST[n],
-                `it has ${t._got.toString(2)}, wanted ${want.toString(2)},`
-                + ` with ${t._saved.toFixed(1)} saved`);
-            t._p.splice(0, 5, ...areas);
-        }
+            want |= 1 << pw;
+            ok(`power ${n + 1} of ${order.length} costs its ${T.COST[pw]} out of the saved pool`,
+                t._got === want && t._saved < T.COST[pw],
+                `it has ${t._got.toString(2)}, wanted ${want.toString(2)}, with ${t._saved.toFixed(1)} saved`);
+            t._p.splice(0, areas.length, ...areas);
+        });
         t._saved = 1e9;
         sim.step(STEP);
         ok('and there is nothing past the last of them to buy',
             t._got === (1 << T.COST.length) - 1, `it has ${t._got.toString(2)}`);
     }
 
-    // The wizard's rule for choosing a spell, one case at a time.
+    // A wizard without the turncoat freezes what it can reach, veteran or not.
     {
         const [, e] = stage([
             { _x: 0, _y: 18.61, _side: 0, _mage: true, _cast: 0 },
-            { _x: 3.5, _y: 18.61, _side: 1, _hp: T.HP, _max: T.HP, _held: 5 },
+            { _x: 3.5, _y: 18.61, _side: 1, _lvl: 2, _hp: T.HP, _max: T.HP },
         ]);
-        powers(0, 0, 2);
+        powers(0, T.P_FREEZE);
         const hp = e._hp;
         pinned(1);
-        ok('a wizard blasts a mark that is already standing still',
-            sim.casts.length === 1 && sim.casts[0]._k === 1
-            && Math.abs(hp - e._hp - T.SMITE) < 1e-9,
-            `${sim.casts.length} spells, kind ${sim.casts[0]?._k},`
-            + ` ${(hp - e._hp).toFixed(2)} off it against ${T.SMITE}`);
-    }
-    {
-        const [, e] = stage([
-            { _x: 0, _y: 18.61, _side: 0, _mage: true, _cast: 0 },
-            { _x: 3.5, _y: 18.61, _side: 1, _hp: T.HP, _max: T.HP },
-        ]);
-        powers(0, 0, 2);
-        const hp = e._hp;
-        pinned(1);
-        ok('and it freezes one that is not', sim.casts.length === 1
-            && sim.casts[0]._k === 0 && e._held > 0 && e._hp === hp,
-            `kind ${sim.casts[0]?._k}, held ${e._held.toFixed(2)}`);
-    }
-    {
-        // A wizard without the smite freezes whatever it can reach, held or
-        // not — which is the waste the smite turns into damage.
-        const [, e] = stage([
-            { _x: 0, _y: 18.61, _side: 0, _mage: true, _cast: 0 },
-            { _x: 3.5, _y: 18.61, _side: 1, _hp: T.HP, _max: T.HP, _held: 5 },
-        ]);
-        powers(0, 0);
-        const hp = e._hp;
-        pinned(1);
-        ok('a wizard with only the freeze has nothing better to do with a held one',
-            sim.casts[0]?._k === 0 && e._hp === hp, `kind ${sim.casts[0]?._k}`);
-    }
-
-    // The rage: on one of its own that is in a fight, and never on one that
-    // is already roaring.
-    {
-        const [, f, e] = stage([
-            { _x: 0, _y: 18.61, _side: 0, _mage: true, _cast: 0 },
-            { _x: 2, _y: 18.61, _side: 0, _hp: 1e9, _max: 1e9 },
-            { _x: 2.9, _y: 18.61, _side: 1, _hp: 1e9, _max: 1e9 },
-        ]);
-        f._foe = e;
-        f._eng = true;
-        powers(0, 0, 2, 4);
-        pinned(1);
-        ok('a wizard with the rage puts it on one of its own that is fighting',
-            sim.casts[0]?._k === 2 && Math.abs(f._rage - T.RAGE) < 0.02,
-            `kind ${sim.casts[0]?._k}, rage ${f._rage.toFixed(2)}`);
-        ok('and it went to the friend and not to the enemy',
-            e._rage === 0 && e._held === 0, 'the enemy got something');
-    }
-    {
-        // One already roaring is passed over and the wizard goes back to the
-        // freeze, which is what stops the rage burying the spell it came
-        // after.
-        const [, f, e] = stage([
-            { _x: 0, _y: 18.61, _side: 0, _mage: true, _cast: 0 },
-            { _x: 2, _y: 18.61, _side: 0, _hp: 1e9, _max: 1e9, _rage: T.RAGE },
-            { _x: 2.9, _y: 18.61, _side: 1, _hp: 1e9, _max: 1e9 },
-        ]);
-        f._foe = e;
-        f._eng = true;
-        powers(0, 0, 2, 4);
-        pinned(1);
-        ok('a wizard does not pile the rage onto one already roaring',
-            sim.casts[0]?._k === 0 && e._held > 0, `kind ${sim.casts[0]?._k}`);
-    }
-
-    // What the rage does, and what takes it off again.
-    {
-        const swings = (rage) => {
-            const [a, b] = stage([
-                { _x: -0.43, _y: 18.61, _side: 0, _hp: 1e9, _max: 1e9 },
-                { _x: 0.43, _y: 18.61, _side: 1, _hp: 1e9, _max: 1e9 },
-            ]);
-            a._foe = b;
-            let n = 0, ph = a._ph;
-            for (let i = 0; i < 60 * 20; i++) {
-                // Topped up, because what is being measured is the swinging
-                // and not how long the rage lasts, which is the next case.
-                a._rage = rage;
-                pinned(1);
-                if (Math.floor(a._ph / 6.2832 - 0.5) > Math.floor(ph / 6.2832 - 0.5)) n++;
-                ph = a._ph;
-            }
-            return n;
-        };
-        const plain = swings(0), roaring = swings(T.RAGE);
-        ok('a unicorn in a rage swings FURY times as often',
-            Math.abs(roaring / plain - T.FURY) < 0.1,
-            `${roaring} against ${plain} over twenty seconds`);
-    }
-    {
-        const [a] = stage([{ _x: 0, _y: 18.61, _side: 0, _rage: T.RAGE }]);
-        pinned(60 * (T.RAGE + 1));
-        ok('and a rage runs out', a._rage === 0, `${a._rage.toFixed(2)} left`);
-    }
-    {
-        // Frost is an answer to a berserker: the rage burns down while it
-        // stands there, so what comes out of the frost has less of it left.
-        const [a] = stage([{ _x: 0, _y: 18.61, _side: 0, _rage: T.RAGE, _held: 2 }]);
-        pinned(120);
-        ok('a rage burns down while its owner is held still',
-            Math.abs(a._rage - (T.RAGE - 2)) < 0.05,
-            `${a._rage.toFixed(2)} left of ${T.RAGE} after two seconds held`);
+        ok('a wizard with only the freeze freezes what it can reach', sim.casts.length === 1
+            && sim.casts[0]._k === 0 && e._held > 0 && e._hp === hp && e._side === 1,
+            `kind ${sim.casts[0]?._k}, held ${e._held.toFixed(2)}, side ${e._side}`);
     }
 
     // --- the second branch: what comes out of the gate ----------------------
@@ -2168,8 +2065,7 @@ function techTree() {
             `it came through eight seconds of a fight on ${n._hp.toFixed(2)}`);
     }
 
-    // A berserker bred for it swings like one a wizard enraged, and does not
-    // stop, which is the only difference between the two.
+    // A berserker swings FURY times as fast, and does not stop.
     {
         const swings = (born) => {
             const [a, b] = stage([
@@ -2192,47 +2088,43 @@ function techTree() {
     }
     {
         const [a] = stage([{ _x: 0, _y: 18.61, _side: 0, _ber: true }]);
-        pinned(60 * (T.RAGE + 4));
+        pinned(60 * 10);
         ok('and it never wears off', a._ber === true, 'it calmed down');
     }
 
-    // The branches are branches: neither can be entered from the other.
+    // Two trees: the sides start down opposite ones, fifty-fifty off the seed,
+    // and each finishes its first tree before it starts on the other.
     {
-        sim.reset(7, 60);
-        const t = sim.tech[0];
-        t._got = 0;
-        t._saved = 1e9;
-        t._t = 1e9;
-        sim.step(STEP);
-        ok('with everything saved a side still takes one power at a time',
-            t._got === 1, `it took ${t._got.toString(2)}`);
-        const cheapest = T.COST[0];
-        ok('and the cheapest of them', t._saved < 1e9 - cheapest + 1,
-            `it spent ${(1e9 - t._saved).toFixed(0)} of ${cheapest}`);
+        let mageFirst = 0, opposite = true;
+        for (let seed = 1; seed <= 200; seed++) {
+            sim.reset(seed, 60);
+            const [a, b] = sim.tech;
+            if (a._tree === b._tree) opposite = false;
+            if (a._tree === 0) mageFirst++;
+        }
+        ok('the two sides always start down opposite trees', opposite, 'a run had both on the same tree');
+        ok('and which way round is about even', mageFirst > 70 && mageFirst < 130,
+            `the sunicorns went mage first in ${mageFirst} of 200`);
     }
     {
-        // Nothing is ever learned before the thing it is built on, however
-        // much a side has saved. Watched over a whole tree's worth of buying
-        // rather than asserted once, since one step only ever buys one.
         sim.reset(7, 60);
         const t = sim.tech[0];
+        const first = T.TREES[t._tree], other = T.TREES[1 - t._tree];
         t._got = 0;
         t._t = 1e9;
         let bad = '';
-        for (let i = 0; i < 200 && t._got !== (1 << T.COST.length) - 1; i++) {
+        for (let i = 0; i < 20 && t._got !== (1 << T.COST.length) - 1; i++) {
             t._saved = 1e9;
             sim.step(STEP);
-            T.PREREQ.forEach((need, k) => {
-                if (need >= 0 && (t._got >> k & 1) && !(t._got >> need & 1)) {
-                    bad = `power ${k} arrived without power ${need},`
-                        + ` at ${t._got.toString(2)}`;
-                }
-            });
+            if (!first.every((pw) => t._got >> pw & 1) && other.some((pw) => t._got >> pw & 1)) {
+                bad = `started its other tree at ${t._got.toString(2)}`;
+            }
+            for (const tree of T.TREES) {
+                if ((t._got >> tree[1] & 1) && !(t._got >> tree[0] & 1)) bad = `bought a tree out of order at ${t._got.toString(2)}`;
+            }
         }
-        ok('nothing is learned before what it is built on', !bad, bad);
-        ok('and both branches fill up in the end',
-            t._got === (1 << T.COST.length) - 1,
-            `it ended on ${t._got.toString(2)}`);
+        ok('a side finishes its first tree before it starts the other', !bad, bad);
+        ok('and in the end it has both', t._got === (1 << T.COST.length) - 1, `it ended on ${t._got.toString(2)}`);
     }
 
     // What the gate branch actually buys: a share of the recruits.
@@ -2266,7 +2158,7 @@ function techTree() {
         ok('with neither bred for, none of them comes out either',
             none.ber === 0 && none.nin === 0,
             `${none.ber} berserkers and ${none.nin} ninjas out of ${none.all}`);
-        const b = bred(1);
+        const b = bred(T.P_BERSERK);
         ok('a side that has bred for it turns out berserkers',
             b.ber > 0 && b.nin === 0,
             `${b.ber} berserkers and ${b.nin} ninjas out of ${b.all}`);
@@ -2274,11 +2166,11 @@ function techTree() {
             Math.abs(b.all / Math.max(b.ber, 1) - T.BERSERK_EVERY) < 1.5,
             `one in ${(b.all / Math.max(b.ber, 1)).toFixed(1)}`
             + ` against one in ${T.BERSERK_EVERY}`);
-        const n = bred(1, 3);
+        const n = bred(T.P_BERSERK, T.P_STEALTH);
         ok('and one that has gone on to the ninja turns out both',
             n.ber > 0 && n.nin > 0,
             `${n.ber} berserkers and ${n.nin} ninjas out of ${n.all}`);
-        const m = bred(0, 1, 3);
+        const m = bred(T.P_FREEZE, T.P_BERSERK, T.P_STEALTH);
         ok('a wizard is never also one of them',
             m.mage > 0 && m.ber > 0 && m.nin > 0,
             `${m.mage} capes, ${m.ber} berserkers, ${m.nin} ninjas out of ${m.all}`);
@@ -2309,11 +2201,11 @@ function techTree() {
             { _x: 0, _y: 18.61, _side: 0, _mage: true, _cast: 0 },
             { _x: 3.5, _y: 18.61, _side: 1, _lvl: 2, _hp: T.HP, _max: T.HP },
         ]);
-        powers(0, 0, 2, 4, 5);
+        powers(0, T.P_FREEZE, T.P_TURNCOAT);
         const lvl = e._lvl;
         pinned(1);
         ok('a wizard with the turncoat takes a veteran off the other side',
-            e._side === 0 && sim.casts.length === 1 && sim.casts[0]._k === 3,
+            e._side === 0 && sim.casts.length === 1 && sim.casts[0]._k === 1,
             `side ${e._side}, kind ${sim.casts[0]?._k}`);
         ok('and it keeps everything it had', e._lvl === lvl,
             `it came over on level ${e._lvl} against ${lvl}`);
@@ -2325,7 +2217,7 @@ function techTree() {
             { _x: 0, _y: 18.61, _side: 0, _mage: true, _cast: 0 },
             { _x: 3.5, _y: 18.61, _side: 1, _lvl: 0, _hp: T.HP, _max: T.HP },
         ]);
-        powers(0, 0, 2, 4, 5);
+        powers(0, T.P_FREEZE, T.P_TURNCOAT);
         pinned(1);
         ok('and it leaves a recruit alone', e._side === 1,
             'it turned one that was not worth turning');

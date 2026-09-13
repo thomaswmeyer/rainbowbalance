@@ -8,8 +8,7 @@
  *
  * Instance data, six floats: x, y, size, age 0…1; side; u, a place along the
  * mane's hue sweep, or one of the flat colours below it: −1 the body colour,
- * −2 white, and then one for each of the four spells' lines — −3 a frost,
- * −4 a smite, −5 a rage, −6 a turncoat.
+ * −2 white, and then one for each spell's line — −3 a frost, −4 a turncoat.
  */
 
 import { g, program, uniforms, gl, time, width, height, Batch } from './gl.js';
@@ -49,9 +48,7 @@ vec3 hsv(float h, float s, float v){
 // The unicorn shader's mane colours, and its body colours with the
 // rainicorn's lifted out of the near-black, which does not read as a spark.
 vec3 colour(float u, float side, float t){
-  if (u < -5.5) return vec3(0.80, 0.36, 1.0);     // a turncoat, purple
-  if (u < -4.5) return vec3(1.0, 0.31, 0.10);     // a rage, the red it beats
-  if (u < -3.5) return vec3(1.0, 0.86, 0.42);     // a smite, hot gold
+  if (u < -3.5) return vec3(0.80, 0.36, 1.0);     // a turncoat, purple
   if (u < -2.5) return vec3(0.45, 0.82, 1.0);     // a frost
   if (u < -1.5) return vec3(1.0);                 // a promotion's white shower
   if (u < 0.0) return mix(vec3(0.99, 0.95, 0.88), vec3(0.55, 0.40, 0.75), side);
@@ -130,8 +127,8 @@ export function shower(x, y, s) {
  * @param {number} x1 what it is aimed at
  * @param {number} y1
  * @param {number} s the caster's size
- * @param {number} kind which spell: 0 a frost, 1 a smite, 2 a rage, 3 a
- *   turncoat. They are laid the same way and only the colour differs.
+ * @param {number} kind which spell: 0 a frost, 1 a turncoat. They are laid
+ *   the same way and only the colour differs.
  */
 export function bolt(x0, y0, x1, y1, s, kind) {
     const k = s / NEAR_S;

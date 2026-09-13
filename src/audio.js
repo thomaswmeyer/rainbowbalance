@@ -328,15 +328,6 @@ export function blow(p) {
 export function cast(p, k) {
     const v = near(p), x = pan(p);
     if (k === 1) {
-        // The bolt does damage, so it lands rather than settles.
-        tone('sawtooth', 1400, 180, 0.22, 0.15 * v, x);
-        rush(5000, 700, 0.24, 0.15 * v, x, 1.5);
-    } else if (k === 2) {
-        // And a rage is given, not done to: it swells out of the ground under
-        // one of the caster's own rather than arriving on top of an enemy.
-        tone('sawtooth', 110, 300, 0.4, 0.1 * v, x);
-        rush(300, 1200, 0.42, 0.07 * v, x, 2);
-    } else if (k === 3) {
         // A turncoat: two voices passing each other in pitch and across the
         // stereo field, which is what changing sides sounds like.
         tone('sine', 760, 240, 0.3, 0.09 * v, x);

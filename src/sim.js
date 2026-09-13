@@ -405,66 +405,42 @@ export const FULL = 300;
  */
 const THINK = 20, SWAP = 0.5;
 /**
- * The powers, in the order they are learned, and what each costs out of the
- * saved pool. They are the god's own two hands, which is the point of them:
- * a side that has watched a whole rainbow's worth of its own frozen and
- * struck down out of a clear sky works out in the end how it was done.
+ * The powers: two trees of two, and what each costs out of the saved pool.
  *
- * Freeze puts the cape on one recruit in MAGE_EVERY. Before it there are no
- * wizards at all and the field is horn to horn and nothing else, which is
- * also the answer to a herd silting up with capes: they arrive when a side
- * has earned them rather than from the first minute. Smite gives a wizard a
- * second spell and a rule for choosing between them — see the cast in
- * decide() — and a bolt that lands rather than a hold that waits. Rage is
- * the first of the three a wizard casts on its own side rather than at the
- * other, and the first that is worth anything to a side that is losing: the
- * other two need an enemy in reach, and this one needs a friend in a fight.
+ *   the mage's tree      freeze, then turncoat
+ *   the fighter's tree   stealth, then berserk
  *
- * More belong here. Another is a cost in this list and a case in that rule.
+ * At the start of a run one side is given the mage's tree to go down first and
+ * the other side the fighter's, fifty-fifty off the seed, and a side finishes
+ * its first tree before it starts on the other. The numbers are bits in _got.
+ *
+ * Freeze puts the cape on one recruit in MAGE_EVERY, and turncoat gives its
+ * wizards a second spell for a mark worth taking. Stealth and berserk are not
+ * spells: they are a side breeding for something, and what they buy arrives
+ * in the recruits, a share of which simply come out of the gate that way.
  */
-const COST = [45, 120, 140, 200, 250, 400];
+const P_FREEZE = 0, P_TURNCOAT = 1, P_STEALTH = 2, P_BERSERK = 3;
+const COST = [45, 250, 45, 250];
+/** Each tree, in the order it is bought. */
+const TREES = [[P_FREEZE, P_TURNCOAT], [P_STEALTH, P_BERSERK]];
 /**
- * And which power each one needs first, or −1 for one that starts a branch.
- * There are two, and they are bought out of the same saved pool, so a side
- * that wants down one of them is choosing not to go down the other yet.
- *
- *   the wizard's spells   freeze → smite → rage → turncoat
- *   what comes out of the gate   berserk → ninja
- *
- * The first branch is the god's own hands, learned by watching the sky. The
- * second is not a spell at all: it is a side breeding for it, and what it
- * buys arrives in the recruits rather than in a cape. COST is in order, so
- * the first entry a side can afford and is allowed is the cheapest it can
- * have, and _got is a bit per power rather than a count.
+ * The order a side buys everything in: its first tree, then the other.
+ * @param {Tech} t
  */
-const PREREQ = [-1, -1, 0, 1, 2, 4];
+export const sequence = (t) => [...TREES[t._tree], ...TREES[1 - t._tree]];
 /** Whether a side has learned one. @param {Tech} t @param {number} i */
 const has = (t, i) => t._got >> i & 1;
-/** What a wizard's bolt takes off, against a recruit's HP hit points. */
-const SMITE = 2.5;
 /**
- * One recruit in this many comes out of the gate permanently enraged, and
- * one in this many a ninja, once its side has learned how. Rarer than the
- * cape, because neither of them ever wears off: a wizard's rage is six
- * seconds and these are for the life of the animal, so a side that bred for
- * them is fielding a few of them among many rather than an army of them.
+ * One recruit in this many comes out of the gate a berserker, and one in this
+ * many stealthed, once its side has learned how. Rarer than the cape, because
+ * neither ever wears off, so a side that bred for them fields a few among many.
  */
 const BERSERK_EVERY = 7, NINJA_EVERY = 9;
 /**
- * The rage: how long it is on a unicorn, and how much faster it swings while
- * it is. Twice the swings is twice the damage, which is a great deal for six
- * seconds — and it is all it does. It does not walk faster, hit harder or
- * take less, because a rage that changed four things at once would be a
- * thing nobody could read off the field, and a neck going twice as fast is
- * a thing anybody can.
- *
- * It burns down whatever the animal is doing, frozen included, so an enemy
- * wizard's frost is an answer to it: a berserker held still for FROST
- * seconds is a berserker with that much less rage. It does not
- * stack, either — casting on one already roaring only sets the clock back —
- * so a side's wizards spread it about rather than piling it on one animal.
+ * How much faster a berserker swings. Twice the swings is twice the damage,
+ * and it is all it does: a neck going twice as fast is a thing anybody can
+ * read off the field.
  */
-export const RAGE = 6;
 const FURY = 2;
 
 /**
@@ -507,8 +483,6 @@ const FURY = 2;
  * @property {Unicorn|null} _hit who landed a blow on it since its last step
  * @property {boolean} _mage it wears the cape: it casts rather than fights
  * @property {number} _cast seconds until its spell comes round again
- * @property {number} _rage seconds of a wizard's rage left on it, 0 when it
- *   is swinging at its own pace
  */
 
 /** @type {Unicorn[]} */
@@ -576,7 +550,8 @@ export const arrived = [];
  * @property {number} _on which area it is working on now
  * @property {number} _t seconds until it thinks about that again
  * @property {number} _saved points saved towards the next power
- * @property {number} _got how many powers it has, the list being a chain
+ * @property {number} _got the powers it has, a bit apiece
+ * @property {number} _tree which tree it goes down first: 0 the mage's, 1 the fighter's
  */
 
 /** @type {Tech[]} */
@@ -584,7 +559,7 @@ export const tech = [fresh(), fresh()];
 
 /** A side that has learned nothing yet. */
 function fresh() {
-    return { _p: [0, 0, 0, 0, 0], _m: [1, 1, 1, 1, 1], _on: 0, _t: THINK, _saved: 0, _got: 0 };
+    return { _p: [0, 0, 0, 0, 0], _m: [1, 1, 1, 1, 1], _on: 0, _t: THINK, _saved: 0, _got: 0, _tree: 0 };
 }
 
 /** −1 rainicorns ahead … +1 sunicorns ahead, smoothed. */
@@ -642,8 +617,8 @@ export const TUNE = typeof __DEBUG__ === 'undefined' || __DEBUG__
         SPAWN, LIFE, FADE_IN, SCALE0, CAP, CAP_R, TAKE, BREAK, MOB, LANE, OUTPOST, FREEZE,
         CASTLE_W, BODY, FOOT, FOOT_X, SPEED,
         MAGE_EVERY, MAGE_V, CAST, KEEP, COOL, FROST,
-        RESEARCH, BOUNTY, GAIN, FULL, THINK, SWAP, COST, PREREQ, SMITE, RAGE, FURY,
-        BERSERK_EVERY, NINJA_EVERY,
+        RESEARCH, BOUNTY, GAIN, FULL, THINK, SWAP, COST, TREES, FURY,
+        BERSERK_EVERY, NINJA_EVERY, P_FREEZE, P_TURNCOAT, P_STEALTH, P_BERSERK,
         PACE, SWING, SIGHT, HORN, GATE }
     : null;
 
@@ -674,6 +649,9 @@ export function reset(s = 7, by = 0) {
     // the same order as well as fighting the same fight.
     tech[0] = fresh();
     tech[1] = fresh();
+    // Which side goes down which tree first, fifty-fifty off the seed.
+    tech[0]._tree = rnd() < 0.5 ? 0 : 1;
+    tech[1]._tree = 1 - tech[0]._tree;
     for (const t of tech) t._on = rnd() * 5 | 0;
     for (const c of castles) {
         c._side = c._from;
@@ -704,12 +682,12 @@ function spawn(castle) {
     // wizards for the ones it did not send.
     const t = tech[castle._side];
     const n = ++castle._n;
-    const mage = n % MAGE_EVERY === 0 && has(t, 0);
+    const mage = n % MAGE_EVERY === 0 && has(t, P_FREEZE);
     // A wizard is never also a berserker or a ninja: it has no fight to rage
     // through and nothing to hide from, and an animal wearing three things at
     // once is one nobody can read off the field.
-    const ber = !mage && n % BERSERK_EVERY === 0 && has(t, 1);
-    const nin = !mage && !ber && n % NINJA_EVERY === 0 && has(t, 3);
+    const ber = !mage && n % BERSERK_EVERY === 0 && has(t, P_BERSERK);
+    const nin = !mage && !ber && n % NINJA_EVERY === 0 && has(t, P_STEALTH);
     const un = {
         _x: castle._x + (rnd() - 0.5) * 1.954,
         _y: y, _s: BODY * SCALE0,
@@ -732,7 +710,6 @@ function spawn(castle) {
         _hit: null,
         _mage: mage,
         _cast: COOL,
-        _rage: 0,
         _bow: 0,
         _ber: ber,
         _nin: nin,
@@ -801,28 +778,6 @@ function seek(un, look, crowd) {
         // chose to have.
         if (e._side === un._side || e._hp <= 0 || e._nin
             || (e._att >= crowd && e !== un._foe)) continue;
-        const d = (e._x - un._x) ** 2 + (e._y - un._y) ** 2;
-        if (d < bd) { bd = d; best = e; }
-    }
-    return best;
-}
-
-/**
- * The nearest of its own within `look` that is horn to horn and not already
- * roaring: what a wizard with the rage is looking for. Written out rather
- * than folded into seek() with another flag, because what it wants is not
- * the same question — seek() asks who can be attacked and this asks who is
- * worth helping, and the two agree on nothing but the distance.
- *
- * Already fighting, because a rage lasts six seconds and one spent walking
- * is one wasted. Not already roaring, so a side's wizards spread it about.
- * @param {Unicorn} un
- * @param {number} look
- */
-function ally(un, look) {
-    let best = null, bd = look * look;
-    for (const e of herd) {
-        if (e._side !== un._side || e._hp <= 0 || !e._eng || e._rage > 0) continue;
         const d = (e._x - un._x) ** 2 + (e._y - un._y) ** 2;
         if (d < bd) { bd = d; best = e; }
     }
@@ -968,14 +923,13 @@ function research(dt) {
             t._t = THINK;
             if (rnd() < SWAP) t._on = pick(t);
         }
-        // And the next power, bought outright the moment it is affordable.
-        // One at a time, cheapest first: COST is in order, so the first entry
-        // a side does not have and is allowed to take is the cheapest one
-        // open to it, down either branch.
-        for (let i = 0; i < COST.length; i++) {
-            if (has(t, i) || (PREREQ[i] >= 0 && !has(t, PREREQ[i]))) continue;
-            if (t._saved >= COST[i]) { t._saved -= COST[i]; t._got |= 1 << i; }
-            break;
+        // And the next power, bought outright the moment it is affordable: the
+        // first in its sequence it does not have, so it finishes its first
+        // tree before it starts on the other.
+        const next = sequence(t).find((i) => !has(t, i));
+        if (next !== undefined && t._saved >= COST[next]) {
+            t._saved -= COST[next];
+            t._got |= 1 << next;
         }
         // What the points come to, worked out here and read everywhere: the
         // field asks for these several times per unicorn per step, and none
@@ -1083,11 +1037,6 @@ function decide(dt) {
             un._fight = Math.max(0, un._fight - dt * 4);
             continue;
         }
-        // A rage burns down whatever the animal is doing, and that includes
-        // standing frozen: a berserker held still for a few seconds is a
-        // berserker with that much less of it, which is what
-        // makes an enemy wizard's frost an answer to one.
-        if (un._rage > 0) un._rage = Math.max(0, un._rage - dt);
 
         // Held, by the ice or by the frost: it does nothing and nothing of
         // its own changes, beyond the hold wearing off it. It keeps whatever
@@ -1283,44 +1232,16 @@ function decide(dt) {
             // swing has learned to cast.
             un._cast -= dt * m[SWING];
             if (un._cast <= 0) {
-                // Which spell, for a wizard that has more than one. In order:
-                //
-                // A mark already standing still is blasted rather than
-                // frozen again — a freeze on something that cannot move is a
-                // freeze thrown away — and that is what makes two wizards
-                // worth more than twice one: the first holds and the second
-                // strikes, and a held unicorn takes the bolt without ever
-                // swinging back.
-                //
-                // With nothing helpless in front of it, the rage goes on one
-                // of its own that is in a fight. That saturates on its own,
-                // a rage lasting most of a cooldown and never
-                // stacking, so a wizard is back to freezing as soon as the
-                // fights around it are all roaring — which is why putting it
-                // above the freeze does not bury the freeze.
-                //
-                // And otherwise the frost, which is what it started with.
-                //
-                // The turncoat goes above all of it, being both the dearest
-                // and the only one that takes an animal off the board without
-                // killing it: a side down a fighter and an enemy up one is
-                // worth two of anything else, so a wizard that can do it does
-                // it whenever it has a mark that is worth the taking.
-                const t = tech[un._side];
-                const friend = has(t, 4) ? ally(un, CAST * m[SIGHT]) : null;
-                let at = mark, k = 0;
-                if (mark && has(t, 5) && mark._lvl >= 1) k = 3;
-                else if (mark && mark._held > 0 && has(t, 2)) k = 1;
-                else if (friend) { at = friend; k = 2; }
+                // A turncoat for a mark worth the taking — a veteran — once its
+                // side has learned it, and a freeze for anything else.
+                const at = mark;
+                const k = at && has(tech[un._side], P_TURNCOAT) && at._lvl >= 1 ? 1 : 0;
                 if (at) {
                     un._cast = COOL;
                     // It turns to its mark and lowers its neck to point the horn.
                     un._bow = 0.5;
                     un._face = at._x > un._x ? 1 : -1;
-                    if (k === 3) turn(at, un._side);
-                    else if (k === 1) wound(un, at, SMITE);
-                    else if (k === 2) at._rage = RAGE;
-                    else holdStill(at, FROST);
+                    if (k) turn(at, un._side); else holdStill(at, FROST);
                     // Both ends are the ground each of them stands on, and
                     // the sizes with them. A horn and a head are above the
                     // ground, and nothing on this plain has a height to put
@@ -1379,7 +1300,7 @@ function decide(dt) {
             // The blow lands at the bottom of the lunge, or misses there. A
             // pair spawned with different phases swing out of step, which is
             // most of why they no longer fall together.
-            const next = un._ph + dt * LUNGE * m[SWING] * (un._rage || un._ber ? FURY : 1);
+            const next = un._ph + dt * LUNGE * m[SWING] * (un._ber ? FURY : 1);
             if (Math.floor(next / 6.2832 - 0.5) > Math.floor(un._ph / 6.2832 - 0.5)
                 && rnd() < HIT) {
                 wound(un, un._foe, DMG * (0.75 + 0.5 * rnd()));
