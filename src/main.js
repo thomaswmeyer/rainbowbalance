@@ -565,9 +565,11 @@ screen('Rainbow Balance<b>For Millennia, the Sunicorns and the Rainicorns have b
  * the page can be pressed, and a touch anywhere on it — the button included —
  * is what takes the pause off. Space still does too, and so does speeding up.
  */
-let _paused = false;
+// A number, not a boolean: the release build's terser writes `false` as 0,
+// and `false !== 0` would take the start screen down on the first frame.
+let _paused = 0;
 function showPause() {
-    const now = !intro && sim.winner < 0 && !speed;
+    const now = !intro && sim.winner < 0 && !speed ? 1 : 0;
     if (now === _paused) return;
     _paused = now;
     if (now) screen('Paused', () => { speed = played; }); else hideScreen();
