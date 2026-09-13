@@ -183,4 +183,9 @@ if (!quiet) {
 console.log(`[build] ${zip.length} / ${LIMIT} bytes — ${free} free ` +
     `(${(free / LIMIT * 100).toFixed(1)}%, ${kb(free)})`);
 
-if (free < 0) fail(`over budget by ${-free} bytes`);
+// Cloudflare Pages sets CF_PAGES in its builds. The site should still go up
+// when the packer's noise tips a build a few bytes over, so there it is a
+// warning; everywhere else the limit is the limit.
+if (free < 0 && process.env.CF_PAGES) {
+    console.warn(`[build] over budget by ${-free} bytes — kept for Cloudflare Pages, not for submission`);
+} else if (free < 0) fail(`over budget by ${-free} bytes`);
