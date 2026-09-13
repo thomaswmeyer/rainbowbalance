@@ -131,10 +131,16 @@ function smite(cx, cy) {
     // Not to the herd's: the herd walks in world units, and what the player
     // is aiming at is the picture, which is where sim.strike() meets it.
     const x = (cx - innerWidth / 2) / innerHeight, y = (innerHeight / 2 - cy) / innerHeight;
-    const un = sim.strike(x, y, !!power);
+    if (charge[power] < 1) return;
+    const un = sim.strike(x, y, power);
     // Where it landed, if it landed on anything: an empty field makes no
     // noise, which is also how the player learns there was nothing there.
-    if (un) (power ? snd.ice : snd.smite)(sim.project(un._x, un._y, un._s));
+    // A hand that found nothing is not spent either, so a miss costs nothing
+    // but the moment — the charge is for what it did, not for the gesture.
+    if (!un) return;
+    charge[power]--;
+    paintHands();
+    (power === 1 ? snd.ice : snd.smite)(sim.project(un._x, un._y, un._s));
 }
 
 /** How many powers each side had last step, so a new one can be noticed. */
@@ -148,6 +154,27 @@ export function reset() {
     sim.reset(Date.now() & 0x7fffffff);
 }
 
+
+/**
+ * The god's five hands, and what each of them costs to use.
+ *
+ * Sparklify is the metronome. Its one charge a second and a half is the hand
+ * the whole game was tuned against, and it is deliberately the only one that
+ * is always about to be available: a player who has spent everything else
+ * still has the one intervention the balance depends on. The rest are scarce
+ * in proportion to how permanent they are — a freeze wears off in twenty
+ * seconds, and the last three never wear off at all, so they are rationed
+ * hardest. Turncoat is the dearest of the lot because it moves an animal from
+ * one column to the other, which is worth two of anything else.
+ *
+ * A charge is a float. Its whole part is how many uses are in hand and its
+ * fraction is how far along the next one is, which is the bar under the
+ * button, so one number is the whole of the state.
+ */
+const HANDS = ['\u2728', '\u2744\ufe0f', '\u{1F977}', '\u{1F525}', '\u{1F504}'];
+const HAND_MAX = [1, 3, 2, 2, 1];
+const HAND_SECS = [1.5, 5, 12, 12, 20];
+const charge = HAND_MAX.slice();
 
 // --- the page ---------------------------------------------------------------
 // Everything on the page is made here rather than in the HTML, so that it is
@@ -168,6 +195,11 @@ document.body.innerHTML =
     + '#p b,#p i{width:64px;height:64px;display:grid;place-content:center;font-size:34px;'
     + 'border-radius:14px;background:#0006;border:3px solid #fff3;cursor:pointer}'
     + '#p b.on{background:#fff3;border-color:#fff}#p i{margin-left:14px}'
+    + '#p b{position:relative;overflow:hidden}#p b.no{opacity:.35}'
+    + '#p b::after{content:"";position:absolute;left:0;bottom:0;height:5px;'
+    + 'width:var(--f);background:#8cf}'
+    + '#p b::before{content:attr(data-n);position:absolute;right:5px;top:2px;'
+    + 'font:600 15px system-ui,sans-serif;color:#fff;text-shadow:0 1px 2px #000}'
     + '#r{position:fixed;left:12px;bottom:12px;display:grid;'
     + 'grid-template-columns:repeat(5,32px) auto;gap:4px 5px;align-items:center;'
     + 'font:15px system-ui,sans-serif;color:#fff;text-shadow:0 1px 2px #000c;'
@@ -176,7 +208,8 @@ document.body.innerHTML =
     + '#r i{height:8px;border-radius:4px;background:#fff2}'
     + '#r b{letter-spacing:3px;padding-left:4px}</style>'
     + '<canvas id=c></canvas><div id=t></div>'
-    + '<div id=p><b>\u2728</b><b>\u2744\ufe0f</b><i id=m>\ud83d\udd0a</i></div>'
+    + '<div id=p>' + HANDS.map((g) => `<b>${g}</b>`).join('')
+    + '<i id=m>\ud83d\udd0a</i></div>'
     + '<div id=r></div><div id=o></div>';
 
 // --- the clock --------------------------------------------------------------
@@ -241,7 +274,7 @@ function showClock() {
 // so, which is what the snowflake on the freezing hand already carries: a
 // text-presentation glyph in a row of emoji reads as a missing character.
 const AREAS = ['\u{1F3C3}', '\u2694\ufe0f', '\u{1F441}\ufe0f', '\u2194\ufe0f', '\u{1F3F0}'];
-const POWERS = ['\u2744\ufe0f', '\u2728', '\u{1F525}'];
+const POWERS = ['\u2744\ufe0f', '\u{1F525}', '\u2728', '\u{1F977}', '\u{1F621}', '\u{1F504}'];
 /** Sandstone and obsidian, near enough that a row is read without a label. */
 const STONE = ['#ffcf6b', '#b48ce8'];
 
@@ -270,7 +303,7 @@ function showTech() {
             pips[s * 5 + i].style.background = `linear-gradient(90deg,${STONE[s]} `
                 + `${Math.sqrt(p / sim.FULL) * 100}%,#fff2 0)`;
         });
-        learned[s].textContent = POWERS.slice(0, t._got).join('');
+        learned[s].textContent = POWERS.filter((_, i) => t._got >> i & 1).join('');
     });
 }
 
@@ -330,13 +363,31 @@ function drawScene(balance) {
 // --- the two powers ---------------------------------------------------------
 
 /**
- * Which of the god's hands is out: 0 strikes a unicorn down in a burst of
- * sparks, 1 freezes it into a block of ice. The two buttons at the top left
- * choose, and a touch anywhere else on the field uses what is chosen.
+ * Which of the god's hands is out. The buttons at the top left choose, and a
+ * touch anywhere else on the field uses what is chosen.
+ *
+ * None of them is free. Each holds a few charges, spends one on use and fills
+ * back up at its own rate, which is what makes the player choose rather than
+ * sweep: the first is the metronome the game was tuned against and the rest
+ * are scarce in proportion to how permanent they are. A hand at less than a
+ * whole charge is dimmed and does nothing.
  */
 let power = 0;
 const hands = /** @type {HTMLElement[]} */ ([...document.querySelectorAll('#p b')]);
-const paintHands = () => hands.forEach((el, i) => { el.className = i === power ? 'on' : ''; });
+/**
+ * The chosen hand lights up; one with nothing in it goes dim; and the bar
+ * across the foot of every button is the fraction of the next charge, which
+ * is the same number the button spends, read after the decimal point.
+ */
+function paintHands() {
+    hands.forEach((el, i) => {
+        const c = charge[i];
+        el.className = (i === power ? 'on' : '') + (c < 1 ? ' no' : '');
+        el.style.setProperty('--f', `${(c % 1) * 100}%`);
+        // The count only means anything where more than one can be held.
+        el.dataset.n = HAND_MAX[i] > 1 ? `${c | 0}` : '';
+    });
+}
 hands.forEach((el, i) => {
     el.onpointerdown = (e) => {
         power = i;
@@ -414,7 +465,11 @@ if (!initGl(canvas)) {
         // edge has to know, this frame, what room is on the other side of it.
         sim.setEdge(canvas.clientWidth / canvas.clientHeight);
         // And a frame only ever runs so many steps, however far behind it is.
-        for (let n = 0; acc >= STEP && n < 300; n++) { step(STEP); acc -= STEP; }
+        let n = 0;
+        for (; acc >= STEP && n < 300; n++) { step(STEP); acc -= STEP; }
+        // How much of the fight this frame bought, which is what the god's
+        // hands fill up on.
+        const used = n * STEP;
 
         // The shaders run on the game's clock, not the wall's: the weather
         // keeps pace with the fight, and stops with it. The one thing that
@@ -424,6 +479,13 @@ if (!initGl(canvas)) {
         drawScene(state._balance);
         showClock();
         showTech();
+        // The hands fill on the game's clock, not the wall's, so pausing
+        // pauses them and running fast fills them fast — the same second of
+        // play costs the same second of recharge however it is watched.
+        for (let i = 0; i < charge.length; i++) {
+            charge[i] = Math.min(HAND_MAX[i], charge[i] + used / HAND_SECS[i]);
+        }
+        paintHands();
         showWinner();
         // The music is written a fifth of a second ahead of itself, off the
         // one number the whole game is read from, and at the pace the fight

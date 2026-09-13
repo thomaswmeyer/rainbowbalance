@@ -129,9 +129,21 @@ that.
 
 ## The powers
 
-`COST` — `src/sim.js:399`. Bought in `research()`; the chain is ordered and
-cheapest-first, so `_got` (how many a side has) is the whole of which ones it
-has.
+`COST` and `PREREQ` — `src/sim.js:399`. Bought in `research()`. `COST` is in
+ascending order and `_got` is a bit per power, so the first entry a side does
+not have and is allowed to take is always the cheapest thing open to it.
+
+There are **two branches**, bought out of the same saved pool, so a side going
+down one is choosing not to go down the other yet:
+
+```
+the wizard's spells   freeze 45 -> smite 140 -> rage 250 -> turncoat 400
+out of the gate       berserk 120 -> ninja 200
+```
+
+The first branch is the god's own hands, learned by watching the sky. The
+second is not a spell at all: it is a side breeding for something, and what it
+buys arrives in the recruits rather than in a cape.
 
 They are the god's own hands, which is the point of them: a side that has
 watched a whole rainbow's worth of its own frozen and struck down out of a
@@ -143,6 +155,9 @@ about 36 seconds, 2 minutes and 4 minutes.
 | **freeze** ❄️ | 45 | the cape. One recruit in `MAGE_EVERY` comes out a wizard. Before this there are none at all and the field is horn to horn and nothing else |
 | **smite** ✨ | 140 | a bolt that lands rather than a hold that waits: `SMITE` (2.5) off a recruit's six |
 | **rage** 🔥 | 250 | `RAGE` (6) seconds of swinging `FURY` (2) times as fast, cast on one of the caster's own |
+| **turncoat** 🔄 | 400 | an enemy veteran changes sides and keeps everything it had. The dearest, and the only one that takes an animal off the board without killing it: a side down a fighter and the other up one is worth two of anything else |
+| **berserk** 🔥 | 120 | one recruit in `BERSERK_EVERY` (7) comes out of the gate permanently enraged. The same picture the wizard's rage paints, and it never wears off |
+| **ninja** 🥷 | 200 | one recruit in `NINJA_EVERY` (9) comes out unseen. `seek()` skips it, so nobody ever sets off after it — it is not harder to hurt and not harder to shove, it simply arrives at fights nobody chose to have. Drawn as its own shadow |
 
 Rage is the first of the three worth anything to a side that is losing: the
 other two both need an enemy in reach, and this one needs a friend in a fight.
@@ -172,6 +187,43 @@ exists for the last third of a run.
 A rage burns down whatever the animal is doing, standing frozen included, so
 an enemy wizard's frost is the answer to a berserker: held still for a second
 and a half is a second and a half less of it.
+
+## The god's five hands, and what they cost
+
+`HANDS`, `HAND_MAX`, `HAND_SECS` — `src/main.js`. Spent in `smite()`, filled in
+the frame loop, painted by `paintHands()`.
+
+The player used to have two hands and infinite use of both, which made the
+whole job a question of reaction rather than of choice. They are rationed now,
+after Lord of the Swarm's per-power charge counters — no shared pool, no global
+lockout, one independent counter each.
+
+| Hand | Held | One back every | What it does |
+|---|---|---|---|
+| sparklify ✨ | 1 | 1.5s | strikes a unicorn down |
+| freeze ❄️ | 3 | 5s | a block of ice for `FREEZE` seconds |
+| ninja 🥷 | 2 | 12s | unseen, for the life of the animal |
+| berserk 🔥 | 2 | 12s | roaring, for the life of the animal |
+| turncoat 🔄 | 1 | 20s | changes its side, keeping everything |
+
+A charge is **a float**, and that one number is the whole of the state: its
+whole part is how many uses are in hand, and its fraction is how far along the
+next one is, which is the bar across the foot of the button. A hand under a
+whole charge is dimmed and does nothing.
+
+Sparklify is deliberately the metronome, and deliberately the only one always
+about to be available. One charge every 1.5 seconds is exactly the hand the
+tree was measured against in the table further down, so a player who has spent
+everything else still has the one intervention the balance depends on. The
+rest are scarce in proportion to how permanent they are: the freeze wears off
+in twenty seconds, and the last three never wear off at all.
+
+A hand that finds nothing is not spent. The charge is for what it did, not for
+the gesture, so a miss costs only the moment.
+
+They fill on the **game's** clock rather than the wall's, so pausing pauses
+them and running at speed fills them at speed. The same second of play costs
+the same second of recharge however it is watched.
 
 ## What it looks like
 
