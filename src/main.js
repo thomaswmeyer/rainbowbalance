@@ -208,7 +208,7 @@ document.body.innerHTML =
     + '#r i{height:8px;border-radius:4px;background:#fff2}'
     + '#r b{letter-spacing:3px;padding-left:4px}</style>'
     + '<canvas id=c></canvas><div id=t></div>'
-    + '<div id=p>' + HANDS.map((g) => `<b>${g}</b>`).join('')
+    + '<div id=p>' + HANDS.map((g, i) => `<b title=${i + 1}>${g}</b>`).join('')
     + '<i id=m>\ud83d\udd0a</i></div>'
     + '<div id=r></div><div id=o></div>';
 
@@ -422,9 +422,14 @@ let played = 1;
 
 addEventListener('keydown', (e) => {
     const k = e.key;
+    // 1 to 5 choose a hand, left to right, which is the order they are in on
+    // screen. Choosing is all it does: the hand still has to be used on
+    // something, and the pointer is what says where.
+    const h = k.length === 1 ? k - 1 : -1;
+    if (h >= 0 && h < HANDS.length) { power = h; paintHands(); }
     // f faster a step at a time, s slower the same way down to a stop, and
     // space is play or pause at whatever pace was last set.
-    if (k === 'f' || k === 'F') speed = Math.max(speed, 1) + 1;
+    else if (k === 'f' || k === 'F') speed = Math.max(speed, 1) + 1;
     else if (k === 's' || k === 'S') speed = Math.max(0, speed - 1);
     else if (k === ' ') speed = speed ? 0 : played;
     else return;
