@@ -179,7 +179,9 @@ noise in the game is an oscillator or a burst of white noise through a filter,
 and the whole of it — the tune and the field both — is one file, `src/audio.js`,
 of about a kilobyte and a half in the zip. Nothing starts until the first
 touch: a browser will not let a sound out before a gesture, and the game's
-first gesture is the first smite.
+first gesture is the first smite. [`doc/music.md`](doc/music.md) is the whole
+of how it works — the graph, every sound's parameters, the scale and how it
+bends, and how to record the page and measure what came out.
 
 The music is the readout the rainbow is. It reads the same one number, and it
 is bent by it rather than switched between two states: the thirds, sixths and
@@ -291,10 +293,10 @@ the values as constants, "copy GLSL" to get them back. Restore `src/debug.js`
 from there and give the lines their ranges back to tune again.
 
 ```
-[build] 11392 / 13312 bytes — 1920 free (14.4%)
-  esbuild    32953 B
-  terser     31083 B  (-6%)
-  roadroller 14949 B  (-52%)
+[build] 11412 / 13312 bytes — 1900 free (14.3%)
+  esbuild    32976 B
+  terser     31108 B  (-6%)
+  roadroller 14977 B  (-52%)
   glsl       14289 B  (-72% of 51264 B raw)
 ```
 
@@ -308,6 +310,7 @@ from there and give the lines their ranges back to tune again.
 | `src/sparks.js` | instanced dots: the burst a unicorn goes out in, the shower a promotion rises in, the streak a spell is drawn as |
 | `src/sim.js` | the fight: castles spawn and are captured, fighters cross the field and fight, mages freeze what they can reach, balance is who is left |
 | `src/audio.js` | every sound, made on the spot: two voices — an oscillator, and noise through a filter — a sound for each thing the field reports, and a tune written as it plays off the balance |
+| `doc/music.md` | what that file does and why, in full |
 | `scripts/sim_test.js` | the fight headless — unit tests on hand-built situations, then a long run checked for invariants, with a crude player keeping it alive |
 | `src/main.js` | boot, fixed-step loop, the page and clock, god mode, and the depth-ordered draw of herd, castles and bow |
 | `src/debug.js` | frame rate under the clock, and the `?b=` and `?off=` URL switches. Never ships |

@@ -57,9 +57,13 @@ const PROG = [0, 5, 3, 4];
  * number that says how loud the game is next to everything else the machine
  * is playing. Recorded out of a browser, the mix peaked at a sixth of full
  * scale before this was more than 1, which is a game nobody can hear over a
- * fan. The compressor is what makes it safe to ask for this much.
+ * fan. The limiter is what makes it safe to ask for this much — but only just:
+ * a burst of noise begins at a random place in the buffer, so the smiting hand
+ * is a different peak every time it is struck, and at 2 the loudest of those
+ * clipped a sample or two. 2.4 reached −0.2 dBFS on a good run, which leaves
+ * nothing at all for a browser whose limiter is a millisecond slower.
  */
-const VOL = 2;
+const VOL = 1.7;
 
 /** 0 while the board is level, 1 once one side is well ahead. */
 let sour = 0;
@@ -95,6 +99,9 @@ export function boot() {
     comp.threshold.value = -9;
     comp.knee.value = 6;
     comp.ratio.value = 14;
+    // Faster than the 3ms default, because what it has to catch is the front
+    // of a noise burst and not a swell.
+    comp.attack.value = 0.001;
     master = ctx.createGain();
     master.gain.value = quiet ? 0 : VOL;
     comp.connect(master).connect(ctx.destination);
@@ -434,8 +441,10 @@ function eighth(t) {
         tone('sine', 78, 44, 0.32, 0.12 * sour, 0, t, 0.004, musicBus);
     }
     // The melody thins as the board tips: two notes in three while it is
-    // level, one in three once it has gone.
-    if (Math.random() > 0.32 + 0.4 * sour) return;
+    // level, one in three once it has gone. The tune is what is lost, so the
+    // sign here is the whole point — it read `0.32 + 0.4 * sour` at first,
+    // which fills the bar up as the board goes wrong instead of emptying it.
+    if (Math.random() > 0.68 - 0.36 * sour) return;
     // A walk, pulled back onto a chord tone at the top of every bar so that
     // it never wanders out of the harmony for long.
     deg = n & 7
