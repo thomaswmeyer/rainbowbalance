@@ -471,9 +471,9 @@ void main(){
   }
 
   if (c.a < 0.002) discard;
-  // A ninja is darkened and faded to a shape on the ground. Premultiplied, so
-  // the one multiply does both at once.
-  c *= 1.0 - 0.62 * ninja;
+  // A ninja is 35% opaque and darkened, a shape on the ground. Premultiplied,
+  // so the one multiply fades colour and coverage together.
+  c *= 1.0 - 0.65 * ninja;
   c.rgb *= 1.0 - 0.45 * ninja;
   // Below zero health is the fade-out: −1 is gone.
   o = c * (vH > 0.0 ? 1.0 : 1.0 + vH);
