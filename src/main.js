@@ -224,10 +224,10 @@ let _shown = -1, _shownPace = 1;
  */
 function formatClock(s) {
     s |= 0;
-    const f = [s / 86400 | 0, (s / 3600 | 0) % 24, (s / 60 | 0) % 60, s % 60];
-    let i = 0;
-    while (i < 3 && !f[i]) i++;
-    return f.slice(i).map((v, j) => (j ? String(v).padStart(2, '0') : v)).join(':');
+    // Minutes and seconds, and minutes keep counting past sixty. A run that
+    // went past an hour would read 73:20, which is a run nobody has played
+    // and not worth the fields it would take to write differently.
+    return `${s / 60 | 0}:${String(s % 60).padStart(2, '0')}`;
 }
 
 const over = /** @type {HTMLElement} */ (document.getElementById('o'));

@@ -120,7 +120,9 @@ stages.push(['terser', js.length]);
 
 // 4. Roadroller.
 const packer = new Packer([{ data: js, type: 'js', action: 'eval' }], {});
-await packer.optimize(1);
+// 2 searches harder than 1 for the input permutation the model likes. It is
+// worth about fifty bytes and costs about ten seconds a build.
+await packer.optimize(2);
 const { firstLine, secondLine } = packer.makeDecoder();
 const packed = firstLine + secondLine;
 stages.push(['roadroller', packed.length]);

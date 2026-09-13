@@ -113,7 +113,7 @@ export function program(vsSrc, fsSrc) {
 
 /**
  * Uniform locations by name, looked up once. Returns a setter that takes an
- * object of values — `u({ uBalance: 0.5, uRes: [w, h] })` — so call sites read
+ * object of values — `u({ uB: [0.5], uR: [w, h] })` — so call sites read
  * as data rather than as a run of gl.uniform* calls.
  *
  * @param {WebGLProgram} p
@@ -123,15 +123,10 @@ export function program(vsSrc, fsSrc) {
 export function uniforms(p, names) {
     const loc = {};
     for (const n of names) loc[n] = gl.getUniformLocation(p, n);
+    // Every value is an array, so its length picks the call and nothing has
+    // to be asked about its type: one f32 is [x], not x.
     return (values) => {
-        for (const n in values) {
-            const v = values[n];
-            const l = loc[n];
-            if (typeof v === 'number') gl.uniform1f(l, v);
-            else if (v.length === 2) gl.uniform2f(l, v[0], v[1]);
-            else if (v.length === 3) gl.uniform3f(l, v[0], v[1], v[2]);
-            else gl.uniform4f(l, v[0], v[1], v[2], v[3]);
-        }
+        for (const n in values) gl[`uniform${values[n].length}f`](loc[n], ...values[n]);
     };
 }
 

@@ -18,28 +18,28 @@ import { NEAR_S } from './sim.js';
 const CAP = 384;
 
 const VS = g`#version 300 es
-layout(location = 0) in vec4 aSpark;
-layout(location = 1) in vec2 aKind;
-uniform vec2 uRes;
+layout(location = 0) in vec4 aA;
+layout(location = 1) in vec2 aK;
+uniform vec2 uR;
 out vec2 vP;
-out vec2 vKind;
-out float vAge;
+out vec2 vK;
+out float vA;
 void main(){
   vec2 c = vec2(float(gl_VertexID & 1), float((gl_VertexID >> 1) & 1)) - 0.5;
   vP = c * 2.0;
-  vKind = aKind;
-  vAge = aSpark.w;
-  vec2 w = aSpark.xy + c * aSpark.z * 2.0;
-  gl_Position = vec4(2.0 * w * vec2(uRes.y / uRes.x, 1.0), 0.0, 1.0);
+  vK = aK;
+  vA = aA.w;
+  vec2 w = aA.xy + c * aA.z * 2.0;
+  gl_Position = vec4(2.0 * w * vec2(uR.y / uR.x, 1.0), 0.0, 1.0);
 }`;
 
 const FS = g`#version 300 es
 precision highp float;
 in vec2 vP;
-in vec2 vKind;
-in float vAge;
+in vec2 vK;
+in float vA;
 out vec4 o;
-uniform float uTime;
+uniform float uT;
 
 vec3 hsv(float h, float s, float v){
   vec3 k = clamp(abs(mod(h * 6.0 + vec3(0.0, 4.0, 2.0), 6.0) - 3.0) - 1.0, 0.0, 1.0);
@@ -62,8 +62,8 @@ vec3 colour(float u, float side, float t){
 void main(){
   float r = length(vP);
   if (r > 1.0) discard;
-  float a = (1.0 - r * r) * (1.0 - vAge);
-  o = vec4(mix(vec3(1.0), colour(vKind.y, vKind.x, uTime), smoothstep(0.0, 0.7, r)), 1.0) * a;
+  float a = (1.0 - r * r) * (1.0 - vA);
+  o = vec4(mix(vec3(1.0), colour(vK.y, vK.x, uT), smoothstep(0.0, 0.7, r)), 1.0) * a;
 }`;
 
 /** @type {{_x:number,_y:number,_vx:number,_vy:number,_s:number,_age:number,_life:number,_side:number,_u:number}[]} */
@@ -72,7 +72,7 @@ let _prog, _u, _batch;
 
 export function initSparks() {
     _prog = program(VS, FS);
-    _u = uniforms(_prog, ['uRes', 'uTime']);
+    _u = uniforms(_prog, ['uR', 'uT']);
     _batch = new Batch(_prog, [4, 2], CAP);
 }
 
@@ -175,6 +175,6 @@ export function drawSparks() {
     _batch.clear();
     for (const p of _sparks) _batch.push(p._x, p._y, p._s, p._age, p._side, p._u);
     gl.useProgram(_prog);
-    _u({ uRes: [width, height], uTime: time });
+    _u({ uR: [width, height], uT: [time] });
     _batch.draw();
 }

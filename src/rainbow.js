@@ -38,8 +38,8 @@ import { g, program, uniforms, fullscreen, gl, FULLSCREEN_VS, time, width, heigh
 export const FS = g`#version 300 es
 precision highp float;
 out vec4 o;
-uniform vec2 uRes;
-uniform float uTime, uBalance;
+uniform vec2 uR;
+uniform float uT, uB;
 
 // Feature switches. Compile-time, so a feature that is off is not in the
 // shader at all; the debug panel recompiles with these flipped to show what
@@ -109,7 +109,7 @@ float fbm(vec3 p){
 
 // amount 0…1 scales the coverage, so 0 is a clear sky and not merely a thin one.
 float density(vec3 pos, float amount){
-  float dens = fbm(pos * NOISE_SCALE + vec3(0.0, 0.0, -uTime * WIND_SPEED));
+  float dens = fbm(pos * NOISE_SCALE + vec3(0.0, 0.0, -uT * WIND_SPEED));
   float cov = 1.0 - COVERAGE * amount;
   dens *= smoothstep(cov, cov + 0.05, dens);
   return clamp(dens, 0.0, 1.0);
@@ -280,7 +280,7 @@ vec3 grass(vec3 pos, vec3 nor, float dist, float sun){
   // The blade field at one height. Higher up a blade's cone is thinner, so
   // the field is sparser and more of it is tip.
   float y = BLADE_HEIGHT * BLADE_HEIGHT;
-  vec2 sway = vec2(sin(uTime * 2.3 + 0.5 * g.y), sin(uTime * 3.6 + 0.5 * g.x)) * y * BLADE_SWAY;
+  vec2 sway = vec2(sin(uT * 2.3 + 0.5 * g.y), sin(uT * 3.6 + 0.5 * g.x)) * y * BLADE_SWAY;
   vec2 v = voronoi(g * BLADE_SCALE + sway);
   float blade = clamp((v.x * 0.6 + y * 0.58) * 1.5, 0.0, 1.0);
 
@@ -292,7 +292,7 @@ vec3 grass(vec3 pos, vec3 nor, float dist, float sun){
   vec3 c = mix(near, mat * 0.8, smoothstep(0.0, BLADE_FADE, dist));
 
   // Wind, as it reads from far off: waves of light moving across the field.
-  c *= 1.0 - WAVE * (1.0 - noise2(g * WAVE_SCALE + uTime * WAVE_SPEED * vec2(0.7, 0.4)));
+  c *= 1.0 - WAVE * (1.0 - noise2(g * WAVE_SCALE + uT * WAVE_SPEED * vec2(0.7, 0.4)));
 
   // Light. Patchy either way. In the sun, slopes facing the viewer are lit
   // and the others fall to AMBIENT; under the cloud, flat, cool and dim.
@@ -313,18 +313,18 @@ vec3 horizon_sky(vec2 p, vec3 rd, vec3 sky, float amount){
   // Long thin cells of noise in screen space, scrolling down, darkening
   // the smear where the cloud over it is dense. Under clear sky there is
   // nothing dense and no rain.
-  float streak = noise2(vec2(p.x * RAIN_SCALE, (p.y + uTime * RAIN_SPEED) * RAIN_SCALE * 0.08));
+  float streak = noise2(vec2(p.x * RAIN_SCALE, (p.y + uT * RAIN_SPEED) * RAIN_SCALE * 0.08));
   return k.rgb * (1.0 - RAIN * (1.0 - k.w) * streak * below);
 }
 
 void main(){
-  vec2 p = (gl_FragCoord.xy - 0.5 * uRes) / uRes.y;
-  float b = clamp(uBalance, -1.0, 1.0);
+  vec2 p = (gl_FragCoord.xy - 0.5 * uR) / uR.y;
+  float b = clamp(uB, -1.0, 1.0);
   float lean = abs(b);
   vec3 warm = vec3(1.00, 0.72, 0.32);   // sunicorns
   vec3 cool = vec3(0.42, 0.52, 1.00);   // rainicorns
   vec3 side = b > 0.0 ? warm : cool;
-  float asp = uRes.x / uRes.y;
+  float asp = uR.x / uR.y;
 
   // ---- sky ---------------------------------------------------------------
   float up = clamp((p.y - HORIZON) / 0.8, 0.0, 1.0);
@@ -379,8 +379,8 @@ void main(){
 export const BOW_FS = g`#version 300 es
 precision highp float;
 out vec4 o;
-uniform vec2 uRes;
-uniform float uBalance;
+uniform vec2 uR;
+uniform float uB;
 
 // Feature switch, as in the world shader.
 const int BOW_ON = 1;
@@ -427,14 +427,14 @@ vec4 bow(float r, float u, float radius, float w, float alpha,
   // Soft edges across the band.
   float cov = smoothstep(0.0, 0.14, t) * (1.0 - smoothstep(0.86, 1.0, t));
 
-  return vec4(col, cov * alpha * along(u, uBalance));
+  return vec4(col, cov * alpha * along(u, uB));
 }
 
 void main(){
   o = vec4(0.0);
   if (BOW_ON == 0) return;
-  vec2 p = (gl_FragCoord.xy - 0.5 * uRes) / uRes.y;
-  float b = clamp(uBalance, -1.0, 1.0);
+  vec2 p = (gl_FragCoord.xy - 0.5 * uR) / uR.y;
+  float b = clamp(uB, -1.0, 1.0);
   float lean = abs(b);
   vec3 side = b > 0.0 ? vec3(1.00, 0.72, 0.32) : vec3(0.42, 0.52, 1.00);
 
@@ -472,7 +472,7 @@ void main(){
 
 /**
  * A castle, as a pass of its own: main.js draws one per castle, in depth
- * order with the bow and the herd. uCastle says which and whose: where it
+ * order with the bow and the herd. uC says which and whose: where it
  * stands along the bow's foot line, the stone of whichever side holds it —
  * sandstone for the sunicorns, obsidian for the rainicorns — and how much
  * of a claim there is on it, which is how much of that stone shows. A castle
@@ -485,17 +485,17 @@ void main(){
 export const CASTLE_FS = g`#version 300 es
 precision highp float;
 out vec4 o;
-uniform vec2 uRes;
-uniform float uBalance;
+uniform vec2 uR;
+uniform float uB;
 // Where this castle stands, in the herd's screen x and y — y is depth, so a
 // castle further up the field is further away and smaller for it — then whose
 // stone it is built of, and how much of a claim is on it: 0 is bare
 // unclaimed stone.
-uniform vec4 uCastle;
+uniform vec4 uC;
 // The claim being made or broken on it, as a bar over the wall: how full,
 // whose it is (−1 nobody's), and how big a thing the castle is at its depth.
 // A negative fill is no bar at all, which is a castle nobody is fighting for.
-uniform vec3 uBar;
+uniform vec3 uA;
 
 const int CASTLE_ON = 1;
 
@@ -643,11 +643,11 @@ vec3 castleNormal(vec3 p, vec3 cp, vec2 f){
 
 void main(){
   if (CASTLE_ON == 0) discard;
-  vec2 p = (gl_FragCoord.xy - 0.5 * uRes) / uRes.y;
+  vec2 p = (gl_FragCoord.xy - 0.5 * uR) / uR.y;
 
   // The claim, over the castle. The simulation puts each castle at a place
   // on the screen and the shader builds its ray from that same place, so the
-  // bar needs no projecting: it goes straight above uCastle.xy, at the
+  // bar needs no projecting: it goes straight above uC.xy, at the
   // castle's own size. It empties in the holder's colour and fills again in
   // the taker's.
   //
@@ -659,24 +659,24 @@ void main(){
   // discard is there to skip. That one return was 82 frames a second down
   // to 57 at this size.
   vec4 bar = vec4(0.0);
-  if (uBar.x >= 0.0) {
-    float n = uBar.z;
-    vec2 bp = p - vec2(uCastle.x, uCastle.y + 0.175 * n);
+  if (uA.x >= 0.0) {
+    float n = uA.z;
+    vec2 bp = p - vec2(uC.x, uC.y + 0.175 * n);
     float box = max(abs(bp.x) - 0.075 * n, abs(bp.y) - 0.011 * n);
     if (box < 0.0) {
       // The pixel size, rather than a derivative: fwidth would be the
       // natural way to say it and costs nothing here, but nothing in this
       // shader else needs derivatives and this keeps it that way.
-      float aa = 1.5 / uRes.y;
-      float fill = smoothstep(aa, -aa, bp.x - (uBar.x * 2.0 - 1.0) * 0.075 * n);
-      vec3 col = uBar.y < -0.5 ? vec3(0.62, 0.62, 0.66)
-               : uBar.y < 0.5 ? vec3(1.00, 0.78, 0.35) : vec3(0.58, 0.58, 0.98);
+      float aa = 1.5 / uR.y;
+      float fill = smoothstep(aa, -aa, bp.x - (uA.x * 2.0 - 1.0) * 0.075 * n);
+      vec3 col = uA.y < -0.5 ? vec3(0.62, 0.62, 0.66)
+               : uA.y < 0.5 ? vec3(1.00, 0.78, 0.35) : vec3(0.58, 0.58, 0.98);
       bar = vec4(mix(vec3(0.05, 0.04, 0.08), col, fill), 1.0);
     }
   }
 
-  float b = clamp(uBalance, -1.0, 1.0);
-  float asp = uRes.x / uRes.y;
+  float b = clamp(uB, -1.0, 1.0);
+  float asp = uR.x / uR.y;
   vec3 rd = normalize(vec3(-p.x, p.y - HORIZON, -0.5 / tan(radians(FOV))));
   // The eye stands EYE over the ground under it, and the ground under it is
   // at nought: terrain() is octaves of noise2(), noise2() is hash22() at the
@@ -694,7 +694,7 @@ void main(){
   // only under a foot of the bow: the ray is flatter, meets the ground
   // further off, and the castle comes out smaller and hazier with no more
   // said about it.
-  vec3 fd = normalize(vec3(-uCastle.x, uCastle.y - HORIZON, -0.5 / tan(radians(FOV))));
+  vec3 fd = normalize(vec3(-uC.x, uC.y - HORIZON, -0.5 / tan(radians(FOV))));
   float tf = EYE / -fd.y;
   for (int i = 0; i < 3; i++) tf = (ro.y - terrain((ro + fd * tf).xz)) / -fd.y;
   vec3 cp = ro + fd * tf * CASTLE_NEAR;
@@ -729,8 +729,8 @@ void main(){
   // the holder's stone has come in: one being taken bleaches as the claim
   // is broken and takes the other side's colour on as the new one is made.
   vec3 c = vec3(0.52, 0.52, 0.55) * light * base;
-  if (uCastle.z < 0.5) {
-    c = mix(c, vec3(0.93, 0.82, 0.62) * light * base, uCastle.w);
+  if (uC.z < 0.5) {
+    c = mix(c, vec3(0.93, 0.82, 0.62) * light * base, uC.w);
   } else {
     // Obsidian: almost no diffuse, so what reads is the sun's highlight,
     // kept whatever the weather so the castle always looks polished, and
@@ -738,7 +738,7 @@ void main(){
     float spec = pow(max(dot(nor, normalize(sun_dir - rd)), 0.0), 40.0);
     float fresnel = 0.15 + 0.85 * pow(1.0 - max(dot(nor, -rd), 0.0), 2.0);
     c = mix(c, vec3(0.03, 0.03, 0.04) * light * base
-               + spec * vec3(0.9, 0.85, 0.75) + fresnel * sky * 0.8, uCastle.w);
+               + spec * vec3(0.9, 0.85, 0.75) + fresnel * sky * 0.8, uC.w);
   }
   o = bar.a > 0.0 ? bar : vec4(mix(c, sky, clamp(tc * tc * FOG, 0.0, 1.0)), 1.0);
 }`;
@@ -748,11 +748,11 @@ let _prog, _u, _bowProg, _bowU, _castleProg, _castleU;
 /** Compile both passes. Call once, after the context exists. */
 export function initRainbow() {
     _prog = program(FULLSCREEN_VS, FS);
-    _u = uniforms(_prog, ['uRes', 'uTime', 'uBalance']);
+    _u = uniforms(_prog, ['uR', 'uT', 'uB']);
     _bowProg = program(FULLSCREEN_VS, BOW_FS);
-    _bowU = uniforms(_bowProg, ['uRes', 'uBalance']);
+    _bowU = uniforms(_bowProg, ['uR', 'uB']);
     _castleProg = program(FULLSCREEN_VS, CASTLE_FS);
-    _castleU = uniforms(_castleProg, ['uRes', 'uBalance', 'uCastle', 'uBar']);
+    _castleU = uniforms(_castleProg, ['uR', 'uB', 'uC', 'uA']);
 }
 
 /** The fragment sources by pass, for the debug panel's feature switches. */
@@ -768,13 +768,13 @@ export function recompile(pass, src) {
     if (!__DEBUG__) return;
     if (pass === 'bow') {
         _bowProg = program(FULLSCREEN_VS, src);
-        _bowU = uniforms(_bowProg, ['uRes', 'uBalance']);
+        _bowU = uniforms(_bowProg, ['uR', 'uB']);
     } else if (pass === 'castle') {
         _castleProg = program(FULLSCREEN_VS, src);
-        _castleU = uniforms(_castleProg, ['uRes', 'uBalance', 'uCastle', 'uBar']);
+        _castleU = uniforms(_castleProg, ['uR', 'uB', 'uC', 'uA']);
     } else {
         _prog = program(FULLSCREEN_VS, src);
-        _u = uniforms(_prog, ['uRes', 'uTime', 'uBalance']);
+        _u = uniforms(_prog, ['uR', 'uT', 'uB']);
     }
 }
 
@@ -784,7 +784,7 @@ export function recompile(pass, src) {
  */
 export function drawRainbow(balance) {
     gl.useProgram(_prog);
-    _u({ uRes: [width, height], uTime: time, uBalance: balance });
+    _u({ uR: [width, height], uT: [time], uB: [balance] });
     fullscreen();
 }
 
@@ -801,8 +801,8 @@ export function drawRainbow(balance) {
  */
 export function drawCastle(x, y, side, claim, bar, who, scale, balance) {
     gl.useProgram(_castleProg);
-    _castleU({ uRes: [width, height], uBalance: balance,
-        uCastle: [x, y, side, claim], uBar: [bar, who, scale] });
+    _castleU({ uR: [width, height], uB: [balance],
+        uC: [x, y, side, claim], uA: [bar, who, scale] });
     fullscreen();
 }
 
@@ -812,6 +812,6 @@ export function drawCastle(x, y, side, claim, bar, who, scale, balance) {
  */
 export function drawBow(balance) {
     gl.useProgram(_bowProg);
-    _bowU({ uRes: [width, height], uBalance: balance });
+    _bowU({ uR: [width, height], uB: [balance] });
     fullscreen();
 }

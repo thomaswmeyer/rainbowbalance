@@ -31,23 +31,23 @@
  *
  * Instance data, five floats:
  *
- *   aBody.xy   where the hooves stand, in the same units the rainbow uses
- *   aBody.z    scale, signed by which way it faces (negative looks left)
- *   aBody.w    gallop phase, radians; the lunge phase while fighting
- *   aSide      0 sunicorn (warm, pale), 1 rainicorn (goth)
- *   aState.x   fighting, 0…1: the gallop fades out, the feet plant, and the
+ *   aB.xy   where the hooves stand, in the same units the rainbow uses
+ *   aB.z    scale, signed by which way it faces (negative looks left)
+ *   aB.w    gallop phase, radians; the lunge phase while fighting
+ *   aS      0 sunicorn (warm, pale), 1 rainicorn (goth)
+ *   aT.x   fighting, 0…1: the gallop fades out, the feet plant, and the
  *              neck swings down at the enemy with the phase
- *   aState.y   health, 0…1, for the bar over the horn; 0 down to −1 is the
+ *   aT.y   health, 0…1, for the bar over the horn; 0 down to −1 is the
  *              fade-out after death
- *   aState.z   the block of ice over it, 1 whole down to 0 gone: it melts
+ *   aT.z   the block of ice over it, 1 whole down to 0 gone: it melts
  *              from the top, so this is how much of its height is left
- *   aState.w   the cape: −1 for a fighter, which has none, and 0…1 for a mage,
+ *   aT.w   the cape: −1 for a fighter, which has none, and 0…1 for a mage,
  *              which is how charged the spell on its horn is. One float for
  *              both because the sign already says which animal this is
- *   aFrost     what a wizard has put on it, and which way round says which:
+ *   aF     what a wizard has put on it, and which way round says which:
  *              0…1 is a mage's frost, how much of the freeze is still on it,
  *              and −1…0 is a rage, how much of that is left. One float for
- *              the two the same way aState.w carries the cape, and the frost
+ *              the two the same way aT.w carries the cape, and the frost
  *              wins it when a berserker is frozen — an animal that cannot
  *              move is the more important of the two to show. Frost is not
  *              the same thing as the ice, and those two can both be on one
@@ -67,13 +67,13 @@ import { g, program, uniforms, gl, time, width, height, Batch } from './gl.js';
 // across two shader stages without a uniform, so it is written out.
 
 const VS = g`#version 300 es
-layout(location = 0) in vec4 aBody;
-layout(location = 1) in float aSide;
-layout(location = 2) in vec4 aState;
-layout(location = 3) in float aFrost;
-uniform vec2 uRes;
+layout(location = 0) in vec4 aB;
+layout(location = 1) in float aS;
+layout(location = 2) in vec4 aT;
+layout(location = 3) in float aF;
+uniform vec2 uR;
 out vec2 vP;
-out float vPhase, vSide, vOw, vFlip, vFight, vHp, vIce, vCape, vFrost;
+out float vS, vD, vO, vL, vG, vH, vI, vC, vF;
 
 // The quad in body units: wide enough for the tail behind and the muzzle in
 // front, tall enough for the horn above and the hooves at full stride.
@@ -93,30 +93,30 @@ void main(){
   // translation unit per template. One line is cheaper than that seam.
   vec2 c = (vec2(float(gl_VertexID & 1), float((gl_VertexID >> 1) & 1)) - 0.5)
          * BOX + BOX_MID;
-  float s = abs(aBody.z);
+  float s = abs(aB.z);
   // Facing is the sign of the scale. The box is symmetric about x, so
   // mirroring the local coordinate is enough — the quad itself does not move.
-  vFlip = sign(aBody.z);
-  vP = vec2(c.x * vFlip, c.y);
-  vPhase = aBody.w;
-  vSide = aSide;
-  vFight = aState.x;
-  vHp = aState.y;
-  vIce = aState.z;
-  vCape = aState.w;
-  vFrost = aFrost;
-  vOw = OUTLINE / (uRes.y * s);
+  vL = sign(aB.z);
+  vP = vec2(c.x * vL, c.y);
+  vS = aB.w;
+  vD = aS;
+  vG = aT.x;
+  vH = aT.y;
+  vI = aT.z;
+  vC = aT.w;
+  vF = aF;
+  vO = OUTLINE / (uR.y * s);
   // The same space the rainbow works in: y is -0.5…0.5, x scales with aspect.
-  vec2 w = aBody.xy + vec2(0.0, FEET * s) + c * s;
-  gl_Position = vec4(2.0 * w * vec2(uRes.y / uRes.x, 1.0), 0.0, 1.0);
+  vec2 w = aB.xy + vec2(0.0, FEET * s) + c * s;
+  gl_Position = vec4(2.0 * w * vec2(uR.y / uR.x, 1.0), 0.0, 1.0);
 }`;
 
 const FS = g`#version 300 es
 precision highp float;
 in vec2 vP;
-in float vPhase, vSide, vOw, vFlip, vFight, vHp, vIce, vCape, vFrost;
+in float vS, vD, vO, vL, vG, vH, vI, vC, vF;
 out vec4 o;
-uniform float uTime;
+uniform float uT;
 
 // Its own copy, because a second program cannot share the rainbow's.
 vec3 hsv(float h, float s, float v){
@@ -312,7 +312,7 @@ vec4 put(vec4 acc, float cov, vec3 col){
   return vec4(col, 1.0) * cov + acc * (1.0 - cov);
 }
 
-// One part: filled inside d, with a line of width vOw just inside its edge.
+// One part: filled inside d, with a line of width vO just inside its edge.
 vec4 part(vec4 acc, float d, float ow, vec3 fill, vec3 line){
   float aa = max(fwidth(d), 1e-6);
   return put(acc, smoothstep(aa, -aa, d), mix(line, fill, smoothstep(aa, -aa, d + ow)));
@@ -324,7 +324,7 @@ vec3 hair(float u, float t){
   vec3 sun = hsv(fract(0.95 + u * 0.45 + t * 0.03), 0.7, 1.0);
   vec3 rain = hsv(0.70 + u * 0.25 + 0.03 * sin(t), 0.85, 0.72)
             * (0.7 + 0.3 * smoothstep(-0.2, 0.6, sin(u * 70.0 + t)));
-  return mix(sun, rain, vSide);
+  return mix(sun, rain, vD);
 }
 
 // Screen-space derivatives of the distance are a 2D normal for nothing. Tilt
@@ -333,7 +333,7 @@ vec3 hair(float u, float t){
 vec3 shade(float d, vec3 bodyC, vec3 shadeC, vec3 rimC){
   vec2 gd = vec2(dFdx(d), dFdy(d));
   // Undo the mirror, or a unicorn facing left is lit from the wrong side.
-  vec2 n = gd / max(length(gd), 1e-7) * vec2(vFlip, 1.0);
+  vec2 n = gd / max(length(gd), 1e-7) * vec2(vL, 1.0);
   float e = 1.0 - clamp(-d / (H * 0.8), 0.0, 1.0);
   e *= e;
   vec3 N = normalize(vec3(n * e, 1.0 - 0.75 * e));
@@ -345,28 +345,28 @@ vec3 shade(float d, vec3 bodyC, vec3 shadeC, vec3 rimC){
 
 void main(){
   vec2 p = vP;
-  float t = uTime;
-  U u = parts(p, vPhase, t, vFight);
-  float ow = vOw;
+  float t = uT;
+  U u = parts(p, vS, t, vG);
+  float ow = vO;
 
-  vec3 bodyC  = mix(vec3(0.99, 0.95, 0.88), vec3(0.19, 0.16, 0.25), vSide);
-  vec3 shadeC = mix(vec3(0.82, 0.62, 0.60), vec3(0.05, 0.04, 0.08), vSide);
-  vec3 line   = mix(vec3(0.26, 0.13, 0.18), vec3(0.02, 0.01, 0.04), vSide);
-  vec3 rimC   = mix(vec3(0.0), vec3(0.50, 0.40, 0.72), vSide);
+  vec3 bodyC  = mix(vec3(0.99, 0.95, 0.88), vec3(0.19, 0.16, 0.25), vD);
+  vec3 shadeC = mix(vec3(0.82, 0.62, 0.60), vec3(0.05, 0.04, 0.08), vD);
+  vec3 line   = mix(vec3(0.26, 0.13, 0.18), vec3(0.02, 0.01, 0.04), vD);
+  vec3 rimC   = mix(vec3(0.0), vec3(0.50, 0.40, 0.72), vD);
   vec3 farC   = mix(shadeC, bodyC, 0.45);
-  vec3 hoofC  = mix(line * 1.6, vec3(0.0), vSide);
-  vec3 eyeC   = mix(line * 0.6, vec3(0.92, 0.12, 0.45), vSide);
-  vec3 hornC  = mix(vec3(1.0, 0.86, 0.5), vec3(0.80, 0.78, 0.88), vSide)
+  vec3 hoofC  = mix(line * 1.6, vec3(0.0), vD);
+  vec3 eyeC   = mix(line * 0.6, vec3(0.92, 0.12, 0.45), vD);
+  vec3 hornC  = mix(vec3(1.0, 0.86, 0.5), vec3(0.80, 0.78, 0.88), vD)
               * (0.85 + 0.15 * sin(dot(p, vec2(0.38, 0.92)) * 90.0));
   // A mage: the cape is its own colour rather than the animal's, cold on both
   // sides so that it reads against a cream unicorn and against a black one.
   // The charge on its horn is squared, so the spell shows in the last moment
   // before it goes rather than glowing flatly the whole cooldown through.
-  float mage = step(-0.5, vCape), glow = max(vCape, 0.0) * max(vCape, 0.0);
+  float mage = step(-0.5, vC), glow = max(vC, 0.0) * max(vC, 0.0);
   // A ninja is the same animal drawn as its own shadow: nobody on the field
   // picks it out, and the picture says so by very nearly not drawing it.
-  float ninja = step(vCape, -1.5);
-  vec3 capeC  = mix(vec3(0.20, 0.26, 0.60), vec3(0.52, 0.80, 0.95), vSide);
+  float ninja = step(vC, -1.5);
+  vec3 capeC  = mix(vec3(0.20, 0.26, 0.60), vec3(0.52, 0.80, 0.95), vD);
   vec3 iceC   = vec3(0.45, 0.80, 1.0);
   hornC = mix(hornC, vec3(0.75, 0.94, 1.0), glow * 0.85 * mage);
 
@@ -390,7 +390,7 @@ void main(){
   c = part(c, u.hoofBack, 0.0, hoofC, line);
 
   // The cape, over the barrel it hangs on and under the near front leg, which
-  // stands in front of it. Only a mage has one, and the sign of vCape is what
+  // stands in front of it. Only a mage has one, and the sign of vC is what
   // says so.
   if (mage > 0.5) {
     c = part(c, u.cape, ow, shade(u.cape, capeC, capeC * 0.4, rimC), line);
@@ -419,9 +419,9 @@ void main(){
   // Frozen: the colour goes out of it and a shell of ice takes the light. The
   // facets are one sine through another, which at this size is all the
   // crystal anyone can see.
-  if (vFrost > 0.0) {
+  if (vF > 0.0) {
     float cr = 0.5 + 0.5 * sin(p.x * 30.0 + p.y * 21.0 + sin(p.y * 44.0));
-    c.rgb = mix(c.rgb, iceC * (0.95 + 0.16 * cr) * c.a, 0.62 * vFrost);
+    c.rgb = mix(c.rgb, iceC * (0.95 + 0.16 * cr) * c.a, 0.62 * vF);
   }
 
   // In a rage: the same float the other way up. The neck is already going at
@@ -430,20 +430,20 @@ void main(){
   // It beats rather than holds, because a colour that sits still on an animal
   // reads as what the animal is and a colour that pulses reads as what has
   // been done to it.
-  else if (vFrost < 0.0) {
-    float beat = 0.72 + 0.28 * sin(uTime * 17.0);
-    c.rgb = mix(c.rgb, vec3(1.0, 0.31, 0.10) * beat * c.a, -0.55 * vFrost);
+  else if (vF < 0.0) {
+    float beat = 0.72 + 0.28 * sin(uT * 17.0);
+    c.rgb = mix(c.rgb, vec3(1.0, 0.31, 0.10) * beat * c.a, -0.55 * vF);
   }
 
   // Health, over the horn, while it is hurt. It fills left to right on the
   // screen whichever way the animal faces.
-  if (vHp > 0.0 && vHp < 0.999) {
-    vec2 bp = vec2(p.x * vFlip, p.y - 0.78);
+  if (vH > 0.0 && vH < 0.999) {
+    vec2 bp = vec2(p.x * vL, p.y - 0.78);
     vec2 bd = abs(bp) - vec2(0.24, 0.022);
     float box = max(bd.x, bd.y);
     float aa = fwidth(box);
-    float fill = smoothstep(aa, -aa, bp.x - (-0.24 + 0.48 * vHp));
-    c = put(c, smoothstep(aa, -aa, box), mix(vec3(0.1, 0.05, 0.08), mix(vec3(0.9, 0.2, 0.15), vec3(0.3, 0.9, 0.3), vHp), fill));
+    float fill = smoothstep(aa, -aa, bp.x - (-0.24 + 0.48 * vH));
+    c = put(c, smoothstep(aa, -aa, box), mix(vec3(0.1, 0.05, 0.08), mix(vec3(0.9, 0.2, 0.15), vec3(0.3, 0.9, 0.3), vH), fill));
   }
 
   // The ice. A block of it standing on the ground with the animal inside,
@@ -455,9 +455,9 @@ void main(){
   // this field is seen, and the front over them. The lid takes the light,
   // the side is darker, and the front is the palest and the clearest,
   // because that is the one the animal has to be seen through.
-  if (vIce > 0.0) {
-    vec2 q = vec2(p.x * vFlip, p.y);
-    float top = -FEET + ICE_H * vIce, bot = -FEET - 0.01;
+  if (vI > 0.0) {
+    vec2 q = vec2(p.x * vL, p.y);
+    float top = -FEET + ICE_H * vI, bot = -FEET - 0.01;
     float aa = max(fwidth(q.x), 1e-6) * 1.5;
     // Frost, so it is ice and not glass.
     float fr = 0.5 + 0.5 * sin(q.x * 41.0 + q.y * 29.0)
@@ -488,7 +488,7 @@ void main(){
   c *= 1.0 - 0.62 * ninja;
   c.rgb *= 1.0 - 0.45 * ninja;
   // Below zero health is the fade-out: −1 is gone.
-  o = c * (vHp > 0.0 ? 1.0 : 1.0 + vHp);
+  o = c * (vH > 0.0 ? 1.0 : 1.0 + vH);
 }`;
 
 // ---------------------------------------------------------------------------
@@ -502,7 +502,7 @@ let _prog, _u, _batch;
 /** Compile the pass. Call once, after the context. */
 export function initUnicorns() {
     _prog = program(VS, FS);
-    _u = uniforms(_prog, ['uRes', 'uTime']);
+    _u = uniforms(_prog, ['uR', 'uT']);
     _batch = new Batch(_prog, [4, 1, 4, 1], MAX);
 }
 
@@ -545,7 +545,7 @@ export function drawUnicorns(from, y = -Infinity) {
                 : un._ber ? -1 : -un._rage / RAGE);
     }
     gl.useProgram(_prog);
-    _u({ uRes: [width, height], uTime: time });
+    _u({ uR: [width, height], uT: [time] });
     _batch.draw();
     return i;
 }
