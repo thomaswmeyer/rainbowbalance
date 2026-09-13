@@ -51,10 +51,12 @@ function inCastle(u, c) {
     return ox > 0 && oy > 0 ? Math.min(ox / ex, oy / ey) : 0;
 }
 /**
- * Half the ground the picture shows at this depth. The board opens away from
- * the camera, so a bound across it is not one number but a wedge.
+ * Half the ground the picture shows at this depth: the sim's own, rather than
+ * the same arithmetic with the camera's focal length written out again. The
+ * board opens away from the camera, so a bound across it is not one number
+ * but a wedge.
  */
-const wideAt = (y) => sim.edgeAt() * y / 0.866;
+const wideAt = sim.wideAt;
 const STEP = 1 / 60;
 const seconds = Number(process.argv[2]) || 600;
 const quiet = process.argv.includes('quiet');
