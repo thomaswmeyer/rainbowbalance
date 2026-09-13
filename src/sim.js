@@ -296,6 +296,127 @@ const CAST = 5.861, KEEP = 3.712;
 export const COOL = 3.5, FROST = 1.6;
 
 /**
+ * Research, after the tech tree in Lord of the Swarm. Neither side is
+ * commanded — the player's whole job is that neither is — so what a side
+ * does with what it has won is settled here rather than by anybody, and it
+ * is the one thing on this field that only ever goes one way. A run held
+ * level is not a run in which nothing happens: both sides are getting better
+ * at the fight the whole time it lasts, and the hand that kept them level a
+ * minute ago is not the hand that keeps them level now.
+ *
+ * What a side earns it earns twice over, into two pools that buy different
+ * things and are never traded against each other. One is spent on the five
+ * areas below, a little at a time and for good; the other is saved whole
+ * until it can buy the next power outright. Keeping them apart is what stops
+ * a side that is saving up from standing still while it saves.
+ *
+ * RESEARCH is what a home castle at a full claim pays a second — a claim
+ * being broken pays less in proportion, exactly as it spawns less — and an
+ * outpost pays its half like everything else it does. BOUNTY is what a
+ * recruit's worth of enemy is worth when it falls, so a side winning the
+ * fight learns faster than a side merely holding ground, and a veteran is
+ * worth what its size says it is.
+ */
+const RESEARCH = 1, BOUNTY = 1;
+/**
+ * The five areas points go into, in the order the panel draws them: how fast
+ * a unicorn walks, how fast it swings, how far off it can pick an enemy out,
+ * how far it can reach one, and how fast its castles turn recruits out.
+ */
+const PACE = 0, SWING = 1, SIGHT = 2, HORN = 3, GATE = 4;
+/**
+ * What each is worth at full investment, over and above what every unicorn
+ * starts with: two fifths again as fast on its feet, a quarter again as fast
+ * with its horn, half again the ground it can pick an enemy out across, a
+ * little more reach, and a third again the recruits out of the gate.
+ *
+ * They are not equally strong and no set of numbers here would make them so,
+ * because the fight underneath them is a knife edge: a side that takes the
+ * first castle wins ninety-nine unattended runs in a hundred, so *any*
+ * standing advantage decides one. Measured both ways round — one side full
+ * in an area, the other in nothing, over fifty unattended runs — a side full
+ * in reach wins 92%, in swing 96%, in creation 100%, in pace 78%, and in
+ * sight 54%. Read those as how sharply each cuts, not as how unfair the game
+ * is: an unattended run is decided by any asymmetry at all, which is why
+ * there is a player.
+ *
+ * Reach is kept small for a reason of its own. It is the one of the five
+ * that changes what a fight looks like rather than only how it goes — two
+ * unicorns swinging at each other from a length apart read as two unicorns
+ * missing — so it buys the first blow and stops well short of that.
+ *
+ * Sight is the weak one, and honestly so. A fighter takes the *nearest*
+ * enemy within its look, so a longer look never puts a better target in
+ * front of it — it only adds further ones, and what it really buys is a
+ * willingness to break off towards a fight instead of walking on to a
+ * castle, which is not how runs are won here. What redeems it is the wizard:
+ * a spell is aimed at what its caster can pick out, so sight is what gives a
+ * side with capes the reach to use them. Weak until freeze, worth having
+ * after it — which is the one place in this list where what to research
+ * depends on what has already been learned.
+ */
+const GAIN = [0.4, 0.25, 0.6, 0.15, 0.35];
+/**
+ * Points in one area for the whole of what it is worth, and a square root on
+ * the way up to it. The curve is what makes the first points in an area
+ * worth more than the last: a side spread over all five ends up stronger
+ * than one that poured everything into one, and a side that has just taken
+ * up a new area shows for it within seconds rather than at the end of a run.
+ *
+ * Three hundred is about two minutes of a side's whole income, so five areas
+ * is a good deal longer than a run. That is the point of the number rather
+ * than a consequence of it: at half this, ten minutes of play left both
+ * sides full in all five and fighting with identical unicorns, and a tech
+ * tree whose two sides converge has stopped being one.
+ */
+export const FULL = 300;
+/**
+ * How a side chooses. It works on one area at a time, and every THINK
+ * seconds it may take up another, which it does SWAP of the time. Whatever
+ * is already in an area stays there — nothing is ever taken back out — so
+ * two sides come out of a long run good at different things, and which
+ * things is the run's own doing rather than anybody's plan.
+ */
+const THINK = 20, SWAP = 0.5;
+/**
+ * The powers, in the order they are learned, and what each costs out of the
+ * saved pool. They are the god's own two hands, which is the point of them:
+ * a side that has watched a whole rainbow's worth of its own frozen and
+ * struck down out of a clear sky works out in the end how it was done.
+ *
+ * Freeze puts the cape on one recruit in MAGE_EVERY. Before it there are no
+ * wizards at all and the field is horn to horn and nothing else, which is
+ * also the answer to a herd silting up with capes: they arrive when a side
+ * has earned them rather than from the first minute. Smite gives a wizard a
+ * second spell and a rule for choosing between them — see the cast in
+ * decide() — and a bolt that lands rather than a hold that waits. Rage is
+ * the first of the three a wizard casts on its own side rather than at the
+ * other, and the first that is worth anything to a side that is losing: the
+ * other two need an enemy in reach, and this one needs a friend in a fight.
+ *
+ * More belong here. Another is a cost in this list and a case in that rule.
+ */
+const COST = [45, 140, 250];
+/** What a wizard's bolt takes off, against a recruit's HP hit points. */
+const SMITE = 2.5;
+/**
+ * The rage: how long it is on a unicorn, and how much faster it swings while
+ * it is. Twice the swings is twice the damage, which is a great deal for six
+ * seconds — and it is all it does. It does not walk faster, hit harder or
+ * take less, because a rage that changed four things at once would be a
+ * thing nobody could read off the field, and a neck going twice as fast is
+ * a thing anybody can.
+ *
+ * It burns down whatever the animal is doing, frozen included, so an enemy
+ * wizard's frost is an answer to it: a berserker held still for a second and
+ * a half is a berserker with a second and a half less rage. It does not
+ * stack, either — casting on one already roaring only sets the clock back —
+ * so a side's wizards spread it about rather than piling it on one animal.
+ */
+export const RAGE = 6;
+const FURY = 2;
+
+/**
  * @typedef {object} Unicorn
  * @property {number} _x
  * @property {number} _y
@@ -333,6 +454,8 @@ export const COOL = 3.5, FROST = 1.6;
  * @property {Unicorn|null} _hit who landed a blow on it since its last step
  * @property {boolean} _mage it wears the cape: it casts rather than fights
  * @property {number} _cast seconds until its spell comes round again
+ * @property {number} _rage seconds of a wizard's rage left on it, 0 when it
+ *   is swinging at its own pace
  */
 
 /** @type {Unicorn[]} */
@@ -372,6 +495,29 @@ export const castles = [
     { _x: 0, _y: NEAR_MID_Y, _from: -1, _side: -1, _cap: 0, _own: false, _rate: OUTPOST, _t: 1, _n: 0 },
 ];
 
+/**
+ * What each side has learned: one of these for the sunicorns and one for the
+ * rainicorns. Everything else on the field belongs to a unicorn or a castle;
+ * this is the only thing a whole side owns.
+ *
+ * @typedef {object} Tech
+ * @property {number[]} _p points put into each of the five areas
+ * @property {number[]} _m what those points come to — the multiplier on each,
+ *   worked out once a step so that nothing on the field takes a square root
+ * @property {number} _on which area it is working on now
+ * @property {number} _t seconds until it thinks about that again
+ * @property {number} _saved points saved towards the next power
+ * @property {number} _got how many powers it has, the list being a chain
+ */
+
+/** @type {Tech[]} */
+export const tech = [fresh(), fresh()];
+
+/** A side that has learned nothing yet. */
+function fresh() {
+    return { _p: [0, 0, 0, 0, 0], _m: [1, 1, 1, 1, 1], _on: 0, _t: THINK, _saved: 0, _got: 0 };
+}
+
 /** −1 rainicorns ahead … +1 sunicorns ahead, smoothed. */
 export let balance = 0;
 
@@ -385,7 +531,10 @@ export const captured = [];
  * The spells cast this step, for main.js to draw the streak of: from the
  * caster's horn to whoever it was aimed at. The freeze itself has already
  * landed — a spell does not miss and does not travel.
- * @type {{_x:number,_y:number,_s:number,_tx:number,_ty:number,_ts:number}[]}
+ * Its `_k` is which spell it was: 0 the frost, 1 a smite, 2 a rage. They are
+ * drawn in three different colours and they are not the same news — and the
+ * third of them goes to one of the caster's own.
+ * @type {{_x:number,_y:number,_s:number,_tx:number,_ty:number,_ts:number,_k:number}[]}
  */
 export const casts = [];
 
@@ -409,7 +558,9 @@ export const TUNE = typeof __DEBUG__ === 'undefined' || __DEBUG__
     ? { HP, HURT, HEAL, LOOK, CROWD, LONG, DEEP, HIT, DMG, REACH, MAX, NEAR_Y, FAR_Y,
         SPAWN, SCALE0, CAP, CAP_R, TAKE, BREAK, MOB, LANE, OUTPOST, FREEZE,
         CASTLE_W, BODY, FOOT, FOOT_X, SPEED,
-        MAGE_EVERY, MAGE_V, CAST, KEEP, COOL, FROST }
+        MAGE_EVERY, MAGE_V, CAST, KEEP, COOL, FROST,
+        RESEARCH, BOUNTY, GAIN, FULL, THINK, SWAP, COST, SMITE, RAGE, FURY,
+        PACE, SWING, SIGHT, HORN, GATE }
     : null;
 
 
@@ -429,6 +580,12 @@ export function reset(s = 7) {
     casts.length = 0;
     winner = -1;
     balance = 0;
+    // Neither side knows anything at the start of a run, and each takes up a
+    // first area off the seed, so the same seed researches the same things in
+    // the same order as well as fighting the same fight.
+    tech[0] = fresh();
+    tech[1] = fresh();
+    for (const t of tech) t._on = rnd() * 5 | 0;
     for (const c of castles) {
         c._side = c._from;
         c._own = c._from >= 0;
@@ -446,10 +603,14 @@ function spawn(castle) {
     // ground whichever castle it is: a deep one is not a smaller castle, it is
     // a castle further off.
     const y = Math.max(NEAR_Y, castle._y - (0.391 + rnd() * 1.172));
-    // Whose turn it is to wear the cape. Counted rather than rolled: both
-    // sides get the same one recruit in four, and the run stays reproducible
-    // down to which of them it is.
-    const mage = ++castle._n % MAGE_EVERY === 0;
+    // Whose turn it is to wear the cape, and whether there is a cape to
+    // wear. Counted rather than rolled: both sides get the same one recruit
+    // in four, and the run stays reproducible down to which of them it is.
+    // The count runs from the first recruit either way — it is what the
+    // castle has turned out, not what it has turned out in capes — so a side
+    // that learns to freeze halfway through a run does not owe itself three
+    // wizards for the ones it did not send.
+    const mage = ++castle._n % MAGE_EVERY === 0 && tech[castle._side]._got > 0;
     herd.push({
         _x: castle._x + (rnd() - 0.5) * 1.954,
         _y: y, _s: BODY * SCALE0,
@@ -472,6 +633,7 @@ function spawn(castle) {
         _hit: null,
         _mage: mage,
         _cast: COOL,
+        _rage: 0,
     });
 }
 
@@ -531,6 +693,28 @@ function seek(un, look, crowd) {
         // of course still allowed, or it could not keep the foe it has.
         if (e._side === un._side || e._hp <= 0
             || (e._att >= crowd && e !== un._foe)) continue;
+        const d = (e._x - un._x) ** 2 + (e._y - un._y) ** 2;
+        if (d < bd) { bd = d; best = e; }
+    }
+    return best;
+}
+
+/**
+ * The nearest of its own within `look` that is horn to horn and not already
+ * roaring: what a wizard with the rage is looking for. Written out rather
+ * than folded into seek() with another flag, because what it wants is not
+ * the same question — seek() asks who can be attacked and this asks who is
+ * worth helping, and the two agree on nothing but the distance.
+ *
+ * Already fighting, because a rage lasts six seconds and one spent walking
+ * is one wasted. Not already roaring, so a side's wizards spread it about.
+ * @param {Unicorn} un
+ * @param {number} look
+ */
+function ally(un, look) {
+    let best = null, bd = look * look;
+    for (const e of herd) {
+        if (e._side !== un._side || e._hp <= 0 || !e._eng || e._rage > 0) continue;
         const d = (e._x - un._x) ** 2 + (e._y - un._y) ** 2;
         if (d < bd) { bd = d; best = e; }
     }
@@ -617,8 +801,94 @@ function capture(dt) {
 }
 
 /**
- * One fixed step: the castles, then every unicorn deciding for itself, then
- * the herd settled as a whole.
+ * A side is paid, into both pools at once. The saved pool takes the whole of
+ * it; the rest goes into whichever area the side is working on, and if that
+ * one is already full the side takes up another there and then rather than
+ * pouring points onto the floor.
+ * @param {number} side
+ * @param {number} n points
+ */
+function earn(side, n) {
+    const t = tech[side];
+    t._saved += n;
+    if (t._p[t._on] >= FULL) t._on = pick(t);
+    t._p[t._on] = Math.min(FULL, t._p[t._on] + n);
+}
+
+/**
+ * An area to work on: one of the five that is not yet full, or the one it is
+ * already on if they all are. Off the run's own seed, like everything else
+ * random here.
+ * @param {Tech} t
+ */
+function pick(t) {
+    const room = [];
+    for (let i = 0; i < 5; i++) if (t._p[i] < FULL) room.push(i);
+    return room.length ? room[rnd() * room.length | 0] : t._on;
+}
+
+/**
+ * Research, one step: what the ground pays, what each side then does with it,
+ * and what all of it comes to on the field.
+ *
+ * Kills are not counted here. They are paid where the blow lands, in wound(),
+ * because that is the only place that knows who struck it — so this is the
+ * ground half of a side's income and no more.
+ * @param {number} dt seconds
+ */
+function research(dt) {
+    // What a side holds pays it, at the rate of the claim it holds it by: a
+    // castle being broken is already worth less to its holder than a quiet
+    // one, and it is worth less in this too.
+    for (const c of castles) {
+        if (c._own) earn(c._side, RESEARCH * c._rate * c._cap / CAP * dt);
+    }
+    for (const t of tech) {
+        // Thinking about where the points are going. This moves the tap and
+        // nothing else — what is in an area stays in it.
+        t._t -= dt;
+        if (t._t <= 0) {
+            t._t = THINK;
+            if (rnd() < SWAP) t._on = pick(t);
+        }
+        // And the next power, bought outright the moment it is affordable.
+        // One at a time, cheapest first: the list is a chain, so how many a
+        // side has is the whole of which ones it has.
+        if (t._got < COST.length && t._saved >= COST[t._got]) {
+            t._saved -= COST[t._got];
+            t._got++;
+        }
+        // What the points come to, worked out here and read everywhere: the
+        // field asks for these several times per unicorn per step, and none
+        // of them changes inside a step.
+        for (let i = 0; i < 5; i++) t._m[i] = 1 + GAIN[i] * Math.sqrt(t._p[i] / FULL);
+    }
+}
+
+/**
+ * A blow lands. Whatever was struck turns on whoever struck it, and if that
+ * was the last blow in it, the striker's side is paid the bounty on what it
+ * felled — a veteran for what a veteran took to make.
+ *
+ * The player's own hand does not go through here, and so is not paid for:
+ * god mode is nobody's work but the god's, and a smite that fed the side it
+ * was meant to hold back would be a strange thing to hand a player.
+ * @param {Unicorn} un who struck
+ * @param {Unicorn} foe who was struck
+ * @param {number} dmg
+ */
+function wound(un, foe, dmg) {
+    // Never past zero in one blow: zero is where the fade starts, and a blow
+    // that overshot it took the unicorn out of the herd before anyone
+    // noticed it had fallen.
+    foe._hp = Math.max(0, foe._hp - dmg);
+    foe._hit = un;
+    if (foe._hp <= 0) earn(un._side, BOUNTY * foe._s / (BODY * SCALE0));
+}
+
+/**
+ * One fixed step: what the sides have learned, the castles, then every
+ * unicorn deciding for itself, then the herd settled as a whole.
  *
  * The order is the whole of why it reads the way it does. What a unicorn
  * decides, it decides against the field as it stood at the top of the step —
@@ -627,6 +897,10 @@ function capture(dt) {
  * @param {number} dt seconds
  */
 export function step(dt) {
+    // Before anything moves, because what a side has learned is what the
+    // step is then played under — and against the field as it stood at the
+    // top of it, which is the rule everything else in here follows too.
+    research(dt);
     capture(dt);
 
     // Every castle one side's, and every claim on them full: the run is over.
@@ -638,7 +912,7 @@ export function step(dt) {
         // A castle spawns at its own rate, and at the rate of the claim on
         // it besides, so one that is being broken falls quiet a while
         // before it changes hands.
-        c._t -= dt * c._rate * c._cap / CAP;
+        c._t -= dt * c._rate * c._cap / CAP * tech[c._side]._m[GATE];
         if (c._t <= 0 && herd.length < MAX) { spawn(c); c._t = SPAWN; }
     }
 
@@ -682,6 +956,12 @@ function decide(dt) {
             un._fight = Math.max(0, un._fight - dt * 4);
             continue;
         }
+        // A rage burns down whatever the animal is doing, and that includes
+        // standing frozen: a berserker held still for a second and a half is
+        // a berserker with a second and a half less of it, which is what
+        // makes an enemy wizard's frost an answer to one.
+        if (un._rage > 0) un._rage = Math.max(0, un._rage - dt);
+
         // Held, by the ice or by the frost: it does nothing and nothing of
         // its own changes, beyond the hold wearing off it. It keeps whatever
         // it was after, to take that up again when it is free — and it is
@@ -714,6 +994,11 @@ function decide(dt) {
             continue;
         }
 
+        // What its side has learned, which is the same for every unicorn on
+        // that side and is already worked out: five multipliers, in the order
+        // PACE, SWING, SIGHT, HORN, GATE.
+        const m = tech[un._side]._m;
+
         // A target that has fallen frees it.
         if (un._foe && un._foe._hp <= 0) aim(un, null);
 
@@ -739,7 +1024,7 @@ function decide(dt) {
         // going past each other. The exception is a fight already joined:
         // that is seen out. A mage takes no foe at all.
         if (!un._mage && !un._rest && !un._eng) {
-            aim(un, seek(un, LOOK, CROWD) || un._foe);
+            aim(un, seek(un, LOOK * m[SIGHT], CROWD) || un._foe);
         }
 
         // What a mage has instead of a foe: the nearest enemy within a
@@ -747,7 +1032,13 @@ function decide(dt) {
         // not a target — nobody is closing on anything — so nothing here
         // touches who is set upon by whom. (MAX for the crowding cap is a cap
         // no crowd can reach: it would take the whole herd on one unicorn.)
-        const mark = un._mage ? seek(un, CAST, MAX) : null;
+        // How far a spell carries is how far its caster can pick something
+        // out, so it is sight rather than reach: a wizard does not have to
+        // get near what it freezes, it has to see it. Which is what makes
+        // sight worth anything at all — on a side with no wizards it is the
+        // weakest of the five, because a fighter takes the nearest enemy
+        // within range and a longer look only ever adds further ones.
+        const mark = un._mage ? seek(un, CAST * m[SIGHT], MAX) : null;
         // How far off that is, which is the only thing a mage's walk asks.
         const gap = mark ? Math.hypot(mark._x - un._x, mark._y - un._y) : 1e9;
 
@@ -781,7 +1072,8 @@ function decide(dt) {
         // for the exact middle of it: five of them cannot all stand on one
         // point, and any that try spend the watch shoving each other off it
         // and walking back. Anywhere on the stone will do.
-        const stop = un._foe ? REACH * (un._s + un._foe._s) : (rest ? 0.781 : 1.563);
+        const stop = un._foe
+            ? REACH * m[HORN] * (un._s + un._foe._s) : (rest ? 0.781 : 1.563);
         // Once horn to horn it takes more than a shove from the crowd to
         // break it off, or the pair spend the fight stepping in and out of
         // range of each other.
@@ -814,8 +1106,9 @@ function decide(dt) {
         // Never far enough out to be idling outside the very claim it came
         // for: the reach a castle is held from is the limit.
         const stuck = arrived && d < Math.min(stop * 3, CAP_R * 0.9);
-        // A mage is the slower animal, going or coming.
-        const pace = SPEED * (un._mage ? MAGE_V : 1);
+        // A mage is the slower animal, going or coming — and both of them
+        // walk at whatever pace their side has learned.
+        const pace = SPEED * m[PACE] * (un._mage ? MAGE_V : 1);
         let v = 0;
         // Horn to horn it holds its ground. It is already where it needs to
         // be, and a pair that walks at each other every step is a pair the
@@ -865,18 +1158,49 @@ function decide(dt) {
         // brings to a fight is not damage but a target that cannot answer for
         // FROST seconds. A mage that is held itself never gets this far.
         if (un._mage) {
-            un._cast -= dt;
-            if (mark && un._cast <= 0) {
-                un._cast = COOL;
-                holdStill(mark, FROST, false);
-                // Both ends are the ground each of them stands on, and the
-                // sizes with them. A horn and a head are above the ground,
-                // and nothing on this plain has a height to put them at, so
-                // main.js lifts each end once it has projected it.
-                casts.push({
-                    _x: un._x, _y: un._y, _s: un._s,
-                    _tx: mark._x, _ty: mark._y, _ts: mark._s,
-                });
+            // A spell is a swing: how fast it comes round again is the same
+            // thing the horn asks of a side, and a side that has learned to
+            // swing has learned to cast.
+            un._cast -= dt * m[SWING];
+            if (un._cast <= 0) {
+                // Which spell, for a wizard that has more than one. In order:
+                //
+                // A mark already standing still is blasted rather than
+                // frozen again — a freeze on something that cannot move is a
+                // freeze thrown away — and that is what makes two wizards
+                // worth more than twice one: the first holds and the second
+                // strikes, and a held unicorn takes the bolt without ever
+                // swinging back.
+                //
+                // With nothing helpless in front of it, the rage goes on one
+                // of its own that is in a fight. That saturates on its own,
+                // a rage lasting the best part of two cooldowns and never
+                // stacking, so a wizard is back to freezing as soon as the
+                // fights around it are all roaring — which is why putting it
+                // above the freeze does not bury the freeze.
+                //
+                // And otherwise the frost, which is what it started with.
+                const got = tech[un._side]._got;
+                const friend = got > 2 ? ally(un, CAST * m[SIGHT]) : null;
+                let at = mark, k = 0;
+                if (mark && mark._held > 0 && got > 1) k = 1;
+                else if (friend) { at = friend; k = 2; }
+                if (at) {
+                    un._cast = COOL;
+                    if (k === 1) wound(un, at, SMITE);
+                    else if (k === 2) at._rage = RAGE;
+                    else holdStill(at, FROST, false);
+                    // Both ends are the ground each of them stands on, and
+                    // the sizes with them. A horn and a head are above the
+                    // ground, and nothing on this plain has a height to put
+                    // them at, so main.js lifts each end once it has
+                    // projected it.
+                    casts.push({
+                        _x: un._x, _y: un._y, _s: un._s,
+                        _tx: at._x, _ty: at._y, _ts: at._s,
+                        _k: k,
+                    });
+                }
             }
         }
         // Whole again, at a castle it withdrew to: that is a level. It grows
@@ -915,14 +1239,10 @@ function decide(dt) {
             // The blow lands at the bottom of the lunge, or misses there. A
             // pair spawned with different phases swing out of step, which is
             // most of why they no longer fall together.
-            const next = un._ph + dt * LUNGE;
+            const next = un._ph + dt * LUNGE * m[SWING] * (un._rage ? FURY : 1);
             if (Math.floor(next / 6.2832 - 0.5) > Math.floor(un._ph / 6.2832 - 0.5)
                 && rnd() < HIT) {
-                // Never past zero in one blow: zero is where the fade
-                // starts, and a blow that overshot it took the unicorn out
-                // of the herd before anyone noticed it had fallen.
-                un._foe._hp = Math.max(0, un._foe._hp - DMG * (0.75 + 0.5 * rnd()));
-                un._foe._hit = un;
+                wound(un, un._foe, DMG * (0.75 + 0.5 * rnd()));
             }
             un._ph = next;
         } else {
@@ -1133,6 +1453,8 @@ function nearest(x, y) {
 export function strike(x, y, ice) {
     const un = nearest(x, y);
     if (!un) return;
-    // Zero, not below: zero is where the fade starts.
+    // Zero, not below: zero is where the fade starts. And not through
+    // wound(), which pays a side the bounty on what it felled: this one was
+    // felled by the sky, and neither side is owed for it.
     if (ice) holdStill(un, FREEZE, true); else un._hp = 0;
 }

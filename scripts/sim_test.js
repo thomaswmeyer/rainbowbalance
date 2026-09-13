@@ -91,7 +91,7 @@ function stage(them) {
             _x: 0, _y: 18.61, _s: 1.041, _side: 0, _face: 1, _ph: 0, _lane: 0,
             _hp: T.HP, _max: T.HP, _lvl: 0,
             _fight: 0, _rest: false, _foe: null, _att: 0, _eng: false, _hit: null,
-            _mage: false, _cast: 0, _held: 0, _block: false,
+            _mage: false, _cast: 0, _held: 0, _block: false, _rage: 0,
             ...t,
         });
         // The trailing point starts under it, or it would read as walking
@@ -120,6 +120,36 @@ function play(n) {
     for (let i = 0; i < n; i++) sim.step(STEP);
 }
 
+/**
+ * Step n times with the tech held exactly where the test put it. research()
+ * tops the points up and buys the next power every step it can, so a test of
+ * one area at one value has to put it back after every step or it is a test
+ * of a moving number. The multipliers are worked out at the top of a step
+ * from the points as they stand, so what is restored after one step is what
+ * the next one runs under.
+ *
+ * The saved pool is left to grow, because two tests in here are measuring it:
+ * putting the powers back is enough to undo a purchase, and the cost of one
+ * is handed back with them so that the pool still reads as what the side has
+ * actually been paid.
+ * @param {number} n
+ * @param {boolean} [spawning] let the castles turn recruits out
+ */
+function pinned(n, spawning = false) {
+    const was = sim.tech.map((t) => ({ _p: t._p.slice(), _on: t._on, _got: t._got }));
+    for (let i = 0; i < n; i++) {
+        if (!spawning) for (const c of sim.castles) c._t = 1e9;
+        sim.step(STEP);
+        sim.tech.forEach((t, k) => {
+            t._p.splice(0, 5, ...was[k]._p);
+            t._on = was[k]._on;
+            for (let g = was[k]._got; g < t._got; g++) t._saved += T.COST[g];
+            t._got = was[k]._got;
+            t._t = 1e9;
+        });
+    }
+}
+
 /** The castles by where they stand: the sunicorns', the middle, the rainicorns'. */
 const [SUN_CASTLE, MID_CASTLE, RAIN_CASTLE] = sim.castles;
 
@@ -141,6 +171,28 @@ const on = (c, side, n, lvl = 0) => Array.from({ length: n }, (_, i) => ({
     _hp: 1e6,
     _max: 1e6,
 }));
+
+/**
+ * Give a side its powers, and keep them: research would buy the next one on
+ * its own as soon as a test ran long enough to afford it, and a test of what
+ * two powers do is not a test of three.
+ * @param {number} side
+ * @param {number} n how many of the chain it has
+ */
+function powers(side, n) {
+    const t = sim.tech[side];
+    t._got = n;
+    // Far enough below the next cost that no run in here reaches it.
+    t._saved = -1e9;
+}
+
+/** Put points into one area and stop the side moving them. */
+function invest(side, area, points) {
+    const t = sim.tech[side];
+    t._p[area] = points;
+    t._on = area;
+    t._t = 1e9;
+}
 
 /** How far into each other a pair stands, as a fraction of the footprint. */
 function overlap(a, b) {
@@ -229,12 +281,19 @@ function units() {
             out.length ? `${out.length} outside, worst y ${Math.min(...out.map((u) => u._y)).toFixed(3)}` : '');
     }
 
-    // Swings land some of the time, not all of it. One long fight against
-    // something that cannot die, counting the swings: many short runs would
-    // replay the same random numbers off the same seed and prove nothing.
+    // Swings land some of the time, not all of it. One long fight between two
+    // that cannot die, counting the swings: many short runs would replay the
+    // same random numbers off the same seed and prove nothing.
+    //
+    // Both of them immortal, which is what "one long fight" asks for and what
+    // this did not have. Only the one being hit was, so the one doing the
+    // hitting was dead four seconds in and the rate came off seven swings —
+    // near enough a coin toss, and it passed on luck rather than on the hit
+    // rate being right. Three hundred seconds of it is about three hundred
+    // swings, and 65% is then a claim about HIT.
     {
         const [a, b] = stage([
-            { _x: -0.43, _y: 18.61, _side: 0 },
+            { _x: -0.43, _y: 18.61, _side: 0, _hp: 1e9, _max: 1e9 },
             { _x: 0.43, _y: 18.61, _side: 1, _hp: 1e9, _max: 1e9 },
         ]);
         a._foe = b;
@@ -1249,11 +1308,14 @@ function mages() {
     say('\n[sim] the mage');
 
     // One recruit in MAGE_EVERY comes out in a cape, and they are counted
-    // rather than rolled, so both sides get the same share of them.
+    // rather than rolled, so both sides get the same share of them. The side
+    // is handed the freeze outright: without it there are no capes at all,
+    // which is the first case in the tech tree's own section.
     {
         sim.reset();
         for (let i = 0; i < 60 * 120; i++) {
             for (const c of sim.castles) if (c !== SUN_CASTLE) c._t = 1e9;
+            powers(0, 1);
             sim.step(STEP);
         }
         const sun = sim.herd.filter((u) => !u._side);
@@ -1425,7 +1487,8 @@ function e2e() {
     sim.reset();
     const st = {
         deaths: 0, together: 0, promotions: 0, worst: 0, broke: 0, taken: 0, smitten: 0, decided: -1,
-        capes: 0, casts: 0, frozen: 0, living: 0,
+        capes: 0, casts: 0, frozen: 0, living: 0, roaring: 0,
+        /** @type {number[]} */ spells: [0, 0, 0],
         /** @type {number[]} */ balances: [], /** @type {number[]} */ fights: [],
         /** @type {number[]} */ depth: [], /** @type {number[]} */ across: [],
         /** @type {Map<object, number>} */ since: new Map(),
@@ -1440,19 +1503,33 @@ function e2e() {
         st.capes += sim.fallen.filter((u) => u._mage).length;
         sim.fallen.length = 0;
         st.casts += sim.casts.length;
+        for (const c of sim.casts) st.spells[c._k]++;
         sim.casts.length = 0;
         st.promotions += sim.promoted.length;
         sim.promoted.length = 0;
         st.taken += sim.captured.length;
         sim.captured.length = 0;
 
-        // The player, every second and a half, and only while one side is two
-        // fighters ahead: its best, struck down where it stands. The
-        // lightest hand that keeps a run going — heavier holds the board
+        // The player, every three quarters of a second, and only while one
+        // side is two fighters ahead: its best, struck down where it stands.
+        // The lightest hand that keeps a run going — heavier holds the board
         // level by keeping it empty, which measures as little as a wipeout
         // does, and lighter lets the run be decided and the rest of it
         // measure nothing.
-        if (n % 90 === 0) {
+        //
+        // It was every second and a half until the tech tree went in, and a
+        // second and a half is now too light: over seven seeds it left a side
+        // wiped out in five of them and the balance pinned past 0.8 for 42%
+        // of the run, where three quarters of a second leaves one wipeout and
+        // 12%. That is the tech tree working rather than the harness being
+        // wrong — both sides get better at the fight the whole time, so the
+        // hand that held them level in the first minute does not hold them
+        // level in the fifth — and this number is what it now takes. Heavier
+        // still (every third of a second) wipes nobody out and pins nothing,
+        // and smiting at a lead of one rather than two wipes three of the
+        // seven out by emptying the board, which is the old warning above
+        // holding good.
+        if (n % 45 === 0) {
             let sun = 0, rain = 0;
             for (const u of sim.herd) if (u._hp > 0) u._side ? rain++ : sun++;
             // Not in the first seconds, when the board is empty because
@@ -1491,6 +1568,7 @@ function e2e() {
                 if (u._hp <= 0) continue;
                 st.living++;
                 if (u._held > 0 && !u._block) st.frozen++;
+                if (u._rage > 0) st.roaring++;
             }
             st.worst = Math.max(st.worst, worstOverlap().worst);
             // How much of the field the fight is actually spread over. The
@@ -1524,8 +1602,15 @@ function e2e() {
     row('smitten by the harness', st.smitten);
     row('mages', `${live.filter((u) => u._mage).length} alive, `
         + `${st.capes} of ${st.deaths} deaths`);
-    row('spells cast', `${st.casts}, holding ${(st.frozen / Math.max(st.living, 1) * 100).toFixed(1)}%`
-        + ' of the living frozen');
+    row('spells cast', `${st.casts} — ${st.spells[0]} frost, ${st.spells[1]} smite,`
+        + ` ${st.spells[2]} rage, holding ${(st.frozen / Math.max(st.living, 1) * 100).toFixed(1)}%`
+        + ` of the living frozen and ${(st.roaring / Math.max(st.living, 1) * 100).toFixed(1)}% roaring`);
+    // What each side put its research into, and what it bought with the rest.
+    // The two rows are the whole point of the tree: if they come out the same
+    // over ten minutes, it is not doing anything.
+    row('researched', sim.tech.map((t, i) => `${i ? 'rainicorn' : 'sunicorn'} `
+        + t._p.map((p) => (p / T.FULL * 100).toFixed(0) + '%').join('/')
+        + ` +${t._got} power${t._got === 1 ? '' : 's'}`).join('   '));
     row('castles taken', st.taken);
     row('a side first wiped out', st.decided < 0 ? 'never' : `${st.decided.toFixed(0)}s`);
     row('ground held at once', `${mean(st.depth).toFixed(2)} deep of ${(T.FAR_Y - T.NEAR_Y).toFixed(2)}`
@@ -1534,6 +1619,370 @@ function e2e() {
         .map((c) => (c._side < 0 ? 'nobody' : c._side ? 'rainicorn' : 'sunicorn')
             + (c._own ? '' : ` (claim ${(c._cap / T.CAP * 100) | 0}%)`)).join(', '));
     row('worst overlap seen', `${(st.worst * 100).toFixed(0)}% of a footprint`);
+}
+
+// ---------------------------------------------------------------------------
+// The tech tree
+// ---------------------------------------------------------------------------
+
+function techTree() {
+    say('\n[sim] the tech tree');
+
+    // No powers, no capes. This is the first thing the tree changes about the
+    // game that was here before it: a side that has not paid for the freeze
+    // has no wizards at all, and the field is horn to horn and nothing else.
+    {
+        sim.reset();
+        for (let i = 0; i < 60 * 120; i++) {
+            for (const c of sim.castles) if (c !== SUN_CASTLE) c._t = 1e9;
+            powers(0, 0);
+            powers(1, 0);
+            sim.step(STEP);
+        }
+        const capes = sim.herd.filter((u) => u._mage).length;
+        ok('a side that has learned nothing turns out no capes at all',
+            sim.herd.length > 10 && capes === 0,
+            `${capes} of ${sim.herd.length} in capes`);
+    }
+
+    // What the ground pays. A home castle pays RESEARCH a second and an
+    // outpost its half, the same half of everything else an outpost does.
+    {
+        const pay = (c, rate) => {
+            sim.reset();
+            c._side = 0;
+            c._own = true;
+            c._cap = T.CAP;
+            c._rate = rate;
+            for (const k of sim.castles) if (k !== c) { k._side = -1; k._own = false; k._cap = 0; }
+            const before = sim.tech[0]._saved;
+            run(60);
+            return sim.tech[0]._saved - before;
+        };
+        const home = pay(SUN_CASTLE, 1), out = pay(MID_CASTLE, T.OUTPOST);
+        ok('a castle pays its holder while it holds it',
+            Math.abs(home - T.RESEARCH) < 0.05,
+            `${home.toFixed(3)} a second, against ${T.RESEARCH}`);
+        ok('and an outpost pays its half of that',
+            Math.abs(out / home - T.OUTPOST) < 0.02,
+            `${out.toFixed(3)} against ${home.toFixed(3)}`);
+        sim.reset();
+    }
+
+    // A claim being broken pays less in proportion, exactly as it spawns less.
+    {
+        sim.reset();
+        SUN_CASTLE._cap = T.CAP / 2;
+        for (const c of sim.castles) if (c !== SUN_CASTLE) { c._side = -1; c._own = false; c._cap = 0; }
+        const before = sim.tech[0]._saved;
+        run(60);
+        const half = sim.tech[0]._saved - before;
+        ok('a castle half broken pays half as much',
+            Math.abs(half - T.RESEARCH / 2) < 0.05,
+            `${half.toFixed(3)} a second, against ${(T.RESEARCH / 2).toFixed(3)}`);
+        sim.reset();
+    }
+
+    // Felling an enemy pays for it, and a veteran pays what a veteran is
+    // worth — its size, the same number that weighs its claim on a castle.
+    {
+        const bounty = (lvl) => {
+            const [, b] = stage([
+                { _x: -0.43, _y: 18.61, _side: 0, _hp: 1e9, _max: 1e9 },
+                { _x: 0.43, _y: 18.61, _side: 1, _hp: 0.4, _max: T.HP,
+                    _lvl: lvl, _s: T.BODY * T.SCALE0 * (1 + 0.25 * lvl) },
+            ]);
+            sim.herd[0]._foe = b;
+            for (let i = 0; i < 60 * 20; i++) {
+                const before = sim.tech[0]._saved;
+                pinned(1);
+                // The castles pay a trickle every step; a kill is a step that
+                // pays a great deal more than a trickle.
+                const jump = sim.tech[0]._saved - before;
+                if (jump > 0.5) return jump;
+            }
+            return 0;
+        };
+        const recruit = bounty(0), veteran = bounty(4);
+        ok('felling a recruit pays the bounty on one',
+            Math.abs(recruit - T.BOUNTY) < 0.1, `${recruit.toFixed(3)} against ${T.BOUNTY}`);
+        ok('and a veteran pays what its size says',
+            Math.abs(veteran / Math.max(recruit, 1e-9) - 2) < 0.1,
+            `${veteran.toFixed(3)} against ${recruit.toFixed(3)} for a recruit`);
+    }
+
+    // The player is not a side and is not paid for what it strikes down. A
+    // smite that fed the side it was meant to hold back would be a strange
+    // thing to hand a player.
+    {
+        const [, b] = stage([
+            { _x: -2, _y: 18.61, _side: 0 },
+            { _x: 2, _y: 18.61, _side: 1 },
+        ]);
+        const before = [sim.tech[0]._saved, sim.tech[1]._saved];
+        const [px, py, ps] = sim.project(b._x, b._y, b._s);
+        sim.strike(px, py - ps * 0.4, false);
+        ok("the player's own hand pays neither side",
+            b._hp <= 0 && sim.tech[0]._saved === before[0] && sim.tech[1]._saved === before[1],
+            b._hp > 0 ? 'the smite missed the unicorn' : 'a side was paid for it');
+    }
+
+    // Points go into one area at a time, stop at FULL, and a side whose area
+    // is full takes up another rather than pouring them on the floor.
+    {
+        sim.reset();
+        invest(0, T.GATE, T.FULL - 0.5);
+        const t = sim.tech[0];
+        run(60 * 20);
+        ok('an area fills to FULL and no further', t._p[T.GATE] === T.FULL,
+            `${t._p[T.GATE].toFixed(2)} against ${T.FULL}`);
+        ok('and a side whose area is full takes up another',
+            t._on !== T.GATE && t._p[t._on] > 0,
+            `still on area ${t._on} with ${t._p[t._on].toFixed(2)} in it`);
+    }
+
+    // The five areas, each measured on the field: the same situation run
+    // twice, once for a side that has researched nothing and once for one
+    // that has filled the area, and the difference is what GAIN promised.
+    {
+        const walk = (points) => {
+            const [u] = stage([{ _x: -10.5, _y: 25, _side: 0 }]);
+            invest(0, T.PACE, points);
+            const x0 = u._x, y0 = u._y;
+            pinned(120);
+            return Math.hypot(u._x - x0, u._y - y0);
+        };
+        const plain = walk(0), quick = walk(T.FULL);
+        ok('a side that has filled pace walks that much further',
+            Math.abs(quick / plain - (1 + T.GAIN[T.PACE])) < 0.06,
+            `${quick.toFixed(2)} against ${plain.toFixed(2)} in two seconds`);
+    }
+    {
+        const swings = (points) => {
+            const [a, b] = stage([
+                { _x: -0.43, _y: 18.61, _side: 0, _hp: 1e9, _max: 1e9 },
+                { _x: 0.43, _y: 18.61, _side: 1, _hp: 1e9, _max: 1e9 },
+            ]);
+            a._foe = b;
+            invest(0, T.SWING, points);
+            let n = 0, ph = a._ph;
+            for (let i = 0; i < 60 * 20; i++) {
+                pinned(1);
+                if (Math.floor(a._ph / 6.2832 - 0.5) > Math.floor(ph / 6.2832 - 0.5)) n++;
+                ph = a._ph;
+            }
+            return n;
+        };
+        const plain = swings(0), fast = swings(T.FULL);
+        ok('a side that has filled swing swings that much oftener',
+            Math.abs(fast / plain - (1 + T.GAIN[T.SWING])) < 0.08,
+            `${fast} swings against ${plain} in twenty seconds`);
+    }
+    {
+        // Sight, on an enemy standing further off than a plain look reaches.
+        const sees = (points) => {
+            const d = T.LOOK * 1.25;
+            const [a] = stage([
+                { _x: -d / 2, _y: 18.61, _side: 0 },
+                { _x: d / 2, _y: 18.61, _side: 1, _hp: 1e6, _max: 1e6 },
+            ]);
+            invest(0, T.SIGHT, points);
+            pinned(1);
+            return !!a._foe;
+        };
+        ok('an enemy past a plain look is not picked out', !sees(0), 'it saw one anyway');
+        ok('and a side that has filled sight picks it out', sees(T.FULL),
+            `it saw nothing at ${(T.LOOK * 1.25).toFixed(2)}, and LOOK is ${T.LOOK}`);
+    }
+    {
+        // Reach: how far apart a pair is when the horns first connect.
+        const met = (points) => {
+            const [a, b] = stage([
+                { _x: -6, _y: 18.61, _side: 0, _hp: 1e9, _max: 1e9 },
+                { _x: 6, _y: 18.61, _side: 1, _hp: 1e9, _max: 1e9 },
+            ]);
+            invest(0, T.HORN, points);
+            for (let i = 0; i < 60 * 10; i++) {
+                pinned(1);
+                if (a._eng) return Math.hypot(a._x - b._x, a._y - b._y);
+            }
+            return 0;
+        };
+        const plain = met(0), far = met(T.FULL);
+        ok('a side that has filled reach is fighting from further out',
+            far > plain * 1.04 && far < plain * (1 + T.GAIN[T.HORN]) * 1.05,
+            `${far.toFixed(3)} against ${plain.toFixed(3)}, for a gain of ${T.GAIN[T.HORN]}`);
+    }
+    {
+        // Creation: recruits out of one gate, counted. The herd is emptied
+        // every step, or the cap would stop the faster gate before the
+        // slower one had finished and both would count the same.
+        const recruits = (points) => {
+            sim.reset();
+            for (const c of sim.castles) if (c !== SUN_CASTLE) { c._side = -1; c._own = false; c._cap = 0; }
+            invest(0, T.GATE, points);
+            let n = 0;
+            for (let i = 0; i < 60 * 120; i++) {
+                pinned(1, true);
+                n += sim.herd.length;
+                sim.herd.length = 0;
+            }
+            return n;
+        };
+        const plain = recruits(0), many = recruits(T.FULL);
+        ok('a side that has filled creation turns out that many more',
+            Math.abs(many / plain - (1 + T.GAIN[T.GATE])) < 0.1,
+            `${many} recruits against ${plain} in two minutes`);
+        sim.reset();
+    }
+
+    // The powers come in order, each for what it costs, out of the saved pool
+    // and not out of the areas.
+    {
+        sim.reset();
+        const t = sim.tech[0];
+        for (let n = 0; n < T.COST.length; n++) {
+            const areas = t._p.slice();
+            t._saved = T.COST[n];
+            t._t = 1e9;
+            sim.step(STEP);
+            ok(`power ${n + 1} of ${T.COST.length} costs its ${T.COST[n]} out of the saved pool`,
+                t._got === n + 1 && t._saved < T.COST[n],
+                `it has ${t._got} of them, with ${t._saved.toFixed(1)} saved`);
+            t._p.splice(0, 5, ...areas);
+        }
+        t._saved = 1e9;
+        sim.step(STEP);
+        ok('and there is nothing past the last of them to buy',
+            t._got === T.COST.length, `it has ${t._got}`);
+    }
+
+    // The wizard's rule for choosing a spell, one case at a time.
+    {
+        const [, e] = stage([
+            { _x: 0, _y: 18.61, _side: 0, _mage: true, _cast: 0 },
+            { _x: 3.5, _y: 18.61, _side: 1, _hp: T.HP, _max: T.HP, _held: 5 },
+        ]);
+        powers(0, 2);
+        const hp = e._hp;
+        pinned(1);
+        ok('a wizard blasts a mark that is already standing still',
+            sim.casts.length === 1 && sim.casts[0]._k === 1
+            && Math.abs(hp - e._hp - T.SMITE) < 1e-9,
+            `${sim.casts.length} spells, kind ${sim.casts[0]?._k},`
+            + ` ${(hp - e._hp).toFixed(2)} off it against ${T.SMITE}`);
+    }
+    {
+        const [, e] = stage([
+            { _x: 0, _y: 18.61, _side: 0, _mage: true, _cast: 0 },
+            { _x: 3.5, _y: 18.61, _side: 1, _hp: T.HP, _max: T.HP },
+        ]);
+        powers(0, 2);
+        const hp = e._hp;
+        pinned(1);
+        ok('and it freezes one that is not', sim.casts.length === 1
+            && sim.casts[0]._k === 0 && e._held > 0 && e._hp === hp,
+            `kind ${sim.casts[0]?._k}, held ${e._held.toFixed(2)}`);
+    }
+    {
+        // A wizard without the smite freezes whatever it can reach, held or
+        // not — which is the waste the smite turns into damage.
+        const [, e] = stage([
+            { _x: 0, _y: 18.61, _side: 0, _mage: true, _cast: 0 },
+            { _x: 3.5, _y: 18.61, _side: 1, _hp: T.HP, _max: T.HP, _held: 5 },
+        ]);
+        powers(0, 1);
+        const hp = e._hp;
+        pinned(1);
+        ok('a wizard with only the freeze has nothing better to do with a held one',
+            sim.casts[0]?._k === 0 && e._hp === hp, `kind ${sim.casts[0]?._k}`);
+    }
+
+    // The rage: on one of its own that is in a fight, and never on one that
+    // is already roaring.
+    {
+        const [, f, e] = stage([
+            { _x: 0, _y: 18.61, _side: 0, _mage: true, _cast: 0 },
+            { _x: 2, _y: 18.61, _side: 0, _hp: 1e9, _max: 1e9 },
+            { _x: 2.9, _y: 18.61, _side: 1, _hp: 1e9, _max: 1e9 },
+        ]);
+        f._foe = e;
+        f._eng = true;
+        powers(0, 3);
+        pinned(1);
+        ok('a wizard with the rage puts it on one of its own that is fighting',
+            sim.casts[0]?._k === 2 && Math.abs(f._rage - T.RAGE) < 0.02,
+            `kind ${sim.casts[0]?._k}, rage ${f._rage.toFixed(2)}`);
+        ok('and it went to the friend and not to the enemy',
+            e._rage === 0 && e._held === 0, 'the enemy got something');
+    }
+    {
+        // One already roaring is passed over and the wizard goes back to the
+        // freeze, which is what stops the rage burying the spell it came
+        // after.
+        const [, f, e] = stage([
+            { _x: 0, _y: 18.61, _side: 0, _mage: true, _cast: 0 },
+            { _x: 2, _y: 18.61, _side: 0, _hp: 1e9, _max: 1e9, _rage: T.RAGE },
+            { _x: 2.9, _y: 18.61, _side: 1, _hp: 1e9, _max: 1e9 },
+        ]);
+        f._foe = e;
+        f._eng = true;
+        powers(0, 3);
+        pinned(1);
+        ok('a wizard does not pile the rage onto one already roaring',
+            sim.casts[0]?._k === 0 && e._held > 0, `kind ${sim.casts[0]?._k}`);
+    }
+
+    // What the rage does, and what takes it off again.
+    {
+        const swings = (rage) => {
+            const [a, b] = stage([
+                { _x: -0.43, _y: 18.61, _side: 0, _hp: 1e9, _max: 1e9 },
+                { _x: 0.43, _y: 18.61, _side: 1, _hp: 1e9, _max: 1e9 },
+            ]);
+            a._foe = b;
+            let n = 0, ph = a._ph;
+            for (let i = 0; i < 60 * 20; i++) {
+                // Topped up, because what is being measured is the swinging
+                // and not how long the rage lasts, which is the next case.
+                a._rage = rage;
+                pinned(1);
+                if (Math.floor(a._ph / 6.2832 - 0.5) > Math.floor(ph / 6.2832 - 0.5)) n++;
+                ph = a._ph;
+            }
+            return n;
+        };
+        const plain = swings(0), roaring = swings(T.RAGE);
+        ok('a unicorn in a rage swings FURY times as often',
+            Math.abs(roaring / plain - T.FURY) < 0.1,
+            `${roaring} against ${plain} over twenty seconds`);
+    }
+    {
+        const [a] = stage([{ _x: 0, _y: 18.61, _side: 0, _rage: T.RAGE }]);
+        pinned(60 * (T.RAGE + 1));
+        ok('and a rage runs out', a._rage === 0, `${a._rage.toFixed(2)} left`);
+    }
+    {
+        // Frost is an answer to a berserker: the rage burns down while it
+        // stands there, so what comes out of the frost has less of it left.
+        const [a] = stage([{ _x: 0, _y: 18.61, _side: 0, _rage: T.RAGE, _held: 2 }]);
+        pinned(120);
+        ok('a rage burns down while its owner is held still',
+            Math.abs(a._rage - (T.RAGE - 2)) < 0.05,
+            `${a._rage.toFixed(2)} left of ${T.RAGE} after two seconds held`);
+    }
+
+    // The same seed researches the same things in the same order, which is
+    // what makes any of the above worth measuring twice.
+    {
+        const profile = () => {
+            sim.reset(4242);
+            play(60 * 90);
+            return JSON.stringify(sim.tech.map((t) => [t._p.map((p) => p.toFixed(4)), t._got, t._on]));
+        };
+        ok('one seed researches one way', profile() === profile(),
+            'two runs of the one seed researched differently');
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -1554,6 +2003,7 @@ marching();
 endgame();
 bouncing();
 mages();
+techTree();
 e2e();
 console.log(failed
     ? `\n[sim] ${failed} failed, ${passed} passed`
