@@ -141,7 +141,7 @@ function pinned(n, spawning = false) {
         if (!spawning) for (const c of sim.castles) c._t = 1e9;
         sim.step(STEP);
         sim.tech.forEach((t, k) => {
-            t._p.splice(0, 5, ...was[k]._p);
+            t._p.splice(0, 4, ...was[k]._p);
             t._on = was[k]._on;
             for (let g = 0; g < T.COST.length; g++) if ((t._got & ~was[k]._got) >> g & 1) t._saved += T.COST[g];
             t._got = was[k]._got;
@@ -1410,7 +1410,7 @@ function mages() {
         run(60 * 12);
         const d = Math.hypot(e._x - m._x, e._y - m._y);
         ok('a mage closes to the length of its spell and no further',
-            d > T.KEEP * 0.7 && d < T.CAST,
+            d > T.KEEP * 0.7 && d < T.LOOK,
             `it stood ${d.toFixed(3)} off, for a stand-off of ${T.KEEP}`);
         ok('and it takes no melee target on the way', m._foe === null,
             'it had picked a foe');
@@ -1947,25 +1947,6 @@ function techTree() {
         ok('an enemy past a plain look is not picked out', !sees(0), 'it saw one anyway');
         ok('and a side that has filled sight picks it out', sees(T.FULL),
             `it saw nothing at ${(T.LOOK * 1.25).toFixed(2)}, and LOOK is ${T.LOOK}`);
-    }
-    {
-        // Reach: how far apart a pair is when the horns first connect.
-        const met = (points) => {
-            const [a, b] = stage([
-                { _x: -6, _y: 18.61, _side: 0, _hp: 1e9, _max: 1e9 },
-                { _x: 6, _y: 18.61, _side: 1, _hp: 1e9, _max: 1e9 },
-            ]);
-            invest(0, T.HORN, points);
-            for (let i = 0; i < 60 * 10; i++) {
-                pinned(1);
-                if (a._eng) return Math.hypot(a._x - b._x, a._y - b._y);
-            }
-            return 0;
-        };
-        const plain = met(0), far = met(T.FULL);
-        ok('a side that has filled reach is fighting from further out',
-            far > plain * 1.04 && far < plain * (1 + T.GAIN[T.HORN]) * 1.05,
-            `${far.toFixed(3)} against ${plain.toFixed(3)}, for a gain of ${T.GAIN[T.HORN]}`);
     }
     {
         // Creation: recruits out of one gate, counted. The herd is emptied

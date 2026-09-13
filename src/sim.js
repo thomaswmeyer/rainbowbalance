@@ -291,7 +291,8 @@ const MOB = 3;
  * is the one unicorn here that never fights horn to horn. It walks where a
  * fighter walks, stops as soon as the nearest enemy is within KEEP of it,
  * gives ground to one that gets well inside that, and every COOL seconds
- * freezes the nearest enemy within CAST for FROST seconds
+ * freezes the nearest enemy within its look — as far as a fighter picks one
+ * out — for FROST seconds
  * — a unicorn that cannot walk, cannot swing and cannot heal, but is still a
  * target and still stands in everyone's way.
  *
@@ -313,12 +314,11 @@ const MOB = 3;
  * was, and the crowd squeezed mages out of the field one at a time. So it
  * marches to the same castle a fighter would and simply stops short.
  *
- * CAST and KEEP are flat distances like LOOK, not ground to walk: how far a
- * unicorn can reach is not scaled by the depth it stands at, and a spell is
- * reach.
+ * KEEP is a flat distance like LOOK, not ground to walk: it is not scaled by
+ * the depth a unicorn stands at.
  */
 const MAGE_EVERY = 4, MAGE_V = 1 / 3;
-const CAST = 5.861, KEEP = 3.712;
+const KEEP = 3.712;
 export const COOL = 7, FROST = 4.8;
 
 /**
@@ -331,7 +331,7 @@ export const COOL = 7, FROST = 4.8;
  * minute ago is not the hand that keeps them level now.
  *
  * What a side earns it earns twice over, into two pools that buy different
- * things and are never traded against each other. One is spent on the five
+ * things and are never traded against each other. One is spent on the four
  * areas below, a little at a time and for good; the other is saved whole
  * until it can buy the next power outright. Keeping them apart is what stops
  * a side that is saving up from standing still while it saves.
@@ -345,31 +345,26 @@ export const COOL = 7, FROST = 4.8;
  */
 const RESEARCH = 1, BOUNTY = 1;
 /**
- * The five areas points go into, in the order the panel draws them: how fast
- * a unicorn walks, how fast it swings, how far off it can pick an enemy out,
- * how far it can reach one, and how fast its castles turn recruits out.
+ * The four areas points go into, in the order the panel draws them: how fast
+ * a unicorn walks, how fast it swings, how far off it can pick an enemy out
+ * (which for a wizard is also how far it casts), and how fast its castles turn
+ * recruits out.
  */
-const PACE = 0, SWING = 1, SIGHT = 2, HORN = 3, GATE = 4;
+const PACE = 0, SWING = 1, SIGHT = 2, GATE = 3;
 /**
  * What each is worth at full investment, over and above what every unicorn
  * starts with: two fifths again as fast on its feet, a quarter again as fast
- * with its horn, half again the ground it can pick an enemy out across, a
- * little more reach, and a third again the recruits out of the gate.
+ * with its horn, half again the ground it can pick an enemy out across, and a
+ * third again the recruits out of the gate.
  *
  * They are not equally strong and no set of numbers here would make them so,
  * because the fight underneath them is a knife edge: a side that takes the
  * first castle wins ninety-nine unattended runs in a hundred, so *any*
  * standing advantage decides one. Measured both ways round — one side full
  * in an area, the other in nothing, over fifty unattended runs — a side full
- * in reach wins 92%, in swing 96%, in creation 100%, in pace 78%, and in
- * sight 54%. Read those as how sharply each cuts, not as how unfair the game
+ * in swing wins 96%, in creation 100%, in pace 78%, and in sight 54%. Read those as how sharply each cuts, not as how unfair the game
  * is: an unattended run is decided by any asymmetry at all, which is why
  * there is a player.
- *
- * Reach is kept small for a reason of its own. It is the one of the five
- * that changes what a fight looks like rather than only how it goes — two
- * unicorns swinging at each other from a length apart read as two unicorns
- * missing — so it buys the first blow and stops well short of that.
  *
  * Sight is the weak one, and honestly so. A fighter takes the *nearest*
  * enemy within its look, so a longer look never puts a better target in
@@ -381,11 +376,11 @@ const PACE = 0, SWING = 1, SIGHT = 2, HORN = 3, GATE = 4;
  * after it — which is the one place in this list where what to research
  * depends on what has already been learned.
  */
-const GAIN = [0.4, 0.25, 0.6, 0.15, 0.35];
+const GAIN = [0.4, 0.25, 0.6, 0.35];
 /**
  * Points in one area for the whole of what it is worth, and a square root on
  * the way up to it. The curve is what makes the first points in an area
- * worth more than the last: a side spread over all five ends up stronger
+ * worth more than the last: a side spread over all four ends up stronger
  * than one that poured everything into one, and a side that has just taken
  * up a new area shows for it within seconds rather than at the end of a run.
  *
@@ -559,7 +554,7 @@ export const tech = [fresh(), fresh()];
 
 /** A side that has learned nothing yet. */
 function fresh() {
-    return { _p: [0, 0, 0, 0, 0], _m: [1, 1, 1, 1, 1], _on: 0, _t: THINK, _saved: 0, _got: 0, _tree: 0 };
+    return { _p: [0, 0, 0, 0], _m: [1, 1, 1, 1], _on: 0, _t: THINK, _saved: 0, _got: 0, _tree: 0 };
 }
 
 /** −1 rainicorns ahead … +1 sunicorns ahead, smoothed. */
@@ -616,10 +611,10 @@ export const TUNE = typeof __DEBUG__ === 'undefined' || __DEBUG__
     ? { HP, HURT, HEAL, LOOK, CROWD, LONG, DEEP, HIT, DMG, REACH, MAX, NEAR_Y, FAR_Y,
         SPAWN, LIFE, FADE_IN, SCALE0, CAP, CAP_R, TAKE, BREAK, MOB, LANE, OUTPOST, FREEZE,
         CASTLE_W, BODY, FOOT, FOOT_X, SPEED,
-        MAGE_EVERY, MAGE_V, CAST, KEEP, COOL, FROST,
+        MAGE_EVERY, MAGE_V, KEEP, COOL, FROST,
         RESEARCH, BOUNTY, GAIN, FULL, THINK, SWAP, COST, TREES, FURY,
         BERSERK_EVERY, NINJA_EVERY, P_FREEZE, P_TURNCOAT, P_STEALTH, P_BERSERK,
-        PACE, SWING, SIGHT, HORN, GATE }
+        PACE, SWING, SIGHT, GATE }
     : null;
 
 
@@ -652,7 +647,7 @@ export function reset(s = 7, by = 0) {
     // Which side goes down which tree first, fifty-fifty off the seed.
     tech[0]._tree = rnd() < 0.5 ? 0 : 1;
     tech[1]._tree = 1 - tech[0]._tree;
-    for (const t of tech) t._on = rnd() * 5 | 0;
+    for (const t of tech) t._on = rnd() * 4 | 0;
     for (const c of castles) {
         c._side = c._from;
         c._own = c._from >= 0;
@@ -895,7 +890,7 @@ function earn(side, n) {
  */
 function pick(t) {
     const room = [];
-    for (let i = 0; i < 5; i++) if (t._p[i] < FULL || open(i)) room.push(i);
+    for (let i = 0; i < 4; i++) if (t._p[i] < FULL || open(i)) room.push(i);
     return room.length ? room[rnd() * room.length | 0] : t._on;
 }
 
@@ -934,7 +929,7 @@ function research(dt) {
         // What the points come to, worked out here and read everywhere: the
         // field asks for these several times per unicorn per step, and none
         // of them changes inside a step.
-        for (let i = 0; i < 5; i++) t._m[i] = 1 + GAIN[i] * Math.sqrt(t._p[i] / FULL);
+        for (let i = 0; i < 4; i++) t._m[i] = 1 + GAIN[i] * Math.sqrt(t._p[i] / FULL);
     }
 }
 
@@ -1064,8 +1059,8 @@ function decide(dt) {
         }
 
         // What its side has learned, which is the same for every unicorn on
-        // that side and is already worked out: five multipliers, in the order
-        // PACE, SWING, SIGHT, HORN, GATE.
+        // that side and is already worked out: four multipliers, in the order
+        // PACE, SWING, SIGHT, GATE.
         const m = tech[un._side]._m;
 
         // A target that has fallen frees it.
@@ -1107,7 +1102,7 @@ function decide(dt) {
         // sight worth anything at all — on a side with no wizards it is the
         // weakest of the five, because a fighter takes the nearest enemy
         // within range and a longer look only ever adds further ones.
-        const mark = un._mage ? seek(un, CAST * m[SIGHT], MAX) : null;
+        const mark = un._mage ? seek(un, LOOK * m[SIGHT], MAX) : null;
         // How far off that is, which is the only thing a mage's walk asks.
         const gap = mark ? Math.hypot(mark._x - un._x, mark._y - un._y) : 1e9;
 
@@ -1142,7 +1137,7 @@ function decide(dt) {
         // point, and any that try spend the watch shoving each other off it
         // and walking back. Anywhere on the stone will do.
         const stop = un._foe
-            ? REACH * m[HORN] * (un._s + un._foe._s) : (rest ? 0.781 : 1.563);
+            ? REACH * (un._s + un._foe._s) : (rest ? 0.781 : 1.563);
         // Once horn to horn it takes more than a shove from the crowd to
         // break it off, or the pair spend the fight stepping in and out of
         // range of each other.

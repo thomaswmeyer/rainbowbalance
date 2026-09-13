@@ -241,8 +241,8 @@ document.body.innerHTML =
     + '#r,#q{position:fixed;bottom:12px;display:grid;gap:8px 10px;align-items:center;'
     + 'font:30px system-ui,sans-serif;color:#fff;text-shadow:0 2px 4px #000c;'
     + 'user-select:none;pointer-events:none}'
-    + '#r{left:12px;grid-template-columns:repeat(5,64px) auto}'
-    + '#q{right:12px;grid-template-columns:auto repeat(5,64px)}'
+    + '#r{left:12px;grid-template-columns:repeat(4,64px) auto}'
+    + '#q{right:12px;grid-template-columns:auto repeat(4,64px)}'
     + '#r u,#q u{text-decoration:none;text-align:center;opacity:.75}'
     + '#r i,#q i{height:16px;border-radius:8px;background:#fff2}'
     + '#r b,#q b{letter-spacing:6px}#r b{padding-left:8px}#q b{padding-right:8px;text-align:right}'
@@ -336,13 +336,13 @@ function showClock() {
 
 /**
  * Two panels, one a side: the sunicorns' bottom left and the rainicorns'
- * bottom right. Each has five bars of how far the side has got in each of the
- * five areas, and the powers it has bought on the inside of them: after the
+ * bottom right. Each has four bars of how far the side has got in each of the
+ * four areas, and the powers it has bought on the inside of them: after the
  * bars and reading left to right for the sunicorns, before them and reading
  * right to left for the rainicorns, so both start from the bars.
  *
  * The glyphs across the top are the areas in sim.js's own order — how fast it
- * walks, how fast it swings, how far it sees, how far it reaches, how fast
+ * walks, how fast it swings, how far it sees, how fast
  * its castles fill — and the ones at the end of a row are the god's own two
  * hands and then a third the god does not have, which is the whole joke of
  * the tech tree: the sides are learning this from watching the player.
@@ -350,14 +350,14 @@ function showClock() {
 // The three that are not emoji by default get the selector that makes them
 // so, which is what the snowflake on the freezing hand already carries: a
 // text-presentation glyph in a row of emoji reads as a missing character.
-const AREAS = ['\u{1F3C3}', '\u2694\ufe0f', '\u{1F441}\ufe0f', '\u2194\ufe0f', '\u{1F3F0}'];
+const AREAS = ['\u{1F3C3}', '\u2694\ufe0f', '\u{1F441}\ufe0f', '\u{1F3F0}'];
 const POWERS = ['\u2744\ufe0f', '\u{1F504}', '\u{1F977}', '\u{1F525}'];
 /** The claim bars' yellow and blue, so a row is read without a label. */
 const STONE = ['#ffd61f', '#387aff'];
 
 const sunPanel = /** @type {HTMLElement} */ (document.getElementById('r'));
 const rainPanel = /** @type {HTMLElement} */ (document.getElementById('q'));
-const glyphs = AREAS.map((g) => `<u>${g}</u>`).join(''), bars = '<i></i>'.repeat(5);
+const glyphs = AREAS.map((g) => `<u>${g}</u>`).join(''), bars = '<i></i>'.repeat(4);
 sunPanel.innerHTML = glyphs + '<u></u>' + bars + '<b></b>';
 rainPanel.innerHTML = '<u></u>' + glyphs + '<b></b>' + bars;
 /** @type {HTMLElement[]} */
@@ -381,7 +381,7 @@ function showTech() {
             // The bar is the effect and not the points. They are not the same
             // shape — the points go in on a square root — and what the other
             // side has to live with is the effect.
-            pips[s * 5 + i].style.background = `linear-gradient(90deg,${STONE[s]} `
+            pips[s * 4 + i].style.background = `linear-gradient(90deg,${STONE[s]} `
                 + `${Math.sqrt(p / sim.FULL) * 100}%,#fff2 0)`;
         });
         // Right to left for the rainicorns, so the first learned is nearest the bars.
