@@ -65,11 +65,17 @@ the bow and the castles read — is who is ahead on the field and at the
 gates: fighters alive, plus each castle counted for the recruits its
 production keeps standing, about 7.6 for a home castle. Smoothed. The
 player's verbs are all god mode, chosen from the row of buttons at the top
-left or with the number keys they are labelled with: a touch strikes the
-unicorn under it down in a burst of sparks, or freezes it into a block of
+left or with the number keys they are labelled with. There are five hands and
+a run starts with one: sparklify, which strikes the unicorn under a touch down
+in a burst of sparks, and is always there. The other four are freeze, stealth,
+berserk and turncoat, and each appears the moment either side has learned the
+matching power, under a banner that says so — "Stealth Power Unlocked!" — and
+with the sound the hand makes. Freeze locks the unicorn into a block of
 ice. Frozen, it stands there for twenty seconds doing nothing
 and taking nothing but damage, in the way of the fight but out of it, while
-the block melts off it from the top down.
+the block melts off it from the top down. The last three are for the life of
+the animal: it goes unseen, it swings twice as fast, or it walks over to the
+other side keeping everything it had.
 
 What a touch lands on is settled in the picture, because a picture is what the
 player is aiming at: two unicorns a field apart on the plain can be a thumb's
@@ -91,9 +97,10 @@ the rule before this, and in a crowd it picked from behind.
 Not every recruit fights, once a side has paid for the wizards. One in four
 then comes out of the gate in a cape and never goes horn to horn with
 anything: a mage marches where a fighter
-marches, stops short as soon as the nearest enemy is within a spell's length,
-gives ground to anything that gets well inside that, and every seven seconds
-freezes the nearest enemy within reach for nearly five —
+marches, stops short as soon as the nearest enemy it can see is within a
+stand-off distance of it, gives ground to anything that gets well inside that,
+and every seven seconds freezes the nearest enemy within its look — as far off
+as a fighter picks one out — for nearly five —
 a unicorn that cannot walk, cannot swing and cannot heal, but is still a
 target, still presses whatever claim it was standing on, and still stands in
 everyone's way. What that hands a side is not damage. It is a fight where one
@@ -103,7 +110,7 @@ never walking off to heal from one. It walks at a third of a fighter's pace,
 which is what lets anything that picks it out run it down.
 
 It stops short rather than holding a distance, and the difference is the
-whole of why it stays on the field: holding a spell's length from the nearest
+whole of why it stays on the field: holding a set distance from the nearest
 enemy is a circle of places to stand, so a mage shoved along that circle had
 nothing pulling it back, and the crowd squeezed mages out one at a time —
 off the side of the board, and a long way behind the fight they were casting
@@ -122,18 +129,21 @@ six hundred and ninety to three hundred, and a run that went one-sided
 because there was nobody left doing the killing. Three mages to a side fixed
 it, and so did having fighters pick the cape out of a crowd first. Neither is
 in, and the tech tree does not replace them. It delays the problem and no
-more: capes have to be paid for now, so they turn up about thirty-six seconds
-into a run instead of in its first recruits, but nothing about a mage dying
-less often than a fighter has changed, and a long run still silts up. Ten
-minutes with the tree ends with fifteen of the twenty-four living in capes;
-ten minutes without it, played by the same hand, ends with thirty-seven of
-fifty-four. Three in five against seven in ten is not a fix. What a mage
+more: capes have to be paid for now, so they turn up some way into a run
+instead of in its first recruits — about thirty-six seconds in, when every
+side bought the freeze first, and later now on the side that goes down the
+fighter's tree first — but nothing about a mage dying less often than a
+fighter has changed, and a long run still silts up. Ten minutes with the
+earlier tree ended with fifteen of the twenty-four living in capes; ten
+minutes without it, played by the same hand, ends with thirty-seven of
+fifty-four. Three in five against seven in ten is not a fix, and the two trees
+have not been measured for it. What a mage
 costs its side is still a design question, and the answer to it is still not
 a patch.
 
-A wizard has three spells once its side has bought all three, and the rule for
-choosing between them is in the tech tree section below. There are still only
-one *freeze*, whoever casts it: a block of ice standing on the ground with the
+A wizard has two spells once its side has learned the turncoat, and the rule
+for choosing between them is in the tech tree section below. There is still
+only one *freeze*, whoever casts it: a block of ice standing on the ground with the
 unicorn inside it, melting down over the length of the hold. From the player's
 second hand it lasts twenty seconds; from a wizard, 4.8 seconds. Either
 way nothing of the animal inside moves, it stops walking, swinging and healing,
@@ -202,8 +212,9 @@ reads the game rather than deciding it, and the fight for the middle is
 either a permanent tug of war — with the sides held within two fighters of
 each other it was never once taken in ten minutes — or a formality. Keeping it level is the player's job, and that is
 now the game. It is also why `npm run sim`'s long run plays the player,
-badly — a smite on the leading side every three quarters of a second while it
-is two fighters ahead, the lightest hand that keeps a run going — since
+badly — striking the leading side's best down every three quarters of a
+second while it is two fighters ahead, the lightest hand that keeps a run
+going — since
 otherwise every number it collects comes from the first minute of a run that
 is already over.
 
@@ -211,10 +222,12 @@ That hand was every second and a half until the tech tree went in, and the
 tree is what made it too light: over seven seeds it left a side wiped out in
 five of them and the balance pinned past 0.8 for 42% of the run, where three
 quarters of a second leaves one wipeout and 12%, and a third of a second
-leaves none and none. Smiting at a lead of one rather than two wipes three of
+leaves none and none. Striking at a lead of one rather than two wipes three of
 the seven out by keeping the board empty, which is the old warning holding
 good. Roughly: the tree doubles the hand the game asks for, and does not put
-it out of reach.
+it out of reach. Those figures were taken against the earlier tree — one chain
+of freeze, smite and rage, and five areas with reach among them — and have not
+been measured again since the two trees went in.
 
 ## The tech tree
 
@@ -232,96 +245,100 @@ less in proportion exactly as it spawns less, and a fallen enemy pays what its
 size says, so a veteran is worth two recruits. What is earned is earned twice
 over, into two pools that buy different things and are never traded against
 each other, after the two-pool tree in Lord of the Swarm. One is spent a
-little at a time on five areas, permanently. The other is saved whole until it
+little at a time on four areas, permanently. The other is saved whole until it
 can buy the next power outright, which is what stops a side saving up from
 standing still while it saves.
 
-The five areas are how fast a unicorn walks, how fast it swings, how far off
-it can pick an enemy out, how far it can reach one, and how fast its castles
-turn recruits out. A side works on one at a time and reconsiders every twenty
-seconds, moving half the time; what is already in an area stays there, so two
-sides come out of a long run good at different things and which things is the
-run's own doing. Points go in on a square root, so the first of them are worth
-more than the last and a side that has just taken up an area shows for it
-within seconds. Three hundred points fills one, which is about two minutes of
-a side's whole income — at half that, ten minutes left both sides full in all
-five and fighting with identical unicorns, and a tree whose two sides converge
-has stopped being one.
+The four areas are how fast a unicorn walks, how fast it swings, how far off
+it can pick an enemy out, and how fast its castles turn recruits out. A side
+works on one at a time and reconsiders every twenty seconds, moving half the
+time; what is already in an area stays there, so two sides come out of a long
+run good at different things and which things is the run's own doing. Points
+go in on a square root, so the first of them are worth more than the last and
+a side that has just taken up an area shows for it within seconds. Three
+hundred points fills sight or creation, which is about two minutes of a side's
+whole income; pace and swing never fill, and points go on into them past three
+hundred on the same square root. At half that, back when there were five areas
+and all of them filled, ten minutes left both sides full in all five and
+fighting with identical unicorns, and a tree whose two sides converge has
+stopped being one.
 
 They are not equally strong, and no set of numbers would make them so, because
 the fight underneath is a knife edge: whoever takes the first castle wins about
 nine unattended runs in ten, so *any* standing advantage decides one. Measured
 both ways round — one side full in an area, the other in nothing, over fifty
 unattended runs each — a side full in creation wins 100%, in swing 96%, in
-reach 92%, in pace 78% and in sight 54%. Read those as how sharply each cuts
-rather than as how unfair the game is.
+pace 78% and in sight 54%. Read those as how sharply each cuts rather than as
+how unfair the game is. They were measured against the earlier tree and have
+not been taken again.
 
 Sight is the weak one and honestly so. A fighter takes the *nearest* enemy
 within its look, so a longer look never puts a better target in front of it —
 it only adds further ones, and what it really buys is a willingness to break
 off towards a fight instead of walking on to a castle, which is not how runs
-are won. What redeems it is the wizard: a spell is aimed at whatever its
-caster can pick out, so sight is what gives a side with capes the reach to use
+are won. What redeems it is the wizard: a wizard casts at the nearest enemy
+within the same look a fighter picks its targets in, and there is no separate
+range for a spell, so sight is what gives a side with capes the reach to use
 them. Weak until freeze and worth having after it, which is the one place here
-where what to research depends on what has already been learned. Reach is kept
-small for a different reason — it is the one of the five that changes what a
-fight looks like rather than only how it goes, and two unicorns swinging at
-each other from a length apart read as two unicorns missing.
+where what to research depends on what has already been learned.
 
 The powers are the god's own hands, which is the point of them: a side that
-has watched a whole rainbow's worth of its own frozen and struck down out of a
-clear sky works out in the end how it was done. They come in a chain, cheapest
-first, and in a played run they land about thirty-six seconds, two minutes and
-four minutes in.
+has watched a whole rainbow's worth of its own frozen, hidden, maddened and
+turned out of a clear sky works out in the end how it was done. They come in
+two trees of two:
 
-- **Freeze**, 45 points. The cape. One recruit in four comes out a wizard, and
-  before this there are none at all and the field is horn to horn and nothing
-  else.
-- **Smite**, 140. A bolt that lands rather than a hold that waits: two and a
-  half hit points off a recruit's six.
-- **Rage**, 250. Six seconds of swinging twice as fast, cast on one of the
-  caster's own rather than at the other side — and the first of the three that
-  is worth anything to a side that is losing, the other two both needing an
-  enemy in reach where this one needs a friend in a fight.
+- **The mage's tree: Freeze, then Turncoat.** Freeze, 45 points, is the cape:
+  one recruit in four comes out a wizard, and before it a side has none at
+  all. Turncoat, 250, gives those wizards a second spell, which walks an enemy
+  veteran over to their side with everything it had.
+- **The fighter's tree: Stealth, then Berserk.** Stealth, 45, is the ninja:
+  one recruit in nine comes out unseen, so nobody sets off after it, though it
+  is still shoved, still struck by whatever it walks into, and still presses
+  its claim. Berserk, 250, sends one recruit in seven out of the gate a
+  berserker, swinging twice as fast for the whole of its life. Neither is a
+  spell: they are a side breeding for something, and what they buy arrives in
+  the recruits.
 
-One wizard, one cooldown, and one rule for choosing. A mark already standing
-still is blasted rather than frozen again, a freeze on something that cannot
-move being a freeze thrown away — which is what makes two wizards worth more
-than twice one, the first holding and the second striking while the held one
-never swings back. With nothing helpless in front of it the rage goes on one
-of its own that is in a fight, and never on one already roaring, so it
-saturates: a rage lasts most of a cooldown, and a wizard is back
-to freezing as soon as the fights around it are all roaring. That is why
-putting the rage above the freeze does not bury the freeze. Over ten minutes
-the mix comes out about 1,460 frosts, 1,110 smites and 270 rages.
+At the start of a run a coin flip off the seed gives one side the mage's tree
+first and the other side the fighter's, and a side buys strictly in order: its
+first tree, then the other. So both sides can learn all four, in opposite
+orders, and for the middle of a run they field different things. When the
+powers land in a played run has not been measured since the two trees went
+in.
 
-A rage burns down whatever the animal is doing, standing frozen included, so
-an enemy wizard's frost is the answer to a berserker: held still for a second
-and a half is a second and a half less of it. It never stacks either — casting
-on one already roaring would only set the clock back — which is why a side's
-wizards spread it about instead of piling it on one animal.
+One wizard, one cooldown, and one rule for choosing. When its spell comes round
+a wizard takes the nearest enemy it can see that is not a ninja, turns to face
+it and lowers its neck; if its side has learned the turncoat and the mark is a
+veteran, level one or above, it turns the mark, and otherwise it freezes it.
+Nothing a wizard casts does damage and nothing is cast on a friend. A
+berserker comes only from breeding or from the player's hand and never calms
+down, so an enemy wizard's frost is the answer to one: held still for 4.8
+seconds is 4.8 seconds less of it.
 
-All of it is on screen. The panel at the bottom left is a row a side, in that
-side's stone: five bars of how far it has got in each area, and the powers it
-has bought at the end of the row. A power bought is a white shower over every
-castle its side holds, the same one a promotion and a capture get, because the
-one thing on the field that says the run just got harder wants saying
-somewhere other than a corner. A berserker beats red and its neck is going at
-twice the speed. The three spells are three colours of streak: frost blue for
-a hold, gold for a bolt, red for a rage.
+All of it is on screen, in the release build as well as the dev page. The
+sunicorns' panel is at the bottom left and the rainicorns' at the bottom
+right, each in that side's claim-bar colour: four bars of how far it has got in
+each area, and the powers it has bought on the inside of the bars, in the
+order it bought them. A power bought is a white shower over every castle its
+side holds, the same one a promotion and a capture get, because the one thing
+on the field that says the run just got harder wants saying somewhere other
+than a corner. A berserker beats red and its neck is going at twice the speed,
+and a ninja is drawn as its own shadow. The two spells are two colours of line
+from the caster's horn: frost blue for a hold, purple for a turncoat.
 
 What the tree does not do is tilt the game. Over two hundred games played to a
 finish the sides win 97 and 103, and the side that takes the first castle goes
 on to win 87% of them against 90% on the same seeds without the tree — that is
 unchanged, and the tree neither rescues a side that has lost the ground nor
-runs away with a side that has taken it.
+runs away with a side that has taken it. That was measured against the earlier
+tree and has not been measured again.
 
 Sound is written as it plays, because there is no room to record any. Every
 noise in the game is an oscillator or a burst of white noise through a filter,
 and the whole of it — the tune and the field both — is one file, `src/audio.js`,
 of about a kilobyte and a half in the zip. Nothing starts until the first
-touch: a browser will not let a sound out before a gesture, and the game's
-first gesture is the first smite. [`doc/music.md`](doc/music.md) is the whole
+touch: a browser will not let a sound out before a gesture.
+[`doc/music.md`](doc/music.md) is the whole
 of how it works — the graph, every sound's parameters, the scale and how it
 bends, and how to record the page and measure what came out.
 
@@ -347,14 +364,14 @@ Everything the field does is placed where it happened. A sound is handed the
 same projected triple the sparks are — screen x, screen y, screen size — so it
 pans across the picture and quietens with the size the camera gave it, and a
 castle falling at the back of the field is a long way off and sounds it. A
-gate opening, a horn landing on a horn, a unicorn going down, a mage's frost, a
-promotion, a castle taken, a claim broken, and both of the god's hands all have
-one, and the god's are the loudest things in the game because they are the only
-two that are not on the field. Nothing rations itself, so the whole of it is
+gate opening, a horn landing on a horn, a unicorn going down, each of a
+wizard's two spells, a promotion, a castle taken, a claim broken, and each of
+the god's five hands all have one, and the god's are the loudest things in the
+game because they are not on the field. Nothing rations itself, so the whole of it is
 capped at eighteen voices in a sixtieth of a second — a tab that was away comes
 back and the loop runs three hundred steps in one frame — and blows, which are
 the commonest thing that happens by a wide margin, are rationed again to twenty
-a second on top of that. The button in the far corner from the hands, bottom
+a second on top of that. The button in the far corner from the hands, top
 right, turns it all off — far from them because it is the one button on the
 page that is not spent on the field, and a thumb going for a hand should never
 find it.
@@ -409,8 +426,9 @@ thing that decides a run was found: whoever takes the first castle wins 99 of
 every 100.
 
 Next, in order: what ends a run with some ceremony, then whatever class comes
-after the mage — the wizard now has three spells but it is still the only
-thing on the field that is not a fighter.
+after the mage — the wizard now has two spells, and the berserker and the ninja
+are fighters with one thing changed, but the wizard is still the only thing on
+the field that is not a fighter.
 
 The clouds are a volumetric march ported close to Valentin Galea's
 [XtBXDw](https://www.shadertoy.com/view/XtBXDw) (MIT), tuned by hand, on its
@@ -455,17 +473,17 @@ of several; treat the free space as the pessimistic figure it is.
 |---|---|
 | `src/gl.js` | WebGL2 context, programs, uniforms, the fullscreen triangle, instanced quad `Batch` |
 | `src/rainbow.js` | three passes: the world (sky, clouds, hills, grass), a castle, the bow — one number in |
-| `src/unicorn.js` | one signed-distance unicorn, instanced — draws the herd it is handed, cape, frost, rage and all |
-| `src/sparks.js` | instanced dots: the burst a unicorn goes out in, the shower a promotion or a power bought rises in, the streak each of the three spells is drawn as |
-| `src/sim.js` | the fight: castles spawn and are captured, fighters cross the field and fight, both sides research as they go, wizards freeze, blast and enrage, balance is who is ahead, on the field and at the gates |
+| `src/unicorn.js` | one signed-distance unicorn, instanced — draws the herd it is handed, cape, frost, berserker and ninja and all |
+| `src/sparks.js` | instanced dots: the burst a unicorn goes out in, the shower a promotion or a power bought rises in, the line each of the two spells is drawn as |
+| `src/sim.js` | the fight: castles spawn and are captured, fighters cross the field and fight, both sides research as they go, wizards freeze and turn, balance is who is ahead, on the field and at the gates |
 | `src/audio.js` | every sound, made on the spot: two voices — an oscillator, and noise through a filter — a sound for each thing the field reports, and a tune written as it plays off the balance |
 | `doc/music.md` | what that file does and why, in full |
 | `scripts/sim_test.js` | the fight headless — unit tests on hand-built situations, then a long run checked for invariants, with a crude player keeping it alive |
-| `src/main.js` | boot, fixed-step loop, the page and clock, the panel of what the two sides have learned, god mode, and the depth-ordered draw of herd, castles and bow |
+| `src/main.js` | boot, fixed-step loop, the page and clock, the two panels of what the sides have learned, god mode and its five hands, and the depth-ordered draw of herd, castles and bow |
 | `src/debug.js` | frame rate under the clock, and the `?b=` and `?off=` URL switches. Never ships |
 | `scripts/build.js` | esbuild → shader-minifier-js → terser → Roadroller → zopfli zip, with the budget gate. The page is a skeleton; `main.js` makes the markup so it is packed, not just deflated |
 | `scripts/glsl.js` | the shader minifier seam around shader-minifier-js |
-| `doc/TECH_TREE.md` | the tech tree: income, the five areas and what each is worth measured, the three powers and the rule that chooses between them, and how to add a fourth |
+| `doc/TECH_TREE.md` | the tech tree: income, the four areas and what each is worth measured, the two trees of two powers, the wizard's rule, the player's hands, and how to add a power |
 | `scripts/check_shaders.js` | renders source vs minified shader and compares pixels |
 | `scripts/dev_server.js` | static files, no dependencies |
 
@@ -542,12 +560,14 @@ of several; treat the free space as the pessimistic figure it is.
       them, and what it does about something walking in on it, so that it
       stops kiting its pursuer off the field. Both are above, with numbers.
       Having to research the cape delays the first of those by half a minute
-      and does not answer it: three in five of the living are still in capes
-      after ten minutes, against seven in ten without the tree.
+      and does not answer it: three in five of the living were still in capes
+      after ten minutes, against seven in ten without the tree (measured
+      against the earlier tree, not the two trees).
 - [ ] A class past the mage — something a side can answer one with. The
-      wizard has three spells now, but it is still the only class there is.
-- [ ] A fourth power, and a fifth. The chain in `sim.js` is a list of costs
-      and a rule for choosing a spell; another is one entry and one case.
+      wizard has two spells now, but it is still the only class there is.
+- [ ] A fifth power. The two trees in `sim.js` are a list of costs in buying
+      order and a rule for choosing a spell; another is an entry in each and
+      one case — see the end of [`doc/TECH_TREE.md`](doc/TECH_TREE.md).
 - [x] Procedural music, tied to the balance state — melody in while level,
       detuning as it frays. In, with a sound for everything the field
       reports; above, and in full in [`doc/music.md`](doc/music.md).
