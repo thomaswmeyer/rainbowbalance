@@ -1556,9 +1556,20 @@ function e2e() {
                     // were the herd's own x and y until the world-space
                     // conversion, and every smite since has missed the field
                     // entirely, which is why the run below was one-sided.
+                    // The aim is the head, 0.6895 of the drawn size above
+                    // the hooves: the top end of the lozenge the hand is
+                    // tested against. A player aims at what they can see, and
+                    // the head of an animal in a press is the part of it that
+                    // nothing standing in front is covering — aimed at the
+                    // barrel instead, a good share of these land on the foe
+                    // horn to horn with the mark and feed the very side they
+                    // were meant to hold back, and the run below runs away:
+                    // 45 of 120 samples past |b| > 0.8 rather than none.
                     const [px, py, ps] = sim.project(best._x, best._y, best._s);
-                    sim.strike(px, py - ps * 0.4, false);
-                    // Counted where it landed, rather than where it was aimed.
+                    sim.strike(px, py + ps * 0.6895, 0);
+                    // Counted where it landed, rather than where it was aimed:
+                    // the hand takes whatever is on top at that point, which
+                    // in a press need not be the one it was aimed at.
                     if (best._hp <= 0) st.smitten++;
                 }
             }
@@ -1629,6 +1640,69 @@ function e2e() {
         .map((c) => (c._side < 0 ? 'nobody' : c._side ? 'rainicorn' : 'sunicorn')
             + (c._own ? '' : ` (claim ${(c._cap / T.CAP * 100) | 0}%)`)).join(', '));
     row('worst overlap seen', `${(st.worst * 100).toFixed(0)}% of a footprint`);
+}
+
+// ---------------------------------------------------------------------------
+// God mode
+// ---------------------------------------------------------------------------
+
+/**
+ * Where a touch lands. The player aims at a picture, so the test is in the
+ * picture: a point on an animal's body picks that animal, a point off every
+ * body picks nobody, and where two of them overlap it is the one in front —
+ * the one drawn last, and so the only one the player can see.
+ *
+ * The herd here is staged already sorted by depth, which is what the step
+ * leaves it in and what the draw reads.
+ */
+function godMode() {
+    say('\n[sim] god mode');
+    /** The body's origin on the screen: where the animal's middle draws. */
+    const middle = (un) => {
+        const [px, py, ps] = sim.project(un._x, un._y, un._s);
+        // 0.4695 is the unicorn shader's FEET — how far above the hooves the
+        // body hangs. sim.js keeps its own copy for the same reason.
+        return [px, py + 0.4695 * ps, ps];
+    };
+
+    {
+        const [un] = stage([{}]);
+        const [mx, my, ms] = middle(un);
+        ok('a touch on the body finds the animal', sim.strike(mx, my, 2) === un);
+        ok('and one three bodies to the side finds nobody',
+            sim.strike(mx + ms * 3, my, 2) === null);
+        ok('and one three bodies below the hooves finds nobody',
+            sim.strike(mx, my - ms * 3, 2) === null);
+    }
+
+    // Two standing all but on top of each other, a little over half a unit
+    // apart in depth. The one in front draws lower and larger, and the point
+    // is on the body of both.
+    {
+        const [back, front] = stage([{ _y: 18.61 }, { _y: 18 }]);
+        const [mx, my] = middle(front);
+        ok('where two overlap it is the one in front that is struck',
+            sim.strike(mx, my, 2) === front);
+        // And it is not that the one in front is simply nearer the point:
+        // by centres the one behind wins it, which is what the old rule
+        // measured and why a crowd picked from behind.
+        const d = (un) => {
+            const [px, py, ps] = sim.project(un._x, un._y, un._s);
+            return (px - mx) ** 2 + (py - (my + ps * 0.4)) ** 2;
+        };
+        ok('and the one behind was the nearer of the two by centres',
+            d(back) < d(front),
+            `front ${d(front).toFixed(5)} against back ${d(back).toFixed(5)}`);
+    }
+
+    // A body still fading out of the picture is not a target. The hand goes
+    // through it to whatever is behind.
+    {
+        const [back, front] = stage([{ _y: 18.61 }, { _y: 18, _hp: 0 }]);
+        const [mx, my] = middle(front);
+        ok('and a fallen one is struck through, not struck',
+            sim.strike(mx, my, 2) === back);
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -1731,7 +1805,9 @@ function techTree() {
         ]);
         const before = [sim.tech[0]._saved, sim.tech[1]._saved];
         const [px, py, ps] = sim.project(b._x, b._y, b._s);
-        sim.strike(px, py - ps * 0.4, false);
+        // At the middle of its body, which is where a hand has to land: the
+        // shader hangs the body 0.4695 of its size above the hooves.
+        sim.strike(px, py + ps * 0.4695, 0);
         ok("the player's own hand pays neither side",
             b._hp <= 0 && sim.tech[0]._saved === before[0] && sim.tech[1]._saved === before[1],
             b._hp > 0 ? 'the smite missed the unicorn' : 'a side was paid for it');
@@ -2211,6 +2287,7 @@ marching();
 endgame();
 bouncing();
 mages();
+godMode();
 techTree();
 e2e();
 console.log(failed

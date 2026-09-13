@@ -1490,37 +1490,89 @@ function sweep(sideways) {
 }
 
 /**
- * The unicorn nearest a point, if one is near enough to mean it. The point is
- * the player's, so it is a point on the screen, and the herd is met there
- * rather than on the ground: what the player is aiming at is a picture, and
- * two unicorns a long way apart on the plain can be a thumb's width apart in
- * it. So each is projected and the pick is made in the picture.
+ * The body a touch has to land on, in the animal's own units: a lozenge laid
+ * along the spine, from a point inside the rump to one at the poll, and how
+ * far out from that line the animal's mass reaches.
+ *
+ * Read off unicorn.js's build rather than guessed at — the barrel is 2·L long
+ * and 2·H deep about the origin, the neck leaves it at (0.21, 0.05) and the
+ * head sits around (0.47, 0.36) — and fattened until it takes in the belly
+ * and the head and leaves out the legs, the tail and the horn. That is what a
+ * player aims at and what they do not: nobody is trying to hit an ankle.
+ */
+const SPINE = [-0.22, 0, 0.57, 0.22], GIRTH = 0.3;
+/**
+ * How far above the hooves the body's origin sits: unicorn.js's own FEET,
+ * which is where the vertex shader plants the animal. Written out here for
+ * the same reason it is written out twice over there — a constant cannot
+ * cross from GLSL into JavaScript any more than it can cross between two
+ * shader stages.
+ */
+const RISE = 0.4695;
+/**
+ * How far outside the lozenge a touch still counts, as a measure of the
+ * screen rather than of the animal. This is what keeps the far end of the
+ * field playable: a recruit at the back of the band draws a tenth of the
+ * width a hero does at the front, and an exact test would be asking the
+ * player to hit a pixel. Near the camera the pad is a third of the girth and
+ * the pick is honest; deep in the field it is most of the target. Either way
+ * it is never less than about fifteen pixels of screen, which is a thumb.
+ */
+const SLACK = 0.015;
+
+/**
+ * The unicorn under a point, or null if the point is on none of them. The
+ * point is the player's, so it is a point on the screen, and the herd is met
+ * there rather than on the ground: what the player is aiming at is a picture,
+ * and two unicorns a long way apart on the plain can be a thumb's width apart
+ * in it.
+ *
+ * So each is projected and the point is put back into that animal's own
+ * frame — the same one the shader solves it in, facing and all, since the
+ * shader mirrors an animal that looks left by the sign of its scale — and
+ * asked whether it is on the body. Nearest-centre was the rule before this,
+ * and it is the wrong one in a crowd: the pick would jump to an animal
+ * standing behind the one the player was pointing at, because a centre can be
+ * closer than the body in front of it.
+ *
+ * The herd is walked backwards for the same reason. It is sorted by depth and
+ * drawn back to front, so the last of them is the one on top, and the first
+ * body the walk lands on is the one the player can actually see. Whatever is
+ * behind it is behind it.
  * @param {number} x on the screen, the rainbow's units
  * @param {number} y
  */
-function nearest(x, y) {
-    let best = null, bd = 0.02;
-    for (const un of herd) {
+function under(x, y) {
+    const [ax, ay, bx, by] = SPINE, bb = bx * bx + by * by;
+    for (let i = herd.length; i--;) {
+        const un = herd[i];
         if (un._hp <= 0) continue;
         const [px, py, ps] = project(un._x, un._y, un._s);
-        const d = (px - x) ** 2 + (py - (y + ps * 0.4)) ** 2;
-        if (d < bd) { bd = d; best = un; }
+        // Into the animal's units, hooves-up and nose-forward whichever way
+        // it happens to be facing.
+        const qx = (x - px) / ps * un._face - ax, qy = (y - py) / ps - RISE - ay;
+        // The nearest point of the spine to it, then the one distance the
+        // whole test is: a lozenge is a line with a radius.
+        const h = Math.min(1, Math.max(0, (qx * bx + qy * by) / bb));
+        const dx = qx - bx * h, dy = qy - by * h, r = GIRTH + SLACK / ps;
+        if (dx * dx + dy * dy <= r * r) return un;
     }
-    return best;
+    return null;
 }
 
 /**
- * God mode, whichever hand is out: the unicorn nearest the point is either
- * struck down where it stands, or frozen into a block of ice — out of the
- * fight but still in the way of it until the block has melted off.
+ * God mode, whichever hand is out: the unicorn under the point is struck down
+ * where it stands, or frozen into a block of ice — out of the fight but still
+ * in the way of it until the block has melted off — or turned ninja, or sent
+ * berserk, or walked over to the other side.
  *
- * One function for the two because they are the same three lines: find the
- * nearest unicorn to a point on the screen, and set one field on it.
+ * One function for the five because they are the same two lines: find the
+ * unicorn under a point on the screen, and set one field on it.
  * @param {number} x on the screen, the rainbow's units
  * @param {number} y
- * @param {boolean} ice the freezing hand, rather than the smiting one
+ * @param {number} hand which of the five is out
  * @returns {Unicorn|null} who it landed on, so the caller can put a sound and
- *   a light where it happened, or null if the field was empty
+ *   a light where it happened, or null if the point was on nobody
  */
 /**
  * Change a unicorn's side. Everything it had it keeps — its level, its size,
@@ -1548,7 +1600,7 @@ export const turncoat = typeof __DEBUG__ === 'undefined' || __DEBUG__
     ? (/** @type {Unicorn} */ un) => turn(un, un._side ^ 1) : null;
 
 export function strike(x, y, hand) {
-    const un = nearest(x, y);
+    const un = under(x, y);
     if (!un) return null;
     // Zero, not below: zero is where the fade starts. And not through
     // wound(), which pays a side the bounty on what it felled: this one was

@@ -62,11 +62,29 @@ hit points added — added, not compounded — grown into over a second in a
 white shower of sparks. A recruit starts at half
 size, so a field of veterans is visibly a field of veterans. Balance — the one number the sky,
 the bow and the castles read — is who has more fighters alive, smoothed. The
-player's verbs are both god mode, chosen from the two buttons at the top left:
-a touch strikes the nearest unicorn down in a burst of sparks, or freezes it
-into a block of ice. Frozen, it stands there for twenty seconds doing nothing
+player's verbs are all god mode, chosen from the row of buttons at the top
+left or with the number keys they are labelled with: a touch strikes the
+unicorn under it down in a burst of sparks, or freezes it into a block of
+ice. Frozen, it stands there for twenty seconds doing nothing
 and taking nothing but damage, in the way of the fight but out of it, while
 the block melts off it from the top down.
+
+What a touch lands on is settled in the picture, because a picture is what the
+player is aiming at: two unicorns a field apart on the plain can be a thumb's
+width apart on the screen. The point is put back into each animal's own frame
+— the same one the shader solves it in, facing and all — and tested against a
+lozenge laid along the spine, from the rump to the poll, which takes in the
+belly and the head and leaves out the legs, the tail and the horn. The herd is
+walked backwards while that is asked, so the first body the walk lands on is
+the one drawn last and therefore the only one the player can see: in a press
+the hand takes the animal in front, and never one standing behind it. The
+lozenge is fattened by a fixed measure of the screen rather than of the animal
+before the test, which is what keeps the far end of the field playable — a
+recruit at the back of the band draws a tenth of the width a hero does at the
+front, and an exact test would be asking a player to hit a pixel. Near the
+camera the pad is a third of the lozenge's girth and the pick is honest; at
+the back it is most of the target, and never smaller than about a thumb. Nearest-centre was
+the rule before this, and in a crowd it picked from behind.
 
 Not every recruit fights, once a side has paid for the wizards. One in four
 then comes out of the gate in a cape and never goes horn to horn with
@@ -332,8 +350,10 @@ two that are not on the field. Nothing rations itself, so the whole of it is
 capped at eighteen voices in a sixtieth of a second — a tab that was away comes
 back and the loop runs three hundred steps in one frame — and blows, which are
 the commonest thing that happens by a wide margin, are rationed again to twenty
-a second on top of that. The button at the top left that is not a hand turns it
-all off.
+a second on top of that. The button in the far corner from the hands, bottom
+right, turns it all off — far from them because it is the one button on the
+page that is not spent on the field, and a thumb going for a hand should never
+find it.
 
 `f` buys another second of the fight for every second of watching — 2×, then
 3×, and up — `s` gives it back a step at a time down to a stop, and space

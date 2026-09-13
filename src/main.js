@@ -117,8 +117,10 @@ function step(dt) {
 }
 
 /**
- * The player's one verb: god mode. A touch strikes down the unicorn nearest
- * to it. Culling the side that is ahead is how the board is kept level.
+ * The player's one verb: god mode. A touch reaches whichever unicorn is under
+ * it — the one on top of the pile where several overlap, since that is the one
+ * the player can see. Culling the side that is ahead is how the board is kept
+ * level.
  * @param {number} cx pointer x in pixels
  * @param {number} cy
  */
@@ -191,15 +193,19 @@ document.body.innerHTML =
     + 'color:#fff;font:700 64px/1.3 system-ui,sans-serif;text-shadow:0 2px 8px #000e;'
     + 'background:#0006;cursor:pointer}#o i,#o b{display:block;font-style:normal}'
     + '#o i{font-size:96px;margin:.08em 0}#o b{font-size:28px;font-weight:400;opacity:.8}'
-    + '#p{position:fixed;left:12px;top:12px;display:flex;gap:10px;user-select:none}'
-    + '#p b,#p i{width:64px;height:64px;display:grid;place-content:center;font-size:34px;'
-    + 'border-radius:14px;background:#0006;border:3px solid #fff3;cursor:pointer}'
-    + '#p b.on{background:#fff3;border-color:#fff}#p i{margin-left:14px}'
+    + '#p{position:fixed;left:12px;top:12px;display:flex;gap:10px}'
+    + '#m{position:fixed;right:12px;bottom:12px}'
+    + '#p b,#m{width:64px;height:64px;display:grid;place-content:center;font-size:34px;'
+    + 'border-radius:14px;background:#0006;border:3px solid #fff3;cursor:pointer;'
+    + 'user-select:none}'
+    + '#p b.on{background:#fff3;border-color:#fff}'
     + '#p b{position:relative;overflow:hidden}#p b.no{opacity:.35}'
     + '#p b::after{content:"";position:absolute;left:0;bottom:0;height:5px;'
     + 'width:var(--f);background:#8cf}'
-    + '#p b::before{content:attr(data-n);position:absolute;right:5px;top:2px;'
+    + '#p b::before,#p u{position:absolute;top:2px;'
     + 'font:600 15px system-ui,sans-serif;color:#fff;text-shadow:0 1px 2px #000}'
+    + '#p b::before{content:attr(data-n);right:5px}'
+    + '#p u{left:5px;opacity:.6;text-decoration:none}'
     + '#r{position:fixed;left:12px;bottom:12px;display:grid;'
     + 'grid-template-columns:repeat(5,32px) auto;gap:4px 5px;align-items:center;'
     + 'font:15px system-ui,sans-serif;color:#fff;text-shadow:0 1px 2px #000c;'
@@ -208,8 +214,8 @@ document.body.innerHTML =
     + '#r i{height:8px;border-radius:4px;background:#fff2}'
     + '#r b{letter-spacing:3px;padding-left:4px}</style>'
     + '<canvas id=c></canvas><div id=t></div>'
-    + '<div id=p>' + HANDS.map((g, i) => `<b title=${i + 1}>${g}</b>`).join('')
-    + '<i id=m>\ud83d\udd0a</i></div>'
+    + '<div id=p>' + HANDS.map((g, i) => `<b><u>${i + 1}</u>${g}</b>`).join('')
+    + '</div><i id=m>\ud83d\udd0a</i>'
     + '<div id=r></div><div id=o></div>';
 
 // --- the clock --------------------------------------------------------------
@@ -399,9 +405,12 @@ hands.forEach((el, i) => {
 });
 paintHands();
 
-// The third button is not a hand: it is the sound, off and on. It says which
-// it is rather than lighting up, because the two hands use lighting up to say
-// which of them is chosen and a third light there would read as a third hand.
+// The one button that is not a hand: the sound, off and on. It says which it
+// is rather than lighting up, because the hands use lighting up to say which
+// of them is chosen and a light over here would read as a sixth hand. It sits
+// in the far corner from them for the same reason — the row at the top left is
+// all things that are spent on the field, and this is not one of them, so a
+// thumb going for a hand never finds it.
 const speaker = /** @type {HTMLElement} */ (document.getElementById('m'));
 speaker.onpointerdown = (e) => {
     snd.boot();
@@ -423,8 +432,9 @@ let played = 1;
 addEventListener('keydown', (e) => {
     const k = e.key;
     // 1 to 5 choose a hand, left to right, which is the order they are in on
-    // screen. Choosing is all it does: the hand still has to be used on
-    // something, and the pointer is what says where.
+    // screen and what the small number in the corner of each button says.
+    // Choosing is all it does: the hand still has to be used on something, and
+    // the pointer is what says where.
     const h = k.length === 1 ? k - 1 : -1;
     if (h >= 0 && h < HANDS.length) { power = h; paintHands(); }
     // f faster a step at a time, s slower the same way down to a stop, and
