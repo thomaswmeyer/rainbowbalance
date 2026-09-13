@@ -110,7 +110,7 @@ const terser = await minify(js, {
     module: false,
     ecma: 2020,
     compress: { passes: 3, unsafe: true, unsafe_math: true, unsafe_arrows: true,
-        booleans_as_integers: true, drop_console: true },
+        drop_console: true },
     mangle: { properties: { regex: /^_/ } },
     format: { comments: false },
 });
