@@ -186,7 +186,7 @@ export function reset() {
  * button, so one number is the whole of the state.
  */
 const HANDS = ['\u2728', '\u2744\ufe0f', '\u{1F977}', '\u{1F525}', '\u{1F504}'];
-const HAND_MAX = [1, 3, 2, 2, 1];
+const HAND_MAX = [3, 3, 2, 2, 1];
 /**
  * Which power in sim.js's tree each hand is, by its bit, or −1 for none. A
  * hand is only on offer once either side has learned that power, so the row
@@ -232,10 +232,12 @@ document.body.innerHTML =
     + '#p b{position:relative;overflow:hidden}#p b.no{opacity:.35}'
     + '#p b::after{content:"";position:absolute;left:0;bottom:0;height:5px;'
     + 'width:var(--f);background:#8cf}'
-    + '#p b::before,#p u{position:absolute;top:2px;'
+    + '#p b::before,#p u{position:absolute;'
     + 'font:600 15px system-ui,sans-serif;color:#fff;text-shadow:0 1px 2px #000}'
-    + '#p b::before{content:attr(data-n);right:5px}'
-    + '#p u{left:5px;opacity:.6;text-decoration:none}'
+    // The key it answers to top left, the charges in hand bottom right, just
+    // clear of the bar.
+    + '#p b::before{content:attr(data-n);right:5px;bottom:5px}'
+    + '#p u{left:5px;top:2px;opacity:.6;text-decoration:none}'
     // The research panels: the sunicorns' bottom left, the rainicorns' bottom
     // right, each mirrored so its powers sit on the inside of its bars.
     + '#r,#q{position:fixed;bottom:12px;display:grid;gap:8px 10px;align-items:center;'

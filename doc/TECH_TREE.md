@@ -199,7 +199,7 @@ lockout, one independent counter each.
 
 | Hand | Held | One back every | What it does |
 |---|---|---|---|
-| sparklify ✨ | 1 | 1.5s | strikes a unicorn down |
+| sparklify ✨ | 3 | 1.5s | strikes a unicorn down |
 | freeze ❄️ | 3 | 5s | a block of ice for `FREEZE` seconds |
 | stealth 🥷 | 2 | 12s | unseen and evading half the blows that land, for the life of the animal |
 | berserk 🔥 | 2 | 12s | swinging twice as fast and walking half again as fast, for the life of the animal |
@@ -215,13 +215,14 @@ starts before anyone has learned anything and it is the one intervention the
 balance was tuned against.
 
 A charge is **a float**, and that one number is the whole of the state: its
-whole part is how many uses are in hand, and its fraction is how far along the
+whole part is how many uses are in hand, the number at the bottom right of the
+button, and its fraction is how far along the
 next one is, which is the bar across the foot of the button. A hand under a
 whole charge is dimmed and does nothing.
 
 Sparklify is deliberately the metronome, and deliberately the only one always
-about to be available. One charge every 1.5 seconds is exactly the hand the
-tree was measured against in the table further down, so a player who has spent
+about to be available. One charge every 1.5 seconds, up to three held, is the hand the
+tree was measured against in the table further down, less the store, so a player who has spent
 everything else still has the one intervention the balance depends on. The
 rest are scarce in proportion to how permanent they are: the freeze wears off
 in twenty seconds, and the last three never wear off at all.
