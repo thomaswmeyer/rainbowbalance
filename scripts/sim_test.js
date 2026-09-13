@@ -1258,6 +1258,7 @@ function tournament(n) {
             sim.step(STEP);
             if (took < 0 && sim.captured.length) took = sim.captured[0]._side;
             sim.fallen.length = sim.promoted.length = sim.captured.length = 0;
+            sim.spawned.length = sim.broken.length = sim.blows.length = 0;
         }
         if (sim.winner < 0) draws++;
         else { wins[sim.winner]++; times[sim.winner].push(t); }
@@ -1488,6 +1489,7 @@ function e2e() {
     const st = {
         deaths: 0, together: 0, promotions: 0, worst: 0, broke: 0, taken: 0, smitten: 0, decided: -1,
         capes: 0, casts: 0, frozen: 0, living: 0, roaring: 0,
+        recruits: 0, blows: 0, lost: 0,
         /** @type {number[]} */ spells: [0, 0, 0],
         /** @type {number[]} */ balances: [], /** @type {number[]} */ fights: [],
         /** @type {number[]} */ depth: [], /** @type {number[]} */ across: [],
@@ -1509,6 +1511,12 @@ function e2e() {
         sim.promoted.length = 0;
         st.taken += sim.captured.length;
         sim.captured.length = 0;
+        st.recruits += sim.spawned.length;
+        sim.spawned.length = 0;
+        st.lost += sim.broken.length;
+        sim.broken.length = 0;
+        st.blows += sim.blows.length;
+        sim.blows.length = 0;
 
         // The player, every three quarters of a second, and only while one
         // side is two fighters ahead: its best, struck down where it stands.
@@ -1611,7 +1619,9 @@ function e2e() {
     row('researched', sim.tech.map((t, i) => `${i ? 'rainicorn' : 'sunicorn'} `
         + t._p.map((p) => (p / T.FULL * 100).toFixed(0) + '%').join('/')
         + ` +${t._got} power${t._got === 1 ? '' : 's'}`).join('   '));
-    row('castles taken', st.taken);
+    row('recruits', st.recruits);
+    row('blows landed', st.blows);
+    row('castles taken', `${st.taken}, and ${st.lost} claims broken`);
     row('a side first wiped out', st.decided < 0 ? 'never' : `${st.decided.toFixed(0)}s`);
     row('ground held at once', `${mean(st.depth).toFixed(2)} deep of ${(T.FAR_Y - T.NEAR_Y).toFixed(2)}`
         + `, ${mean(st.across).toFixed(2)} across`);

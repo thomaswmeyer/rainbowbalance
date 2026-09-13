@@ -17,6 +17,7 @@ import { initRainbow, drawRainbow, drawBow, drawCastle, recompile, SOURCES } fro
 import { initUnicorns, drawUnicorns } from './unicorn.js';
 import * as sim from './sim.js';
 import { initSparks, burst, shower, bolt, stepSparks, drawSparks } from './sparks.js';
+import * as snd from './audio.js';
 
 // --- the balance ------------------------------------------------------------
 
@@ -43,17 +44,47 @@ function step(dt) {
         state._elapsed += dt;
         sim.step(dt);
     }
-    for (const un of sim.fallen) burst(...sim.project(un._x, un._y, un._s), un._side);
+    // Everything the step reported, drained here and turned into what is seen
+    // and what is heard. A sound is handed the same projected triple the
+    // sparks are, so it is panned across the picture and quietened by the
+    // distance the camera gave it: the two cues never disagree about where on
+    // the field the thing happened.
+    for (const un of sim.fallen) {
+        const p = sim.project(un._x, un._y, un._s);
+        burst(...p, un._side);
+        snd.fell(p, un._side);
+    }
     sim.fallen.length = 0;
-    for (const un of sim.promoted) shower(...sim.project(un._x, un._y, un._s));
+    // A gate opening has nothing to see — a recruit walks out of one — so
+    // this is the one report that is sound alone.
+    for (const un of sim.spawned) snd.spawn(sim.project(un._x, un._y, un._s), un._side);
+    sim.spawned.length = 0;
+    for (const un of sim.promoted) {
+        const p = sim.project(un._x, un._y, un._s);
+        shower(...p);
+        snd.level(p);
+    }
     sim.promoted.length = 0;
     // A castle taken gets the same white shower a promotion does, at the
     // size of the castle rather than of a unicorn.
-    for (const c of sim.captured) shower(...sim.project(c._x, c._y, 2));
+    for (const c of sim.captured) {
+        const p = sim.project(c._x, c._y, 2);
+        shower(...p);
+        snd.taken(p, c._side);
+    }
     sim.captured.length = 0;
+    // And one broken back to nobody's, which is the other half of taking one.
+    for (const c of sim.broken) snd.broken(sim.project(c._x, c._y, 2));
+    sim.broken.length = 0;
+    // Blows land by the hundred a minute. audio.js lets twenty a second
+    // through and drops the rest, which is what makes a melee a texture
+    // rather than a machine gun.
+    for (const un of sim.blows) snd.blow(sim.project(un._x, un._y, un._s));
+    sim.blows.length = 0;
     // And a spell is a streak from the horn that cast it to whatever it was
     // cast at, in the colour of which spell it was: frost blue for a hold,
-    // gold for a bolt, red for a rage put on one of the caster's own.
+    // gold for a bolt, red for a rage put on one of the caster's own. The
+    // sound is told which one for the same reason the streak is.
     for (const c of sim.casts) {
         // A spell goes horn to head, and the plain the spell was cast on has
         // no height on it. Each end is lifted by its own drawn size once the
@@ -61,6 +92,7 @@ function step(dt) {
         const [ax, ay, as] = sim.project(c._x, c._y, c._s);
         const [bx, by, bs] = sim.project(c._tx, c._ty, c._ts);
         bolt(ax, ay + as, bx, by + bs * 0.6, as, c._k);
+        snd.cast([ax, ay, as], c._k);
     }
     sim.casts.length = 0;
     // A power bought is a white shower over every castle its side holds —
@@ -70,6 +102,10 @@ function step(dt) {
     for (let s = 0; s < 2; s++) {
         if (sim.tech[s]._got === _powers[s]) continue;
         _powers[s] = sim.tech[s]._got;
+        // One sound for it, not one per castle: it happened to the side, and
+        // the shower over each castle is the same one thing said in several
+        // places.
+        snd.power(s);
         for (const c of sim.castles) {
             if (c._side === s && c._own) shower(...sim.project(c._x, c._y, 2));
         }
@@ -87,18 +123,25 @@ function step(dt) {
  * @param {number} cy
  */
 function smite(cx, cy) {
+    // Any touch is a gesture, and a browser will not let a sound out before
+    // one, so the first of them is what starts the audio.
+    snd.boot();
     if (sim.winner >= 0) { reset(); return; }
     // Pixels to the screen's own units — the rainbow's space, y up, height 1.
     // Not to the herd's: the herd walks in world units, and what the player
     // is aiming at is the picture, which is where sim.strike() meets it.
     const x = (cx - innerWidth / 2) / innerHeight, y = (innerHeight / 2 - cy) / innerHeight;
-    sim.strike(x, y, !!power);
+    const un = sim.strike(x, y, !!power);
+    // Where it landed, if it landed on anything: an empty field makes no
+    // noise, which is also how the player learns there was nothing there.
+    if (un) (power ? snd.ice : snd.smite)(sim.project(un._x, un._y, un._s));
 }
 
 /** How many powers each side had last step, so a new one can be noticed. */
 const _powers = [0, 0];
 
 export function reset() {
+    snd.begin();
     state._balance = state._elapsed = 0;
     _powers[0] = _powers[1] = 0;
     // A fresh seed, or every run would be the one run.
@@ -122,9 +165,9 @@ document.body.innerHTML =
     + 'background:#0006;cursor:pointer}#o i,#o b{display:block;font-style:normal}'
     + '#o i{font-size:96px;margin:.08em 0}#o b{font-size:28px;font-weight:400;opacity:.8}'
     + '#p{position:fixed;left:12px;top:12px;display:flex;gap:10px;user-select:none}'
-    + '#p b{width:64px;height:64px;display:grid;place-content:center;font-size:34px;'
+    + '#p b,#p i{width:64px;height:64px;display:grid;place-content:center;font-size:34px;'
     + 'border-radius:14px;background:#0006;border:3px solid #fff3;cursor:pointer}'
-    + '#p b.on{background:#fff3;border-color:#fff}'
+    + '#p b.on{background:#fff3;border-color:#fff}#p i{margin-left:14px}'
     + '#r{position:fixed;left:12px;bottom:12px;display:grid;'
     + 'grid-template-columns:repeat(5,32px) auto;gap:4px 5px;align-items:center;'
     + 'font:15px system-ui,sans-serif;color:#fff;text-shadow:0 1px 2px #000c;'
@@ -133,7 +176,7 @@ document.body.innerHTML =
     + '#r i{height:8px;border-radius:4px;background:#fff2}'
     + '#r b{letter-spacing:3px;padding-left:4px}</style>'
     + '<canvas id=c></canvas><div id=t></div>'
-    + '<div id=p><b>\u2728</b><b>\u2744\ufe0f</b></div>'
+    + '<div id=p><b>\u2728</b><b>\u2744\ufe0f</b><i id=m>\ud83d\udd0a</i></div>'
     + '<div id=r></div><div id=o></div>';
 
 // --- the clock --------------------------------------------------------------
@@ -162,6 +205,7 @@ function showWinner() {
     if (sim.winner === _won) return;
     _won = sim.winner;
     if (sim.winner < 0) { over.style.display = 'none'; return; }
+    snd.over(sim.winner);
     // The time on its own line rather than in a sentence: it grows a field
     // at a time, and "in 4" reads no better than "in 1:22:45:11" would.
     over.innerHTML = (sim.winner ? 'RAINICORNS' : 'SUNICORNS') + ' HOLD THE FIELD'
@@ -297,11 +341,22 @@ hands.forEach((el, i) => {
     el.onpointerdown = (e) => {
         power = i;
         paintHands();
+        snd.boot();
         // Choosing a hand is not using it on whatever is under the button.
         e.stopPropagation();
     };
 });
 paintHands();
+
+// The third button is not a hand: it is the sound, off and on. It says which
+// it is rather than lighting up, because the two hands use lighting up to say
+// which of them is chosen and a third light there would read as a third hand.
+const speaker = /** @type {HTMLElement} */ (document.getElementById('m'));
+speaker.onpointerdown = (e) => {
+    snd.boot();
+    speaker.textContent = snd.mute() ? '\ud83d\udd07' : '\ud83d\udd0a';
+    e.stopPropagation();
+};
 
 // --- the pace ---------------------------------------------------------------
 
@@ -323,6 +378,7 @@ addEventListener('keydown', (e) => {
     else if (k === ' ') speed = speed ? 0 : played;
     else return;
     if (speed) played = speed;
+    snd.boot();
     e.preventDefault();
 });
 
@@ -369,5 +425,9 @@ if (!initGl(canvas)) {
         showClock();
         showTech();
         showWinner();
+        // The music is written a fifth of a second ahead of itself, off the
+        // one number the whole game is read from, and at the pace the fight
+        // is being watched at.
+        snd.music(state._balance, speed);
     });
 }

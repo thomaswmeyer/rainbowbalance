@@ -294,6 +294,47 @@ on to win 87% of them against 90% on the same seeds without the tree — that is
 unchanged, and the tree neither rescues a side that has lost the ground nor
 runs away with a side that has taken it.
 
+Sound is written as it plays, because there is no room to record any. Every
+noise in the game is an oscillator or a burst of white noise through a filter,
+and the whole of it — the tune and the field both — is one file, `src/audio.js`,
+of about a kilobyte and a half in the zip. Nothing starts until the first
+touch: a browser will not let a sound out before a gesture, and the game's
+first gesture is the first smite. [`doc/music.md`](doc/music.md) is the whole
+of how it works — the graph, every sound's parameters, the scale and how it
+bends, and how to record the page and measure what came out.
+
+The music is the readout the rainbow is. It reads the same one number, and it
+is bent by it rather than switched between two states: the thirds, sixths and
+sevenths of the scale flatten by a fraction of a semitone as `|balance|` grows,
+so a board going wrong is heard going wrong before it has gone. Level, there
+is a tune — major, two notes in three, and once the board is level enough to
+earn the second bow there is a second voice an octave above the first,
+appearing on the same 0.08 the bow does, so the reward is heard as well as
+seen. Tipped, the melody thins to one note in three, the drone under it swells
+and detunes, and a heartbeat comes in beneath that. The drone also gathers on
+the side that is winning, which is the side the bow is fading from: sunicorns
+are the left of the screen and `balance > 0` is sunicorns ahead, so that is one
+more thing on the list of cues that have to move together. Under it all is a
+four-bar round in D, and the tempo follows the pace the fight is watched at,
+though not one for one — three times the speed is twice the tempo, which is
+quick and still a tune. Paused, the music is held at a third rather than
+stopped: the field is holding still too, and silence would say the run had
+ended.
+
+Everything the field does is placed where it happened. A sound is handed the
+same projected triple the sparks are — screen x, screen y, screen size — so it
+pans across the picture and quietens with the size the camera gave it, and a
+castle falling at the back of the field is a long way off and sounds it. A
+gate opening, a horn landing on a horn, a unicorn going down, a mage's frost, a
+promotion, a castle taken, a claim broken, and both of the god's hands all have
+one, and the god's are the loudest things in the game because they are the only
+two that are not on the field. Nothing rations itself, so the whole of it is
+capped at eighteen voices in a sixtieth of a second — a tab that was away comes
+back and the loop runs three hundred steps in one frame — and blows, which are
+the commonest thing that happens by a wide margin, are rationed again to twenty
+a second on top of that. The button at the top left that is not a hand turns it
+all off.
+
 `f` buys another second of the fight for every second of watching — 2×, then
 3×, and up — `s` gives it back a step at a time down to a stop, and space
 plays or pauses at whatever pace was last set. The step is fixed, so a run
@@ -343,9 +384,9 @@ known to be even — 2,463 against 2,537 over five thousand — and how the one
 thing that decides a run was found: whoever takes the first castle wins 99 of
 every 100.
 
-Next, in order: what ends a run with some ceremony, whatever class comes
+Next, in order: what ends a run with some ceremony, then whatever class comes
 after the mage — the wizard now has three spells but it is still the only
-thing on the field that is not a fighter — then sound.
+thing on the field that is not a fighter.
 
 The clouds are a volumetric march ported close to Valentin Galea's
 [XtBXDw](https://www.shadertoy.com/view/XtBXDw) (MIT), tuned by hand, on its
@@ -373,12 +414,16 @@ the values as constants, "copy GLSL" to get them back. Restore `src/debug.js`
 from there and give the lines their ranges back to tune again.
 
 ```
-[build]  10633 / 13312 bytes — 2679 free (20.1%)
-  esbuild    30622 B
-  terser     28540 B  (-7%)
-  roadroller 13946 B  (-51%)
+[build] 12375 / 13312 bytes — 937 free (7.0%)
+  esbuild    35924 B
+  terser     33831 B  (-6%)
+  roadroller 16272 B  (-52%)
   glsl       14425 B  (-72% of 51972 B raw)
 ```
+
+Roadroller's optimiser searches, so the last two stages move about fifty bytes
+either way between builds of identical source. The number above is the worst
+of several; treat the free space as the pessimistic figure it is.
 
 ## Layout
 
@@ -389,6 +434,8 @@ from there and give the lines their ranges back to tune again.
 | `src/unicorn.js` | one signed-distance unicorn, instanced — draws the herd it is handed, cape, frost, rage and all |
 | `src/sparks.js` | instanced dots: the burst a unicorn goes out in, the shower a promotion or a power bought rises in, the streak each of the three spells is drawn as |
 | `src/sim.js` | the fight: castles spawn and are captured, fighters cross the field and fight, both sides research as they go, wizards freeze, blast and enrage, balance is who is left |
+| `src/audio.js` | every sound, made on the spot: two voices — an oscillator, and noise through a filter — a sound for each thing the field reports, and a tune written as it plays off the balance |
+| `doc/music.md` | what that file does and why, in full |
 | `scripts/sim_test.js` | the fight headless — unit tests on hand-built situations, then a long run checked for invariants, with a crude player keeping it alive |
 | `src/main.js` | boot, fixed-step loop, the page and clock, the panel of what the two sides have learned, god mode, and the depth-ordered draw of herd, castles and bow |
 | `src/debug.js` | frame rate under the clock, and the `?b=` and `?off=` URL switches. Never ships |
@@ -446,6 +493,18 @@ from there and give the lines their ranges back to tune again.
 - **Never `pow()` a value that can go negative.** It is undefined in GLSL and
   renders as NaN, which renders as a white screen and no error at all. Square
   by multiplying. This cost an hour on day one.
+- **A sound is not verified by reading it.** Levels, panning and whether a
+    voice comes out at all are all things a recording answers and nothing else
+    does. Two of them were wrong and looked right: the clash measured at a
+    fortieth of a spawn because a Q of 6 over 50ms leaves nothing behind, and
+    the voice cap was reset by the music tick, so any run of events longer than
+    eighteen voices fell silent from the tenth one on — a promotion, a castle
+    taken and a claim broken, three in a row, all silent. The cap is a time
+    window now, so nothing depends on being called from inside the loop. What
+    caught both was recording the shipped `dist/index.html` out of headless
+    Chromium: subclass `AudioContext` so `destination` returns a tap, hang a
+    `ScriptProcessorNode` off it, drive the page with the mouse, and measure
+    peak, RMS and left-against-right per event.
 - **Which side fades is a paired decision.** `balance > 0` means sunicorns
   ahead, and sunicorns are the *left* of the screen: the sky glows on the
   left, the clouds roll in on the left, and the bow fades from its left foot.
@@ -465,8 +524,9 @@ from there and give the lines their ranges back to tune again.
       wizard has three spells now, but it is still the only class there is.
 - [ ] A fourth power, and a fifth. The chain in `sim.js` is a list of costs
       and a rule for choosing a spell; another is one entry and one case.
-- [ ] Procedural music, tied to the balance state — melody in while level,
-      detuning as it frays.
+- [x] Procedural music, tied to the balance state — melody in while level,
+      detuning as it frays. In, with a sound for everything the field
+      reports; above, and in full in [`doc/music.md`](doc/music.md).
 - [ ] Title, game-over and score, without shipping a font.
 - [ ] Mobile: touch is wired, but nothing has been tested on a phone.
 
