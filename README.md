@@ -62,8 +62,8 @@ hit points added — added, not compounded — grown into over a second in a
 white shower of sparks. A recruit starts at half
 size, so a field of veterans is visibly a field of veterans. Balance — the one number the sky,
 the bow and the castles read — is who is ahead on the field and at the
-gates: fighters alive, plus each castle counted for the recruits its
-production keeps standing, about 7.6 for a home castle. Smoothed. The
+gates: fighters alive, plus each castle counted for twice the recruits its
+production keeps standing, about 15.2 for a home castle. Smoothed. The
 player's verbs are all god mode, chosen from the row of buttons at the top
 left or with the number keys they are labelled with. There are five hands and
 a run starts with one: sparklify, which strikes the unicorn under a touch down
@@ -293,9 +293,10 @@ two trees of two:
   veteran over to their side with everything it had.
 - **The fighter's tree: Stealth, then Berserk.** Stealth, 45, is the ninja:
   one recruit in nine comes out unseen, so nobody sets off after it, though it
-  is still shoved, still struck by whatever it walks into, and still presses
-  its claim. Berserk, 250, sends one recruit in seven out of the gate a
-  berserker, swinging twice as fast for the whole of its life. Neither is a
+  is still shoved and still presses its claim, and half the blows that land on
+  it miss. Berserk, 250, sends one recruit in seven out of the gate a
+  berserker, swinging twice as fast and walking half again as fast for the
+  whole of its life. Neither is a
   spell: they are a side breeding for something, and what they buy arrives in
   the recruits.
 

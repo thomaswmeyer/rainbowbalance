@@ -196,6 +196,8 @@ const SPAWN = 2.2;
  * standing army is the rate times the mean, and veterans live long.
  */
 const LIFE = 16.7;
+/** How many times its standing army a castle counts for in the balance. */
+const WORTH = 2;
 /** Hit points at the first level, and walking speed in world units a second. */
 const HP = 6;
 const SPEED = 4.298;
@@ -437,6 +439,10 @@ const BERSERK_EVERY = 7, NINJA_EVERY = 9;
  * read off the field.
  */
 const FURY = 2;
+/** A berserker also walks this much faster. */
+const BERSERK_V = 1.5;
+/** The chance a blow that lands on a stealthed unicorn misses it anyway. */
+const EVADE = 0.5;
 
 /**
  * @typedef {object} Unicorn
@@ -609,10 +615,10 @@ const rnd = () => (seed = (seed * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff
  */
 export const TUNE = typeof __DEBUG__ === 'undefined' || __DEBUG__
     ? { HP, HURT, HEAL, LOOK, CROWD, LONG, DEEP, HIT, DMG, REACH, MAX, NEAR_Y, FAR_Y,
-        SPAWN, LIFE, FADE_IN, SCALE0, CAP, CAP_R, TAKE, BREAK, MOB, LANE, OUTPOST, FREEZE,
+        SPAWN, LIFE, WORTH, FADE_IN, SCALE0, CAP, CAP_R, TAKE, BREAK, MOB, LANE, OUTPOST, FREEZE,
         CASTLE_W, BODY, FOOT, FOOT_X, SPEED,
         MAGE_EVERY, MAGE_V, KEEP, COOL, FROST,
-        RESEARCH, BOUNTY, GAIN, FULL, THINK, SWAP, COST, TREES, FURY,
+        RESEARCH, BOUNTY, GAIN, FULL, THINK, SWAP, COST, TREES, FURY, BERSERK_V, EVADE,
         BERSERK_EVERY, NINJA_EVERY, P_FREEZE, P_TURNCOAT, P_STEALTH, P_BERSERK,
         PACE, SWING, SIGHT, GATE }
     : null;
@@ -1172,7 +1178,7 @@ function decide(dt) {
         const stuck = arrived && d < Math.min(stop * 3, CAP_R * 0.9);
         // A mage is the slower animal, going or coming — and both of them
         // walk at whatever pace their side has learned.
-        const pace = SPEED * m[PACE] * (un._mage ? MAGE_V : 1);
+        const pace = SPEED * m[PACE] * (un._mage ? MAGE_V : un._ber ? BERSERK_V : 1);
         let v = 0;
         // Horn to horn it holds its ground. It is already where it needs to
         // be, and a pair that walks at each other every step is a pair the
@@ -1297,7 +1303,7 @@ function decide(dt) {
             // most of why they no longer fall together.
             const next = un._ph + dt * LUNGE * m[SWING] * (un._ber ? FURY : 1);
             if (Math.floor(next / 6.2832 - 0.5) > Math.floor(un._ph / 6.2832 - 0.5)
-                && rnd() < HIT) {
+                && rnd() < HIT && !(un._foe._nin && rnd() < EVADE)) {
                 wound(un, un._foe, DMG * (0.75 + 0.5 * rnd()));
                 blows.push(un._foe);
             }
@@ -1367,7 +1373,7 @@ function settle(dt) {
     for (const un of herd) if (un._hp > 0) un._side ? rain++ : sun++;
     for (const c of castles) {
         if (!c._own) continue;
-        const w = LIFE / SPAWN * c._rate * c._cap / CAP * tech[c._side]._m[GATE];
+        const w = WORTH * LIFE / SPAWN * c._rate * c._cap / CAP * tech[c._side]._m[GATE];
         if (c._side) rain += w; else sun += w;
     }
     const target = (sun - rain) / Math.max(sun + rain, 6);

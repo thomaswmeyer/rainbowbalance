@@ -550,7 +550,7 @@ function units() {
         pinned(60 * 4);
         ok('two home castles and an empty field are a level board',
             Math.abs(sim.balance) < 0.01, `balance ${sim.balance.toFixed(3)}`);
-        const home = T.LIFE / T.SPAWN, out = sim.castles[3];
+        const home = T.WORTH * T.LIFE / T.SPAWN, out = sim.castles[3];
         out._side = 0; out._own = true; out._cap = T.CAP;
         pinned(60 * 4);
         const whole = home * T.OUTPOST / (2 * home + home * T.OUTPOST);
@@ -2044,6 +2044,40 @@ function techTree() {
         pinned(60 * 8);
         ok('a ninja still takes what it walks into', n._hp < hp,
             `it came through eight seconds of a fight on ${n._hp.toFixed(2)}`);
+    }
+
+    // Half the blows that land on a stealthed unicorn miss it anyway.
+    {
+        const hits = (nin) => {
+            const [a, b] = stage([
+                { _x: -0.43, _y: 18.61, _side: 0, _hp: 1e9, _max: 1e9 },
+                { _x: 0.43, _y: 18.61, _side: 1, _hp: 1e9, _max: 1e9, _nin: nin },
+            ]);
+            a._foe = b;
+            let n = 0;
+            for (let i = 0; i < 60 * 600; i++) {
+                pinned(1);
+                n += sim.blows.filter((u) => u === b).length;
+                sim.blows.length = 0;
+            }
+            return n;
+        };
+        const plain = hits(false), hidden = hits(true);
+        ok('a stealthed unicorn evades about half the blows that would have landed',
+            Math.abs(hidden / plain - (1 - T.EVADE)) < 0.1, `${hidden} landed against ${plain}`);
+    }
+
+    // A berserker walks BERSERK_V times as fast.
+    {
+        const walk = (ber) => {
+            const [a] = stage([{ _x: -8, _y: 18.61, _side: 0, _ber: ber }]);
+            const x0 = a._x, y0 = a._y;
+            pinned(60);
+            return Math.hypot(a._x - x0, a._y - y0);
+        };
+        const plain = walk(false), mad = walk(true);
+        ok('a berserker walks BERSERK_V times as fast', Math.abs(mad / plain - T.BERSERK_V) < 0.05,
+            `${mad.toFixed(3)} against ${plain.toFixed(3)}`);
     }
 
     // A berserker swings FURY times as fast, and does not stop.

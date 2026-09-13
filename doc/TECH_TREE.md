@@ -159,8 +159,8 @@ played run has not been measured since the two trees went in.
 |---|---|---|
 | **freeze** ❄️ | 45 | the cape. One recruit in `MAGE_EVERY` (4) comes out a wizard. Before this a side has no wizards at all |
 | **turncoat** 🔄 | 250 | a wizard's second spell: an enemy of level 1 or above changes sides and keeps everything it had. The only power that takes an animal off the board without killing it: a side down a fighter and the other up one is worth two of anything else |
-| **stealth** 🥷 | 45 | the ninja. One recruit in `NINJA_EVERY` (9) comes out unseen. `seek()` skips it, so nobody ever sets off after it — it is not harder to hurt and not harder to shove, it simply arrives at fights nobody chose to have. Drawn as its own shadow |
-| **berserk** 🔥 | 250 | one recruit in `BERSERK_EVERY` (7) comes out of the gate a berserker, swinging `FURY` (2) times as fast for the whole of its life |
+| **stealth** 🥷 | 45 | the ninja. One recruit in `NINJA_EVERY` (9) comes out unseen. `seek()` skips it, so nobody ever sets off after it — it is not harder to shove, and half the blows that land on it miss (`EVADE`), but mostly it simply arrives at fights nobody chose to have. Drawn as its own shadow |
+| **berserk** 🔥 | 250 | one recruit in `BERSERK_EVERY` (7) comes out of the gate a berserker, swinging `FURY` (2) times as fast and walking `BERSERK_V` (1.5) times as fast for the whole of its life |
 
 A recruit is only ever one of the three. The counts are all of a castle's own
 recruits, and where two fall due on the same one the cape comes first, then
@@ -201,8 +201,8 @@ lockout, one independent counter each.
 |---|---|---|---|
 | sparklify ✨ | 1 | 1.5s | strikes a unicorn down |
 | freeze ❄️ | 3 | 5s | a block of ice for `FREEZE` seconds |
-| stealth 🥷 | 2 | 12s | unseen, for the life of the animal |
-| berserk 🔥 | 2 | 12s | swinging twice as fast, for the life of the animal |
+| stealth 🥷 | 2 | 12s | unseen and evading half the blows that land, for the life of the animal |
+| berserk 🔥 | 2 | 12s | swinging twice as fast and walking half again as fast, for the life of the animal |
 | turncoat 🔄 | 1 | 20s | changes its side, keeping everything |
 
 A hand only appears once **either side** has learned its power: freeze with
