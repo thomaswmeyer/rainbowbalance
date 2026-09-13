@@ -1,0 +1,5 @@
+# Wavedash: https://docs.wavedash.com/cli/configuration
+# game_id comes from the game's page in the Wavedash Developer Portal.
+game_id = "YOUR_GAME_ID_HERE"
+upload_dir = "./dist"
+entrypoint = "index.html"

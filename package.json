@@ -10,7 +10,9 @@
     "size": "node scripts/build.js --quiet",
     "check": "node scripts/check_shaders.js",
     "sim": "node scripts/sim_test.js",
-    "sim:min": "node scripts/sim_min.js"
+    "sim:min": "node scripts/sim_min.js",
+    "wavedash:dev": "npm run build && wavedash dev",
+    "wavedash:push": "npm run build && wavedash build push"
   },
   "license": "MIT",
   "devDependencies": {

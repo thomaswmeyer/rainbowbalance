@@ -558,6 +558,10 @@ function start() {
 screen('Rainbow Balance<b>For Millennia, the Sunicorns and the Rainicorns have been in '
     + 'conflict. Each tries to destroy the other, but without both Sun and Rain there is no '
     + 'Rainbow. Use your powers to keep both sides in balance as long as possible.</b>', start);
+// On Wavedash the platform puts a Wavedash global on the page before any of
+// this runs, and init() is what takes its loading screen down. Anywhere else
+// there is no such global and this does nothing.
+self.Wavedash?.init();
 
 /**
  * The pause screen, on the same overlay as the start and the win: "Paused"
