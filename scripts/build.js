@@ -35,6 +35,7 @@ import { join, dirname, basename } from 'path';
 import { fileURLToPath } from 'url';
 import { promisify } from 'util';
 import { minifyGlsl, SHADER_TEMPLATE } from './glsl.js';
+import { COMPRESS } from './terser.js';
 
 const ROOT = dirname(dirname(fileURLToPath(import.meta.url)));
 const OUT = join(ROOT, 'dist');
@@ -109,8 +110,7 @@ if (/initDebug|drive by hand/.test(js)) {
 const terser = await minify(js, {
     module: false,
     ecma: 2020,
-    compress: { passes: 3, unsafe: true, unsafe_math: true, unsafe_arrows: true,
-        drop_console: true },
+    compress: COMPRESS,
     mangle: { properties: { regex: /^_/ } },
     format: { comments: false },
 });

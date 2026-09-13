@@ -20,6 +20,7 @@ npm run size     # the byte count on its own
 npm run check    # do the minified shaders render what the source rendered?
 npm run sim      # the fight, headless: unit tests, then ten minutes of play
 npm run sim -- games 100   # a hundred whole games, and who won them
+npm run sim:min  # the same tests against sim.js compressed as the build ships it
 ```
 
 `check` needs a browser and goes looking for one itself: `puppeteer-core` comes

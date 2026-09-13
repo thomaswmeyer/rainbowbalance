@@ -29,7 +29,9 @@
  *   npm run sim -- 600 quiet # pass or fail only, for a hook or CI
  */
 
-import * as sim from '../src/sim.js';
+// SIM_MODULE is how `npm run sim:min` swaps in the compressed copy.
+/** @type {typeof import('../src/sim.js')} */
+const sim = await import(process.env.SIM_MODULE || '../src/sim.js');
 
 const T = sim.TUNE;
 /**

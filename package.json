@@ -9,7 +9,8 @@
     "build": "node scripts/build.js",
     "size": "node scripts/build.js --quiet",
     "check": "node scripts/check_shaders.js",
-    "sim": "node scripts/sim_test.js"
+    "sim": "node scripts/sim_test.js",
+    "sim:min": "node scripts/sim_min.js"
   },
   "license": "MIT",
   "devDependencies": {
