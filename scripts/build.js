@@ -189,3 +189,56 @@ console.log(`[build] ${zip.length} / ${LIMIT} bytes — ${free} free ` +
 if (free < 0 && process.env.CF_PAGES) {
     console.warn(`[build] over budget by ${-free} bytes — kept for Cloudflare Pages, not for submission`);
 } else if (free < 0) fail(`over budget by ${-free} bytes`);
+
+// 7. rainbowbalance.tom.to only: the tom.to word mark on the start screen
+//    (site/mark.js), appended as a second script after the zip was written
+//    from the page without it. The zip and the Wavedash upload never see it.
+if (process.argv.includes('--site') || process.env.CF_PAGES) {
+    // The same squeeze as the game, less the zip: each `#version` template in
+    // site/ through the GLSL minifier (inkmark.js looks its uniforms,
+    // attributes and varyings up by name, and the minifier keeps those), then
+    // esbuild, then terser with the game's compress options. No property
+    // mangling: that regex was written for the game's own `_` fields.
+    const siteShaders = [0, 0];
+    const siteGlsl = {
+        name: 'site-glsl',
+        setup(build) {
+            build.onLoad({ filter: /site[\\/].*\.js$/ }, (args) => {
+                const src = readFileSync(args.path, 'utf8');
+                const name = basename(args.path, '.js');
+                let n = 0;
+                const contents = src.replace(/`(#version 300 es[^`]*)`/g, (_, body) => {
+                    siteShaders[0] += body.length;
+                    const min = minifyGlsl(body, `${name}-${++n}`);
+                    siteShaders[1] += min.length;
+                    return '`' + min + '`';
+                });
+                return { contents, loader: 'js' };
+            });
+        },
+    };
+    const site = await esbuild.build({
+        entryPoints: [join(ROOT, 'site', 'mark.js')],
+        bundle: true,
+        write: false,
+        format: 'iife',
+        target: 'es2020',
+        minify: true,
+        plugins: [siteGlsl],
+        logLevel: 'warning',
+    });
+    const siteMin = await minify(site.outputFiles[0].text, {
+        module: false,
+        ecma: 2020,
+        compress: COMPRESS,
+        mangle: true,
+        format: { comments: false },
+    });
+    if (!siteMin.code) fail('terser produced nothing for the site script');
+    const mark = siteMin.code;
+    console.log(`[build] site script: esbuild ${kb(site.outputFiles[0].text.length)}, terser ${kb(mark.length)}, `
+        + `glsl ${siteShaders[1]} of ${siteShaders[0]} B`);
+    if (mark.includes('</script')) fail('the site script contains </script — it would end the tag early');
+    writeFileSync(join(OUT, 'index.html'), html + '<script>' + mark + '</script>');
+    console.log(`[build] site page: the tom.to mark added, ${kb(mark.length)} outside the zip`);
+}

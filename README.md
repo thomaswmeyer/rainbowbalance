@@ -16,6 +16,7 @@ bow appears above it. What ends a run is not decided yet.
 npm install
 npm run dev      # http://localhost:8080 — raw ES modules, no build, debug panel
 npm run build    # → dist/index.html and dist/rainbowbalance.zip, size-gated (only a warning on Cloudflare Pages)
+npm run build:site  # the same, with the tom.to mark on the start screen, as Cloudflare Pages builds it
 npm run size     # the byte count on its own
 npm run check    # do the minified shaders render what the source rendered?
 npm run sim      # the fight, headless: unit tests, then ten minutes of play
@@ -485,6 +486,7 @@ of several; treat the free space as the pessimistic figure it is.
 | `scripts/build.js` | esbuild → shader-minifier-js → terser → Roadroller → zopfli zip, with the budget gate. The page is a skeleton; `main.js` makes the markup so it is packed, not just deflated |
 | `scripts/glsl.js` | the shader minifier seam around shader-minifier-js |
 | `doc/TECH_TREE.md` | the tech tree: income, the four areas and what each is worth measured, the two trees of two powers, the wizard's rule, the player's hands, and how to add a power |
+| `site/` | rainbowbalance.tom.to only: the tom.to word mark on the start screen, with `inkmark.js` copied from Lord of the Swarm. Added by the Cloudflare Pages build after the zip is written, so never in the zip or the Wavedash upload |
 | `scripts/check_shaders.js` | renders source vs minified shader and compares pixels |
 | `scripts/dev_server.js` | static files, no dependencies |
 
