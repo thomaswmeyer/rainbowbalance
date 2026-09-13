@@ -22,7 +22,7 @@ This is the second time this has caught something that looked obviously right:
 Duplication is cheap here. Novelty is expensive. DRY in this codebase buys
 clarity, and should be done for clarity, but it does not buy budget.
 
-## Free — nothing is lost
+## Taken, for 188 bytes
 
 | | Change | Saved |
 | --- | --- | --- |
@@ -31,20 +31,28 @@ clarity, and should be done for clarity, but it does not buy budget.
 | 3 | Collapse `uniforms()` to one indexed call, `gl['uniform' + v.length + 'f']`, with call sites passing an array | **27** |
 | 4 | `formatClock` to `m:ss`, dropping the hour and day fields | **40** |
 
-**Stacked: 218 bytes**, taking 560 free to about 778. Verified together: all
-five shaders render pixel-identical under `npm run check`, all 165 assertions
-pass, and the built page runs in Chrome with no console errors.
+**Applied in `722ca8c`, and worth 188 rather than 218.** Measured at 12,564
+against a 12,752 baseline, three builds each. Verified together: all five
+shaders render pixel-identical under `npm run check`, all 165 assertions pass,
+and the built page runs in Chrome with no console errors.
 
-Two cautions. The renamed externals must avoid single letters already in use —
-`H`, `L` and `U` collide with existing constants and with `struct U` in the
-unicorn shader, and the shader equivalence check is what caught it. A
-two-character scheme is safer and still worth 81. And `maxMemoryMB: 512` looks
-like another 18 bytes but adds nothing once stacked, while raising the
-decoder's runtime allocation from 146 MB to 315 MB. Not worth it for a judge
-on a phone.
+The 30 bytes not taken are in item 1, and were traded for readability.
+Single-character externals are worth 101 but leave a shader talking about `R`
+and `W`; two characters are worth 81 and keep the prefix that says whether a
+thing is a uniform, an attribute or a varying, which is the half of the name
+that carries the meaning. Single letters also collide — `H`, `L` and `U` are
+already constants, and `U` is a struct in the unicorn shader — and the shader
+equivalence check is what catches that.
 
-Item 4 is the only one that costs anything at all: a run over an hour would
-read `73:20` rather than `1:13:20`.
+Item 1 is therefore **not** free, whatever this document said before it was
+done. It costs `uRes` becoming `uR` in three shader files.
+
+A third caution, untaken: `maxMemoryMB: 512` looks like another 18 bytes but
+adds nothing once stacked, while raising the decoder's runtime allocation from
+146 MB to 315 MB. Not worth it for a judge on a phone.
+
+Item 4 is the only other one that costs anything: a run over an hour now reads
+`73:20` rather than `1:13:20`.
 
 ## Prices, if more is needed
 
@@ -78,7 +86,7 @@ Two things worth saying about that table.
 The second bow costs **54 bytes**, for what the README calls the first thing
 anyone will screenshot. That is the best value in the file. Leave it.
 
-If the free 218 is not enough, the two cheapest levers that would not read as a
+If 188 is not enough, the two cheapest levers that would not read as a
 loss to someone seeing the game for the first time are **grass detail** and
 **hills**, at 216 and 232. Both are a single switch, and both also buy frame
 rate.
