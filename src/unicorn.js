@@ -363,6 +363,9 @@ void main(){
   // The charge on its horn is squared, so the spell shows in the last moment
   // before it goes rather than glowing flatly the whole cooldown through.
   float mage = step(-0.5, vCape), glow = max(vCape, 0.0) * max(vCape, 0.0);
+  // A ninja is the same animal drawn as its own shadow: nobody on the field
+  // picks it out, and the picture says so by very nearly not drawing it.
+  float ninja = step(vCape, -1.5);
   vec3 capeC  = mix(vec3(0.20, 0.26, 0.60), vec3(0.52, 0.80, 0.95), vSide);
   vec3 iceC   = vec3(0.45, 0.80, 1.0);
   hornC = mix(hornC, vec3(0.75, 0.94, 1.0), glow * 0.85 * mage);
@@ -480,6 +483,10 @@ void main(){
   }
 
   if (c.a < 0.002) discard;
+  // A ninja is darkened and faded to a shape on the ground. Premultiplied, so
+  // the one multiply does both at once.
+  c *= 1.0 - 0.62 * ninja;
+  c.rgb *= 1.0 - 0.45 * ninja;
   // Below zero health is the fade-out: −1 is gone.
   o = c * (vHp > 0.0 ? 1.0 : 1.0 + vHp);
 }`;
@@ -524,12 +531,18 @@ export function drawUnicorns(from, y = -Infinity) {
             // drawn over the whole of it with no frost underneath to hide.
             un._block ? un._held / FREEZE : 0,
             // A fighter has no cape, and says so with a negative; a mage sends
-            // how charged its spell is in the same float.
-            un._mage ? 1 - Math.min(1, un._cast / COOL) : -1,
+            // how charged its spell is in the same float. A ninja goes further
+            // down the same negative, since it is the one other thing a
+            // fighter can be that changes how it is drawn and not what it is
+            // wearing.
+            un._mage ? 1 - Math.min(1, un._cast / COOL) : un._nin ? -2 : -1,
             // The frost, or a rage the other way up. Never both: what is
-            // held is not fighting, and the frost is what the float says.
+            // held is not fighting, and the frost is what the float says. A
+            // berserker bred for it is simply always at the far end of the
+            // rage, which is the same picture a wizard's rage paints.
             un._block ? 0
-                : un._held > 0 ? Math.min(1, un._held / FROST) : -un._rage / RAGE);
+                : un._held > 0 ? Math.min(1, un._held / FROST)
+                : un._ber ? -1 : -un._rage / RAGE);
     }
     gl.useProgram(_prog);
     _u({ uRes: [width, height], uTime: time });
