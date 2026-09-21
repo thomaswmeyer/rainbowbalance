@@ -386,10 +386,10 @@ const GAIN = [0.4, 0.25, 0.6, 0.35];
  * than one that poured everything into one, and a side that has just taken
  * up a new area shows for it within seconds rather than at the end of a run.
  *
- * Three hundred is about two minutes of a side's whole income, so five areas
+ * Three hundred is about two minutes of a side's whole income, so four areas
  * is a good deal longer than a run. That is the point of the number rather
  * than a consequence of it: at half this, ten minutes of play left both
- * sides full in all five and fighting with identical unicorns, and a tech
+ * sides full in all four and fighting with identical unicorns, and a tech
  * tree whose two sides converge has stopped being one.
  */
 export const FULL = 300;
@@ -545,7 +545,7 @@ export const arrived = [];
  * this is the only thing a whole side owns.
  *
  * @typedef {object} Tech
- * @property {number[]} _p points put into each of the five areas
+ * @property {number[]} _p points put into each of the four areas
  * @property {number[]} _m what those points come to — the multiplier on each,
  *   worked out once a step so that nothing on the field takes a square root
  * @property {number} _on which area it is working on now
@@ -751,7 +751,6 @@ function aim(un, foe) {
  * few seconds of frost.
  * @param {Unicorn} un
  * @param {number} secs
- * @param {boolean} block the player's ice, rather than a mage's frost
  */
 function holdStill(un, secs) {
     if (secs <= un._held) return;
@@ -866,6 +865,14 @@ function capture(dt) {
 }
 
 /**
+ * The two areas that never fill: a side can always learn to walk faster and
+ * to swing faster, and the points keep going in past FULL on the same square
+ * root. The other two stop at FULL.
+ * @param {number} i
+ */
+const open = (i) => i === PACE || i === SWING;
+
+/**
  * A side is paid, into both pools at once. The saved pool takes the whole of
  * it; the rest goes into whichever area the side is working on, and if that
  * one is already full the side takes up another there and then rather than
@@ -873,14 +880,6 @@ function capture(dt) {
  * @param {number} side
  * @param {number} n points
  */
-/**
- * The two areas that never fill: a side can always learn to walk faster and
- * to swing faster, and the points keep going in past FULL on the same square
- * root. The other three stop at FULL.
- * @param {number} i
- */
-const open = (i) => i === PACE || i === SWING;
-
 function earn(side, n) {
     const t = tech[side];
     t._saved += n;
@@ -1565,20 +1564,6 @@ function under(x, y) {
 }
 
 /**
- * God mode, whichever hand is out: the unicorn under the point is struck down
- * where it stands, or frozen into a block of ice — out of the fight but still
- * in the way of it until the block has melted off — or turned ninja, or sent
- * berserk, or walked over to the other side.
- *
- * One function for the five because they are the same two lines: find the
- * unicorn under a point on the screen, and set one field on it.
- * @param {number} x on the screen, the rainbow's units
- * @param {number} y
- * @param {number} hand which of the five is out
- * @returns {Unicorn|null} who it landed on, so the caller can put a sound and
- *   a light where it happened, or null if the point was on nobody
- */
-/**
  * Change a unicorn's side. Everything it had it keeps — its level, its size,
  * its wounds and its cape — because what makes this worth the price is that
  * it is the enemy's best animal that walks back at them, not a fresh one.
@@ -1603,6 +1588,20 @@ function turn(un, side) {
 export const turncoat = typeof __DEBUG__ === 'undefined' || __DEBUG__
     ? (/** @type {Unicorn} */ un) => turn(un, un._side ^ 1) : null;
 
+/**
+ * God mode, whichever hand is out: the unicorn under the point is struck down
+ * where it stands, or frozen into a block of ice — out of the fight but still
+ * in the way of it until the block has melted off — or turned ninja, or sent
+ * berserk, or walked over to the other side.
+ *
+ * One function for the five because they are the same two lines: find the
+ * unicorn under a point on the screen, and set one field on it.
+ * @param {number} x on the screen, the rainbow's units
+ * @param {number} y
+ * @param {number} hand which of the five is out
+ * @returns {Unicorn|null} who it landed on, so the caller can put a sound and
+ *   a light where it happened, or null if the point was on nobody
+ */
 export function strike(x, y, hand) {
     const un = under(x, y);
     if (!un) return null;

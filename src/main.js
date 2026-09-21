@@ -260,8 +260,7 @@ const clock = /** @type {HTMLElement} */ (document.getElementById('t'));
 let _shown = -1, _shownPace = 1;
 
 /**
- * Seconds into the run as a clock that grows a field at a time: 11, then
- * 45:11, then 22:45:11, then 1:22:45:11. Only the leading field is unpadded.
+ * Seconds into the run as m:ss, the minutes unpadded: 0:11, 5:03, 45:11.
  * @param {number} s
  */
 function formatClock(s) {
