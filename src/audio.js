@@ -207,6 +207,9 @@ function room() {
     return live++ < 18;
 }
 
+/** Where the clock is, for a sound scheduled a beat after another. */
+const now = () => ctx ? ctx.currentTime : 0;
+
 /**
  * A pitched voice, swept from one frequency to another over its whole length.
  * @param {OscillatorType} w
@@ -319,11 +322,11 @@ export function blow(p) {
 
 /**
  * A wizard's spell, which does not travel: it is already on whatever it was
- * aimed at. Three of them, told apart the same way the streak tells them
- * apart — the streak is frost blue, gold and red, and these are a shiver, a
- * strike and a growl.
+ * aimed at. Two of them, told apart the same way the streak tells them
+ * apart — the streak is frost blue or turncoat purple, and these are a
+ * shiver and a crossing.
  * @param {number[]} p
- * @param {number} k 0 the frost, 1 the bolt, 2 a rage put on one of its own
+ * @param {number} k 0 the frost, 1 the turncoat
  */
 export function cast(p, k) {
     const v = near(p), x = pan(p);
@@ -349,7 +352,7 @@ export function cast(p, k) {
  * @param {number} side
  */
 export function power(side) {
-    const t = ctx ? ctx.currentTime : 0, x = side ? 0.55 : -0.55;
+    const t = now(), x = side ? 0.55 : -0.55;
     tone('sawtooth', hz(-7), hz(0), 1.3, 0.09, x, t, 0.35, musicBus);
     for (let i = 0; i < 2; i++) {
         const f = hz(7 + i * 4);
@@ -375,8 +378,7 @@ export function smite(p) {
  * @param {number[]} p
  */
 export function ice(p) {
-    const x = pan(p) * 0.6;
-    const t = ctx ? ctx.currentTime : 0;
+    const x = pan(p) * 0.6, t = now();
     for (let i = 0; i < 3; i++) {
         const f = 1046 * [1, 1.26, 1.5][i];
         tone('sine', f, f, 0.55, 0.11, x, t + i * 0.045, 0.004);
@@ -428,7 +430,7 @@ export function hand(p, k) {
  * @param {number[]} p
  */
 export function level(p) {
-    const v = near(p), x = pan(p), t = ctx ? ctx.currentTime : 0;
+    const v = near(p), x = pan(p), t = now();
     for (let i = 0; i < 3; i++) {
         const f = hz(7 + i * 2);
         tone('triangle', f, f, 0.26, 0.085 * v, x, t + i * 0.07, 0.008);
@@ -442,7 +444,7 @@ export function level(p) {
  * @param {number} side
  */
 export function taken(p, side) {
-    const v = near(p), x = pan(p), t = ctx ? ctx.currentTime : 0;
+    const v = near(p), x = pan(p), t = now();
     tone('sine', side ? 110 : 147, side ? 110 : 147, 1.4, 0.24 * v, x, t, 0.01);
     for (let i = 0; i < 3; i++) {
         const f = hz(i * 2) * 2;

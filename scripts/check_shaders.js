@@ -100,8 +100,8 @@ const attribsOf = (vs) =>
  * no shader has declared that in a long while.
  *
  * `rage` and `hue` are two more of those, and both name a colour the sweep
- * would otherwise never reach: a unicorn in a rage, and the spell colours
- * that are not the frost.
+ * would otherwise never reach: a unicorn in a rage, and the spark colours
+ * the balance alone does not pick.
  *
  * uC is the castle pass's: where one stands, on the screen and through
  * the same camera the game puts it through, the stone of whoever holds it,
@@ -124,9 +124,10 @@ const CASES = [
     { uT: 11.0, uB: 1.0, spell: 0.0, uC: [0, 0.02, 1, 0.5], uA: [0.5, 1, 0.5, 1] },
     // The foreground castle, the nearest and so the biggest, part claimed.
     { uT: 5.0, uB: 0.2, spell: 0.9, uC: [0, -0.3134, 1, 0.5], uA: [0.5, 1, 1.45, 0.5] },
-    // A foot castle part way through changing hands, with a rage spell's
-    // spark in it: the last of the three colours a spell is drawn in.
-    { uT: 0.25, uB: -1.0, spell: 0.5, hue: -5, uC: [-0.6825, -0.1545, 0, 0.5], uA: [0.5, 0, 1, 1] },
+    // A foot castle part way through changing hands, with a body-coloured
+    // spark from a burst in it, the one flat colour the balance sweep above
+    // never picks.
+    { uT: 0.25, uB: -1.0, spell: 0.5, hue: -1, uC: [-0.6825, -0.1545, 0, 0.5], uA: [0.5, 0, 1, 1] },
 ];
 
 async function loadPuppeteer() {
@@ -245,19 +246,17 @@ const results = await page.evaluate(async (pairs, cases, tolerance, w, h) => {
     const buf = gl.createBuffer();
     const render = (prog, values, attribs, instance) => {
         gl.useProgram(prog);
+        // As gl.js sets them: the value's length picks the call.
         const set = (n, v) => {
             const l = gl.getUniformLocation(prog, n);
-            if (!l) return;
-            if (!Array.isArray(v)) gl.uniform1f(l, v);
-            else if (v.length === 2) gl.uniform2f(l, v[0], v[1]);
-            else if (v.length === 3) gl.uniform3f(l, v[0], v[1], v[2]);
-            else gl.uniform4f(l, v[0], v[1], v[2], v[3]);
+            if (l) gl[`uniform${v.length}f`](l, ...v);
         };
         set('uR', [w, h]);
-        // Only the uniforms. The rest of a case is there to vary the instance
-        // samples, and handing a shader a name it never declared is how the
-        // last one outlived every shader that read it.
-        for (const k in values) if (k[0] === 'u') set(k, values[k]);
+        // Only the uniforms, and every one an array, as gl.js has them. The
+        // rest of a case is there to vary the instance samples, and handing a
+        // shader a name it never declared is how the last one outlived every
+        // shader that read it.
+        for (const k in values) if (k[0] === 'u') set(k, [].concat(values[k]));
         // Every uniform the program reads must have been set. A case whose
         // names no longer match the shader's renders with all of them at zero,
         // and source and minified then agree on a blank screen — which is what

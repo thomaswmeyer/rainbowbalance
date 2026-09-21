@@ -258,10 +258,12 @@ const LANE = 2.735;
  * reads as a unicorn against it.
  */
 const CASTLE_W = 0.375;
+/** A whole turn of the neck, and half of one. */
+const TAU = 6.2832, PI = 3.1416;
 /** A swing connects this often, and takes off this much when it does. */
 const HIT = 0.65, DMG = 1.5;
 /** Radians a second the neck lunges while fighting: one swing a second. */
-const LUNGE = 6.2832;
+const LUNGE = TAU;
 /**
  * Capture, after the planets in Lord of the Swarm. A castle is held by a
  * claim worth CAP points, and what moves that claim is whoever is standing
@@ -386,10 +388,10 @@ const GAIN = [0.4, 0.25, 0.6, 0.35];
  * than one that poured everything into one, and a side that has just taken
  * up a new area shows for it within seconds rather than at the end of a run.
  *
- * Three hundred is about two minutes of a side's whole income, so five areas
+ * Three hundred is about two minutes of a side's whole income, so four areas
  * is a good deal longer than a run. That is the point of the number rather
  * than a consequence of it: at half this, ten minutes of play left both
- * sides full in all five and fighting with identical unicorns, and a tech
+ * sides full in every area and fighting with identical unicorns, and a tech
  * tree whose two sides converge has stopped being one.
  */
 export const FULL = 300;
@@ -523,16 +525,34 @@ export const herd = [];
  * @type {Castle[]}
  */
 export const castles = [
-    { _x: -FOOT_X, _y: FOOT, _from: 0, _side: 0, _cap: CAP, _own: true, _rate: 1, _t: 1, _n: 0, _at: 0, _up: 1 },
-    { _x: 0, _y: MID_Y, _from: -1, _side: -1, _cap: 0, _own: false, _rate: OUTPOST, _t: 1, _n: 0, _at: 60, _up: 0 },
-    { _x: FOOT_X, _y: FOOT, _from: 1, _side: 1, _cap: CAP, _own: true, _rate: 1, _t: 1, _n: 0, _at: 0, _up: 1 },
-    { _x: 0, _y: NEAR_MID_Y, _from: -1, _side: -1, _cap: 0, _own: false, _rate: OUTPOST, _t: 1, _n: 0, _at: 30, _up: 0 },
-    { _x: FLANK_X, _y: FLANK_Y, _from: -1, _side: -1, _cap: 0, _own: false, _rate: OUTPOST, _t: 1, _n: 0, _at: 90, _up: 0 },
-    { _x: -FLANK_X, _y: FLANK_Y, _from: -1, _side: -1, _cap: 0, _own: false, _rate: OUTPOST, _t: 1, _n: 0, _at: 90, _up: 0 },
-    { _x: 0, _y: FLANK_Y, _from: -1, _side: -1, _cap: 0, _own: false, _rate: OUTPOST, _t: 1, _n: 0, _at: 120, _up: 0 },
-    { _x: FRONT_X, _y: NEAR_MID_Y, _from: -1, _side: -1, _cap: 0, _own: false, _rate: OUTPOST, _t: 1, _n: 0, _at: 180, _up: 0 },
-    { _x: -FRONT_X, _y: NEAR_MID_Y, _from: -1, _side: -1, _cap: 0, _own: false, _rate: OUTPOST, _t: 1, _n: 0, _at: 180, _up: 0 },
+    castle(-FOOT_X, FOOT, 0, 0),
+    castle(0, MID_Y, -1, 60),
+    castle(FOOT_X, FOOT, 1, 0),
+    castle(0, NEAR_MID_Y, -1, 30),
+    castle(FLANK_X, FLANK_Y, -1, 90),
+    castle(-FLANK_X, FLANK_Y, -1, 90),
+    castle(0, FLANK_Y, -1, 120),
+    castle(FRONT_X, NEAR_MID_Y, -1, 180),
+    castle(-FRONT_X, NEAR_MID_Y, -1, 180),
 ];
+
+/**
+ * A castle as it stands at the start of a run: a home castle held outright
+ * by its side, at a home castle's rate, and an outpost nobody's, at half.
+ * reset() puts every castle back through this, so the start of a run is
+ * written once. A run can start as the field stands `by` seconds in, with
+ * every castle due by then already up, which is for the tests.
+ * @param {number} x @param {number} y
+ * @param {number} from whose it is at the start: 0, 1, or −1 for nobody's
+ * @param {number} at seconds into a run at which it arrives
+ * @param {number} [by] seconds into the run it is being made for
+ * @returns {Castle}
+ */
+function castle(x, y, from, at, by = 0) {
+    const own = from >= 0;
+    return { _x: x, _y: y, _from: from, _side: from, _cap: own ? CAP : 0, _own: own,
+        _rate: own ? 1 : OUTPOST, _t: 1, _n: 0, _at: at, _up: at <= by ? 1 : 0 };
+}
 
 /** Seconds into the run, which is what the castles arrive by. */
 let clock = 0;
@@ -545,7 +565,7 @@ export const arrived = [];
  * this is the only thing a whole side owns.
  *
  * @typedef {object} Tech
- * @property {number[]} _p points put into each of the five areas
+ * @property {number[]} _p points put into each of the four areas
  * @property {number[]} _m what those points come to — the multiplier on each,
  *   worked out once a step so that nothing on the field takes a square root
  * @property {number} _on which area it is working on now
@@ -588,12 +608,12 @@ export const broken = [];
 export const blows = [];
 /**
  * The spells cast this step, for main.js to draw the streak of: from the
- * caster's horn to whoever it was aimed at. The freeze itself has already
+ * caster's horn to whoever it was aimed at. The spell itself has already
  * landed — a spell does not miss and does not travel.
- * Its `_k` is which spell it was: 0 the frost, 1 a smite, 2 a rage. They are
- * drawn in three different colours and they are not the same news — and the
- * third of them goes to one of the caster's own.
- * @type {{_x:number,_y:number,_s:number,_tx:number,_ty:number,_ts:number,_k:number}[]}
+ * Its `_k` is which spell it was: 0 the frost, 1 the turncoat. They are drawn
+ * in two colours and sound different, since they are not the same news; `_f`
+ * is which way the caster faces, which is where its horn is.
+ * @type {{_x:number,_y:number,_s:number,_tx:number,_ty:number,_ts:number,_k:number,_f:number}[]}
  */
 export const casts = [];
 
@@ -606,6 +626,17 @@ export let winner = -1;
 
 let seed = 7;
 const rnd = () => (seed = (seed * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff;
+
+/** @param {number} v @param {number} lo @param {number} hi */
+const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
+/** A depth kept within the ground band, front to back. @param {number} y */
+const band = (y) => clamp(y, NEAR_Y, FAR_Y);
+/**
+ * The distance squared between two things standing on the field, which is
+ * all that picking the nearest of anything needs.
+ * @param {{_x:number,_y:number}} a @param {{_x:number,_y:number}} b
+ */
+const d2 = (a, b) => (a._x - b._x) ** 2 + (a._y - b._y) ** 2;
 
 /**
  * The tuning, for the headless harness to check itself against. The guard is
@@ -630,6 +661,7 @@ export const TUNE = typeof __DEBUG__ === 'undefined' || __DEBUG__
  * the same run, which is what makes the headless harness worth anything, and
  * a fresh one gives a fresh game.
  * @param {number} [s]
+ * @param {number} [by] seconds into the run to start as of, for the tests
  */
 export function reset(s = 7, by = 0) {
     seed = s;
@@ -654,16 +686,9 @@ export function reset(s = 7, by = 0) {
     tech[0]._tree = rnd() < 0.5 ? 0 : 1;
     tech[1]._tree = 1 - tech[0]._tree;
     for (const t of tech) t._on = rnd() * 4 | 0;
-    for (const c of castles) {
-        c._side = c._from;
-        c._own = c._from >= 0;
-        c._cap = c._own ? CAP : 0;
-        c._t = 1;
-        c._n = 0;
-        // A run can start as the field stands some seconds in, with every
-        // castle due by then already up, which is for the tests.
-        c._up = c._at <= by ? 1 : 0;
-    }
+    // Every castle back to how it stood at the start, in place: the array
+    // and the objects in it are what everything else holds on to.
+    for (const c of castles) Object.assign(c, castle(c._x, c._y, c._from, c._at, by));
 }
 
 /**
@@ -694,7 +719,7 @@ function spawn(castle) {
         _y: y, _s: BODY * SCALE0,
         _side: castle._side,
         _face: castle._side ? -1 : 1,
-        _ph: rnd() * 6.283,
+        _ph: rnd() * TAU,
         _lane: (rnd() - 0.5) * LANE,
         _px: castle._x, _py: y,
         _ox: castle._x, _oy: y,
@@ -739,23 +764,32 @@ function aim(un, foe) {
  * Hold a unicorn still: the player's block of ice, or a mage's frost. One
  * state for the two, because they are one effect — a unicorn that cannot
  * walk, cannot swing, cannot heal and cannot cast, and is still a target
- * standing in everyone's way while it lasts.
- *
- * What the block flag carries is the two things that are not the same, both
- * of them deliberate and both of them written down in the README: a block of
- * ice is not shoved by the crowd where the frost leaves the animal in it, and
- * the block is what the renderer draws around the animal rather than over it.
+ * standing in everyone's way while it lasts — and one picture, a block of
+ * ice melting down over the length of the hold, whoever cast it.
  *
  * A hold is never cut short by a shorter one, which is what keeps a mage
  * casting into the player's ice from turning twenty seconds of block into a
  * few seconds of frost.
  * @param {Unicorn} un
  * @param {number} secs
- * @param {boolean} block the player's ice, rather than a mage's frost
  */
 function holdStill(un, secs) {
     if (secs <= un._held) return;
     un._held = un._full = secs;
+}
+
+/**
+ * Wind the neck's phase down to zero the short way round, so that it does
+ * not swing through a whole lunge on the way to standing still: winding a
+ * phase of twenty down by thirds took it through every lunge on the way, and
+ * a unicorn setting into the ice threw its neck up and down a dozen times.
+ * @param {Unicorn} un
+ * @param {number} k how much of the way to go this step, 0…1
+ */
+function unwind(un, k) {
+    let ph = un._ph % TAU;
+    if (ph > PI) ph -= TAU;
+    un._ph = ph * Math.max(0, 1 - k);
 }
 
 /**
@@ -779,7 +813,7 @@ function seek(un, look, crowd) {
         // chose to have.
         if (e._side === un._side || e._hp <= 0 || e._nin
             || (e._att >= crowd && e !== un._foe)) continue;
-        const d = (e._x - un._x) ** 2 + (e._y - un._y) ** 2;
+        const d = d2(e, un);
         if (d < bd) { bd = d; best = e; }
     }
     return best;
@@ -807,7 +841,7 @@ function nearestCastle(un, own) {
     let best = null, bd = Infinity;
     for (const c of castles) {
         if (!c._up || (c._side === un._side && c._own) !== own) continue;
-        const d = (c._x - un._x) ** 2 + (c._y - un._y) ** 2;
+        const d = d2(c, un);
         if (d < bd) { bd = d; best = c; }
     }
     return best;
@@ -834,7 +868,7 @@ function capture(dt) {
             // What counts as standing on this castle: a circle of real ground,
             // the same at every castle. One far up the field looks like a
             // tighter gathering only because it is further away.
-            if ((un._x - c._x) ** 2 + (un._y - c._y) ** 2 > CAP_R * CAP_R) continue;
+            if (d2(un, c) > CAP_R * CAP_R) continue;
             // Size is the weight: a veteran presses harder than a recruit,
             // the same way it hits harder. A recruit is BODY * SCALE0 across,
             // and counts one.
@@ -866,6 +900,14 @@ function capture(dt) {
 }
 
 /**
+ * The two areas that never fill: a side can always learn to walk faster and
+ * to swing faster, and the points keep going in past FULL on the same square
+ * root. The other two stop at FULL.
+ * @param {number} i
+ */
+const open = (i) => i === PACE || i === SWING;
+
+/**
  * A side is paid, into both pools at once. The saved pool takes the whole of
  * it; the rest goes into whichever area the side is working on, and if that
  * one is already full the side takes up another there and then rather than
@@ -873,14 +915,6 @@ function capture(dt) {
  * @param {number} side
  * @param {number} n points
  */
-/**
- * The two areas that never fill: a side can always learn to walk faster and
- * to swing faster, and the points keep going in past FULL on the same square
- * root. The other three stop at FULL.
- * @param {number} i
- */
-const open = (i) => i === PACE || i === SWING;
-
 function earn(side, n) {
     const t = tech[side];
     t._saved += n;
@@ -889,7 +923,7 @@ function earn(side, n) {
 }
 
 /**
- * An area to work on: one of the five that is not yet full, or the one it is
+ * An area to work on: one of the four that is not yet full, or the one it is
  * already on if they all are. Off the run's own seed, like everything else
  * random here.
  * @param {Tech} t
@@ -1054,13 +1088,7 @@ function decide(dt) {
             un._ox = un._x;
             un._oy = un._y;
             un._fight += (1 - un._fight) * Math.min(1, dt * 6);
-            // The short way round to zero. Winding a phase of twenty down by
-            // thirds takes it through every lunge on the way, and a unicorn
-            // setting into the ice was throwing its neck up and down a dozen
-            // times on the way to standing still.
-            let ph = un._ph % 6.2832;
-            if (ph > 3.1416) ph -= 6.2832;
-            un._ph = ph * Math.max(0, 1 - dt * 4);
+            unwind(un, dt * 4);
             continue;
         }
 
@@ -1106,7 +1134,7 @@ function decide(dt) {
         // out, so it is sight rather than reach: a wizard does not have to
         // get near what it freezes, it has to see it. Which is what makes
         // sight worth anything at all — on a side with no wizards it is the
-        // weakest of the five, because a fighter takes the nearest enemy
+        // weakest of the four, because a fighter takes the nearest enemy
         // within range and a longer look only ever adds further ones.
         const mark = un._mage ? seek(un, LOOK * m[SIGHT], MAX) : null;
         // How far off that is, which is the only thing a mage's walk asks.
@@ -1199,8 +1227,7 @@ function decide(dt) {
             un._x += (un._x - mark._x) / gap * v * dt;
             // Walking backwards is the one walk with nothing in front of it
             // to stop at, so the band has to.
-            un._y = Math.min(FAR_Y, Math.max(NEAR_Y,
-                un._y + (un._y - mark._y) / gap * v * dt));
+            un._y = band(un._y + (un._y - mark._y) / gap * v * dt);
         } else if (d > stop && gap > KEEP && !healing && !stuck && (!un._eng || (un._foe && un._foe._mage)) && !blocked) {
             // Full speed the whole way, and never a step past the thing it is
             // walking to. It used to ease off over the last little way
@@ -1232,28 +1259,24 @@ function decide(dt) {
             // thing the horn asks of a side, and a side that has learned to
             // swing has learned to cast.
             un._cast -= dt * m[SWING];
-            if (un._cast <= 0) {
+            if (un._cast <= 0 && mark) {
                 // A turncoat for a mark worth the taking — a veteran — once its
                 // side has learned it, and a freeze for anything else.
-                const at = mark;
-                const k = at && has(tech[un._side], P_TURNCOAT) && at._lvl >= 1 ? 1 : 0;
-                if (at) {
-                    un._cast = COOL;
-                    // It turns to its mark and lowers its neck to point the horn.
-                    un._bow = 0.5;
-                    un._face = at._x > un._x ? 1 : -1;
-                    if (k) turn(at, un._side); else holdStill(at, FROST);
-                    // Both ends are the ground each of them stands on, and
-                    // the sizes with them. A horn and a head are above the
-                    // ground, and nothing on this plain has a height to put
-                    // them at, so main.js lifts each end once it has
-                    // projected it.
-                    casts.push({
-                        _x: un._x, _y: un._y, _s: un._s,
-                        _tx: at._x, _ty: at._y, _ts: at._s,
-                        _k: k, _f: un._face,
-                    });
-                }
+                const k = has(tech[un._side], P_TURNCOAT) && mark._lvl >= 1 ? 1 : 0;
+                un._cast = COOL;
+                // It turns to its mark and lowers its neck to point the horn.
+                un._bow = 0.5;
+                un._face = mark._x > un._x ? 1 : -1;
+                if (k) turn(mark, un._side); else holdStill(mark, FROST);
+                // Both ends are the ground each of them stands on, and the
+                // sizes with them. A horn and a head are above the ground,
+                // and nothing on this plain has a height to put them at, so
+                // main.js lifts each end once it has projected it.
+                casts.push({
+                    _x: un._x, _y: un._y, _s: un._s,
+                    _tx: mark._x, _ty: mark._y, _ts: mark._s,
+                    _k: k, _f: un._face,
+                });
             }
         }
         // Whole again, at a castle it withdrew to: that is a level. It grows
@@ -1285,24 +1308,20 @@ function decide(dt) {
             // lunge, held for a moment before the pose eases back.
             un._bow = Math.max(0, un._bow - dt);
             un._fight += (1 - un._fight) * Math.min(1, dt * 12);
-            const ph = (un._ph % 6.2832 + 6.2832) % 6.2832;
-            un._ph = ph + (3.1416 - ph) * Math.min(1, dt * 12);
+            const ph = (un._ph % TAU + TAU) % TAU;
+            un._ph = ph + (PI - ph) * Math.min(1, dt * 12);
             continue;
         }
         if (!still && Math.abs(dx) > 0.01) un._face = dx > 0 ? 1 : -1;
         un._fight += ((fighting || still ? 1 : 0) - un._fight) * Math.min(1, dt * 6);
         if (still) {
-            // The short way round to zero, so the neck does not swing through
-            // a whole lunge on the way.
-            let ph = un._ph % 6.2832;
-            if (ph > 3.1416) ph -= 6.2832;
-            un._ph = ph * Math.max(0, 1 - dt * 3);
+            unwind(un, dt * 3);
         } else if (fighting) {
             // The blow lands at the bottom of the lunge, or misses there. A
             // pair spawned with different phases swing out of step, which is
             // most of why they no longer fall together.
             const next = un._ph + dt * LUNGE * m[SWING] * (un._ber ? FURY : 1);
-            if (Math.floor(next / 6.2832 - 0.5) > Math.floor(un._ph / 6.2832 - 0.5)
+            if (Math.floor(next / TAU - 0.5) > Math.floor(un._ph / TAU - 0.5)
                 && rnd() < HIT && !(un._foe._nin && rnd() < EVADE)) {
                 wound(un, un._foe, DMG * (0.75 + 0.5 * rnd()));
                 blows.push(un._foe);
@@ -1339,13 +1358,13 @@ function settle(dt) {
     // feet: the band is the ground, and a head above the back of it is only a
     // head in the rain, which is what the back of the field should look like.
     for (const un of herd) {
-        un._y = Math.min(FAR_Y, Math.max(NEAR_Y, un._y));
+        un._y = band(un._y);
         // The board is not a rectangle. The picture is a wedge opening away
         // from the camera, so the ground it shows at the back is wider than
         // the ground it shows at the front, and the bound has to open with it
         // or the far field would be fenced off where it is widest.
         const wide = wideAt(un._y) - un._s * LONG * 0.5;
-        un._x = Math.min(wide, Math.max(-wide, un._x));
+        un._x = clamp(un._x, -wide, wide);
     }
 
     // The trailing point creeps after everyone, shoves and all. A steady walk
@@ -1458,25 +1477,26 @@ function sweep(sideways) {
             const ox = w * LONG - Math.abs(b._x - a._x);
             if (ox <= 0) continue;
 
+            // Which way is apart, across and in depth; a dead heat breaks on
+            // the index.
+            const sx = b._x === a._x ? (i & 1 ? 1 : -1) : Math.sign(b._x - a._x);
+            const dir = b._y === a._y ? (i & 1 ? 1 : -1) : Math.sign(b._y - a._y);
             if (sideways) {
                 // Only for what stepping aside could not solve. A pair that
                 // depth has already parted is left alone, or every meeting
                 // would end with both of them backing off as well.
                 if (oy < w * DEEP * 0.05) continue;
-                const sx = b._x === a._x ? (i & 1 ? 1 : -1) : Math.sign(b._x - a._x);
                 a._x -= sx * ox * 0.5;
                 b._x += sx * ox * 0.5;
                 continue;
             }
-            // Away from each other in depth; a dead heat breaks on the index.
-            const dir = b._y === a._y ? (i & 1 ? 1 : -1) : Math.sign(b._y - a._y);
+            // Away from each other in depth.
             let da = -dir * oy * 0.5, db = dir * oy * 0.5;
             // One of them pinned at the edge of the band pushes the other
             // twice as far, and so does one under the ice.
             if (a._held > 0 || a._y + da < NEAR_Y || a._y + da > FAR_Y) { db -= da; da = 0; }
             if (b._held > 0 || b._y + db < NEAR_Y || b._y + db > FAR_Y) { da -= db; db = 0; }
-            const ay = Math.min(FAR_Y, Math.max(NEAR_Y, a._y + da));
-            const by = Math.min(FAR_Y, Math.max(NEAR_Y, b._y + db));
+            const ay = band(a._y + da), by = band(b._y + db);
             // What the edge of the band ate, they give way sideways instead.
             // This is what stops a crowd with no depth left to give from
             // standing inside itself.
@@ -1484,7 +1504,6 @@ function sweep(sideways) {
             a._y = ay;
             b._y = by;
             if (left > 0) {
-                const sx = b._x === a._x ? (i & 1 ? 1 : -1) : Math.sign(b._x - a._x);
                 const give = Math.min(left / (w * DEEP), 1) * ox * 0.5;
                 a._x -= sx * give;
                 b._x += sx * give;
@@ -1557,27 +1576,13 @@ function under(x, y) {
         const qx = (x - px) / ps * un._face - ax, qy = (y - py) / ps - RISE - ay;
         // The nearest point of the spine to it, then the one distance the
         // whole test is: a lozenge is a line with a radius.
-        const h = Math.min(1, Math.max(0, (qx * bx + qy * by) / bb));
+        const h = clamp((qx * bx + qy * by) / bb, 0, 1);
         const dx = qx - bx * h, dy = qy - by * h, r = GIRTH + SLACK / ps;
         if (dx * dx + dy * dy <= r * r) return un;
     }
     return null;
 }
 
-/**
- * God mode, whichever hand is out: the unicorn under the point is struck down
- * where it stands, or frozen into a block of ice — out of the fight but still
- * in the way of it until the block has melted off — or turned ninja, or sent
- * berserk, or walked over to the other side.
- *
- * One function for the five because they are the same two lines: find the
- * unicorn under a point on the screen, and set one field on it.
- * @param {number} x on the screen, the rainbow's units
- * @param {number} y
- * @param {number} hand which of the five is out
- * @returns {Unicorn|null} who it landed on, so the caller can put a sound and
- *   a light where it happened, or null if the point was on nobody
- */
 /**
  * Change a unicorn's side. Everything it had it keeps — its level, its size,
  * its wounds and its cape — because what makes this worth the price is that
@@ -1600,9 +1605,24 @@ function turn(un, side) {
     for (const o of herd) if (o._foe === un) aim(o, null);
 }
 
+/** The same, for the tests: the guard keeps it out of the build like TUNE. */
 export const turncoat = typeof __DEBUG__ === 'undefined' || __DEBUG__
     ? (/** @type {Unicorn} */ un) => turn(un, un._side ^ 1) : null;
 
+/**
+ * God mode, whichever hand is out: the unicorn under the point is struck down
+ * where it stands, or frozen into a block of ice — out of the fight but still
+ * in the way of it until the block has melted off — or turned ninja, or sent
+ * berserk, or walked over to the other side.
+ *
+ * One function for the five because they are the same two lines: find the
+ * unicorn under a point on the screen, and set one field on it.
+ * @param {number} x on the screen, the rainbow's units
+ * @param {number} y
+ * @param {number} hand which of the five is out
+ * @returns {Unicorn|null} who it landed on, so the caller can put a sound and
+ *   a light where it happened, or null if the point was on nobody
+ */
 export function strike(x, y, hand) {
     const un = under(x, y);
     if (!un) return null;

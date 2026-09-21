@@ -473,7 +473,7 @@ of several; treat the free space as the pessimistic figure it is.
 
 | | |
 |---|---|
-| `src/gl.js` | WebGL2 context, programs, uniforms, the fullscreen triangle, instanced quad `Batch` |
+| `src/gl.js` | WebGL2 context, programs, uniforms, and the two things drawn: a fullscreen `Pass` and an instanced quad `Batch` |
 | `src/rainbow.js` | three passes: the world (sky, clouds, hills, grass), a castle, the bow — one number in |
 | `src/unicorn.js` | one signed-distance unicorn, instanced — draws the herd it is handed, cape, frost, berserker and ninja and all |
 | `src/sparks.js` | instanced dots: the burst a unicorn goes out in, the shower a promotion or a power bought rises in, the line each of the two spells is drawn as |

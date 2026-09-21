@@ -190,7 +190,7 @@ seconds less of it.
 ## The god's five hands, and what they cost
 
 `HANDS`, `HAND_MAX`, `HAND_SECS`, `HAND_POWER` — `src/main.js`. Spent in
-`smite()`, filled in the frame loop, painted by `paintHands()`.
+`touch()`, filled in the frame loop, painted by `paintHands()`.
 
 The player used to have two hands and infinite use of both, which made the
 whole job a question of reaction rather than of choice. They are rationed now,

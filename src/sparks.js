@@ -11,7 +11,7 @@
  * −2 white, and then one for each spell's line — −3 a frost, −4 a turncoat.
  */
 
-import { g, program, uniforms, gl, time, width, height, Batch } from './gl.js';
+import { g, time, width, height, Batch } from './gl.js';
 import { NEAR_S } from './sim.js';
 
 const CAP = 384;
@@ -66,12 +66,27 @@ void main(){
 
 /** @type {{_x:number,_y:number,_vx:number,_vy:number,_s:number,_age:number,_life:number,_side:number,_u:number}[]} */
 const _sparks = [];
-let _prog, _u, _batch;
+/** @type {Batch} */
+let _batch;
 
 export function initSparks() {
-    _prog = program(VS, FS);
-    _u = uniforms(_prog, ['uR', 'uT']);
-    _batch = new Batch(_prog, [4, 2], CAP);
+    _batch = new Batch(VS, FS, ['uR', 'uT'], [4, 2], CAP);
+}
+
+/**
+ * One spark, if there is room for it: every burst, shower and line below is
+ * a run of these.
+ * @param {number} x @param {number} y where it starts
+ * @param {number} vx @param {number} vy how fast it sets off
+ * @param {number} s its size
+ * @param {number} life seconds until it is gone
+ * @param {number} side whose colours, for a spark that takes them
+ * @param {number} u the colour: a place on the mane, or one of the flat ones
+ */
+function spark(x, y, vx, vy, s, life, side, u) {
+    if (_sparks.length < CAP) {
+        _sparks.push({ _x: x, _y: y, _vx: vx, _vy: vy, _s: s, _age: 0, _life: life, _side: side, _u: u });
+    }
 }
 
 /**
@@ -83,15 +98,12 @@ export function initSparks() {
  */
 export function burst(x, y, s, side) {
     const k = s / NEAR_S;
-    for (let i = 0; i < 28 && _sparks.length < CAP; i++) {
+    for (let i = 0; i < 28; i++) {
         const a = Math.random() * 6.283, v = (0.12 + Math.random() * 0.3) * k;
-        _sparks.push({
-            _x: x + (Math.random() - 0.5) * 0.3 * s, _y: y + (0.3 + Math.random() * 0.5) * s,
-            _vx: Math.cos(a) * v, _vy: Math.abs(Math.sin(a)) * v + 0.1 * k,
-            _s: (0.004 + Math.random() * 0.007) * k,
-            _age: 0, _life: 0.5 + Math.random() * 0.5,
-            _side: side, _u: i & 1 ? Math.random() : -1,
-        });
+        spark(x + (Math.random() - 0.5) * 0.3 * s, y + (0.3 + Math.random() * 0.5) * s,
+            Math.cos(a) * v, Math.abs(Math.sin(a)) * v + 0.1 * k,
+            (0.004 + Math.random() * 0.007) * k, 0.5 + Math.random() * 0.5,
+            side, i & 1 ? Math.random() : -1);
     }
 }
 
@@ -103,17 +115,10 @@ export function burst(x, y, s, side) {
  */
 export function shower(x, y, s) {
     const k = s / NEAR_S;
-    for (let i = 0; i < 24 && _sparks.length < CAP; i++) {
-        const a = Math.random() * 6.283;
-        _sparks.push({
-            _x: x + (Math.random() - 0.5) * 1.2 * s,
-            _y: y + Math.random() * 1.5 * s,
-            _vx: Math.cos(a) * 0.06 * k,
-            _vy: (0.22 + Math.random() * 0.3) * k,
-            _s: (0.003 + Math.random() * 0.005) * k,
-            _age: 0, _life: 0.7 + Math.random() * 0.5,
-            _side: 0, _u: -2,
-        });
+    for (let i = 0; i < 24; i++) {
+        spark(x + (Math.random() - 0.5) * 1.2 * s, y + Math.random() * 1.5 * s,
+            Math.cos(Math.random() * 6.283) * 0.06 * k, (0.22 + Math.random() * 0.3) * k,
+            (0.003 + Math.random() * 0.005) * k, 0.7 + Math.random() * 0.5, 0, -2);
     }
 }
 
@@ -121,7 +126,7 @@ export function shower(x, y, s) {
  * A spell, as a line from the caster's horn to what it was aimed at, laid
  * down whole and left where it is to fade. The spell itself has already
  * landed — a spell does not travel and does not miss — so nothing in its
- * picture moves.
+ * picture moves: stepSparks() leaves a line's dots where they were laid.
  * @param {number} x0 the horn
  * @param {number} y0
  * @param {number} x1 what it is aimed at
@@ -131,22 +136,12 @@ export function shower(x, y, s) {
  *   the same way and only the colour differs.
  */
 export function bolt(x0, y0, x1, y1, s, kind) {
-    const k = s / NEAR_S;
-    const dx = x1 - x0, dy = y1 - y0;
-    // A line from the caster's horn to its victim, laid down whole and left
-    // where it is to fade: nothing about a spell travels, so nothing in its
-    // picture does. Dots close enough to run together, one size all along.
-    for (let i = 0; i <= 30 && _sparks.length < CAP; i++) {
-        _sparks.push({
-            _x: x0 + dx * i / 30,
-            _y: y0 + dy * i / 30,
-            _vx: 0, _vy: 0,
-            _s: 0.008 * k,
-            _age: 0, _life: 0.45,
-            // The four spells sit next to each other below the body colour,
-            // so which one it is is the only arithmetic here.
-            _side: 0, _u: -3 - kind,
-        });
+    // Dots close enough to run together, one size all along. The spells sit
+    // next to each other below the body colour, so which one it is is the
+    // only arithmetic here.
+    for (let i = 0; i <= 30; i++) {
+        spark(x0 + (x1 - x0) * i / 30, y0 + (y1 - y0) * i / 30, 0, 0,
+            0.008 * s / NEAR_S, 0.45, 0, -3 - kind);
     }
 }
 
@@ -169,7 +164,5 @@ export function drawSparks() {
     if (!_sparks.length) return;
     _batch.clear();
     for (const p of _sparks) _batch.push(p._x, p._y, p._s, p._age, p._side, p._u);
-    gl.useProgram(_prog);
-    _u({ uR: [width, height], uT: [time] });
-    _batch.draw();
+    _batch.draw({ uR: [width, height], uT: [time] });
 }

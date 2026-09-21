@@ -50,7 +50,8 @@
  *              is not raging at anything.
  */
 
-import { g, program, uniforms, gl, time, width, height, Batch } from './gl.js';
+import { g, time, width, height, Batch } from './gl.js';
+import { MAX, COOL, project, herd } from './sim.js';
 
 // ---------------------------------------------------------------------------
 // The build. Body units: the barrel is 2·L long.
@@ -483,15 +484,12 @@ void main(){
 // The swarms
 // ---------------------------------------------------------------------------
 
-import { MAX, COOL, project, herd } from './sim.js';
-
-let _prog, _u, _batch;
+/** @type {Batch} */
+let _batch;
 
 /** Compile the pass. Call once, after the context. */
 export function initUnicorns() {
-    _prog = program(VS, FS);
-    _u = uniforms(_prog, ['uR', 'uT']);
-    _batch = new Batch(_prog, [4, 1, 4, 1], MAX);
+    _batch = new Batch(VS, FS, ['uR', 'uT'], [4, 1, 4, 1], MAX);
 }
 
 /**
@@ -526,8 +524,6 @@ export function drawUnicorns(from, y = -Infinity) {
             // block of ice is not raging at anything.
             un._held > 0 || !un._ber ? 0 : -1);
     }
-    gl.useProgram(_prog);
-    _u({ uR: [width, height], uT: [time] });
-    _batch.draw();
+    _batch.draw({ uR: [width, height], uT: [time] });
     return i;
 }

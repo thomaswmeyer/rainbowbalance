@@ -32,7 +32,7 @@
  * will screenshot.
  */
 
-import { g, program, uniforms, fullscreen, gl, FULLSCREEN_VS, time, width, height } from './gl.js';
+import { g, Pass, time, width, height } from './gl.js';
 
 /** The world. */
 export const FS = g`#version 300 es
@@ -750,39 +750,27 @@ void main(){
   o = (bar.a > 0.0 ? bar : vec4(mix(c, sky, clamp(tc * tc * FOG, 0.0, 1.0)), 1.0)) * uA.w;
 }`;
 
-let _prog, _u, _bowProg, _bowU, _castleProg, _castleU;
-
-/** Compile both passes. Call once, after the context exists. */
-export function initRainbow() {
-    _prog = program(FULLSCREEN_VS, FS);
-    _u = uniforms(_prog, ['uR', 'uT', 'uB']);
-    _bowProg = program(FULLSCREEN_VS, BOW_FS);
-    _bowU = uniforms(_bowProg, ['uR', 'uB']);
-    _castleProg = program(FULLSCREEN_VS, CASTLE_FS);
-    _castleU = uniforms(_castleProg, ['uR', 'uB', 'uC', 'uA']);
-}
-
+/** The three passes, by index, and the uniforms each declares. */
+const WORLD = 0, BOW = 1, CASTLE = 2;
+const UNIFORMS = [['uR', 'uT', 'uB'], ['uR', 'uB'], ['uR', 'uB', 'uC', 'uA']];
 /** The fragment sources by pass, for the debug panel's feature switches. */
-export const SOURCES = { world: FS, bow: BOW_FS, castle: CASTLE_FS };
+export const SOURCES = [FS, BOW_FS, CASTLE_FS];
+/** @type {Pass[]} */
+const passes = [];
 
 /**
- * Dev only: recompile one pass from a variant of its source, for the debug
- * panel's feature switches. Throws with the log if it does not compile.
- * @param {'world'|'bow'|'castle'} pass
+ * Compile one pass from its source, or, for the debug panel's feature
+ * switches, from a variant of it. Throws with the log if it does not compile.
+ * @param {number} pass WORLD, BOW or CASTLE
  * @param {string} src
  */
 export function recompile(pass, src) {
-    if (!__DEBUG__) return;
-    if (pass === 'bow') {
-        _bowProg = program(FULLSCREEN_VS, src);
-        _bowU = uniforms(_bowProg, ['uR', 'uB']);
-    } else if (pass === 'castle') {
-        _castleProg = program(FULLSCREEN_VS, src);
-        _castleU = uniforms(_castleProg, ['uR', 'uB', 'uC', 'uA']);
-    } else {
-        _prog = program(FULLSCREEN_VS, src);
-        _u = uniforms(_prog, ['uR', 'uT', 'uB']);
-    }
+    passes[pass] = new Pass(src, UNIFORMS[pass]);
+}
+
+/** Compile every pass. Call once, after the context exists. */
+export function initRainbow() {
+    SOURCES.forEach((src, i) => recompile(i, src));
 }
 
 /**
@@ -790,9 +778,7 @@ export function recompile(pass, src) {
  * @param {number} balance −1…+1, 0 is perfectly held
  */
 export function drawRainbow(balance) {
-    gl.useProgram(_prog);
-    _u({ uR: [width, height], uT: [time], uB: [balance] });
-    fullscreen();
+    passes[WORLD].draw({ uR: [width, height], uT: [time], uB: [balance] });
 }
 
 /**
@@ -805,12 +791,11 @@ export function drawRainbow(balance) {
  * @param {number} who whose claim the bar is: −1, 0 or 1
  * @param {number} scale how big a thing the castle is at its depth
  * @param {number} balance
+ * @param {number} fade 0…1, how far it has faded in since arriving
  */
 export function drawCastle(x, y, side, claim, bar, who, scale, balance, fade) {
-    gl.useProgram(_castleProg);
-    _castleU({ uR: [width, height], uB: [balance],
+    passes[CASTLE].draw({ uR: [width, height], uB: [balance],
         uC: [x, y, side, claim], uA: [bar, who, scale, fade] });
-    fullscreen();
 }
 
 /**
@@ -818,7 +803,5 @@ export function drawCastle(x, y, side, claim, bar, who, scale, balance, fade) {
  * @param {number} balance
  */
 export function drawBow(balance) {
-    gl.useProgram(_bowProg);
-    _bowU({ uR: [width, height], uB: [balance] });
-    fullscreen();
+    passes[BOW].draw({ uR: [width, height], uB: [balance] });
 }

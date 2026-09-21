@@ -18,12 +18,11 @@
 
 /**
  * @param {object} state
- * @param {() => void} reset unused now; kept so main.js need not care
- * @param {Record<string, string>} sources the fragment shaders, by pass
- * @param {(pass: string, src: string) => void} recompile
+ * @param {string[]} sources the fragment shaders, by pass
+ * @param {(pass: number, src: string) => void} recompile
  * @param {typeof import('./sim.js')} sim
  */
-export function initDebug(state, reset, sources, recompile, sim) {
+export function initDebug(state, sources, recompile, sim) {
     // The whole simulation, for poking at from the console or a script.
     window.sim = sim;
     // ?b=0.5 freezes the balance wander at that balance, for screenshots.
@@ -55,11 +54,11 @@ export function initDebug(state, reset, sources, recompile, sim) {
     // Feature switches, from the URL only: ?off=clouds,castle compiles those
     // out of the shaders. Each is a `const int NAME_ON = 1` in a shader.
     const off = (q.get('off') || '').split(',').filter(Boolean).map((f) => f.toUpperCase());
-    for (const pass in sources) {
-        let src = sources[pass];
+    sources.forEach((source, pass) => {
+        let src = source;
         for (const f of off) src = src.replace(new RegExp(`(const int ${f}_ON\\s*=\\s*)1;`), '$10;');
-        if (src !== sources[pass]) {
+        if (src !== source) {
             try { recompile(pass, src); } catch (e) { console.error(e); }
         }
-    }
+    });
 }

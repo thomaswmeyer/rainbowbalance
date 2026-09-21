@@ -8,8 +8,9 @@
  *
  * The fight itself is sim.js: castles spawn fighters, fighters pair off and
  * fight horn to horn, both sides research as they go, and balance is who has
- * more on the field and more coming to it. What is here is the loop, the page, the clock, the panel of what
- * the two sides have learned, the drawing order and the player's one verb.
+ * more on the field and more coming to it. What is here is the loop, the
+ * page, the clock, the two panels of what the sides have learned, the
+ * drawing order, and the god's five hands.
  */
 
 import { initGl, resize, setTime } from './gl.js';
@@ -34,6 +35,16 @@ export const state = {
 };
 
 /**
+ * Everything the step reported of one kind, handed on one at a time and then
+ * forgotten: the sim's lists are drained by whoever reads them.
+ * @template T @param {T[]} list @param {(it: T) => void} fn
+ */
+function drain(list, fn) {
+    for (const it of list) fn(it);
+    list.length = 0;
+}
+
+/**
  * One fixed step.
  * @param {number} dt seconds
  */
@@ -49,52 +60,45 @@ function step(dt) {
     // sparks are, so it is panned across the picture and quietened by the
     // distance the camera gave it: the two cues never disagree about where on
     // the field the thing happened.
-    for (const un of sim.fallen) {
+    drain(sim.fallen, (un) => {
         const p = sim.project(un._x, un._y, un._s);
         burst(...p, un._side);
         snd.fell(p, un._side);
-    }
-    sim.fallen.length = 0;
+    });
     // A gate opening has nothing to see — a recruit walks out of one — so
     // this is the one report that is sound alone.
-    for (const un of sim.spawned) snd.spawn(sim.project(un._x, un._y, un._s), un._side);
-    sim.spawned.length = 0;
-    for (const un of sim.promoted) {
+    drain(sim.spawned, (un) => snd.spawn(sim.project(un._x, un._y, un._s), un._side));
+    drain(sim.promoted, (un) => {
         const p = sim.project(un._x, un._y, un._s);
         shower(...p);
         snd.level(p);
-    }
-    sim.promoted.length = 0;
+    });
     // A castle taken gets the same white shower a promotion does, at the
     // size of the castle rather than of a unicorn.
-    for (const c of sim.captured) {
+    drain(sim.captured, (c) => {
         const p = sim.project(c._x, c._y, 2);
         shower(...p);
         snd.taken(p, c._side);
-    }
-    sim.captured.length = 0;
+    });
     // A castle arriving: showers where it stands and a sound of its own. The
     // draw fades it in over the next two seconds.
-    for (const c of sim.arrived) {
+    drain(sim.arrived, (c) => {
         const p = sim.project(c._x, c._y, 2);
         shower(...p);
         shower(...p);
         snd.arrive(p);
-    }
-    sim.arrived.length = 0;
+    });
     // And one broken back to nobody's, which is the other half of taking one.
-    for (const c of sim.broken) snd.broken(sim.project(c._x, c._y, 2));
-    sim.broken.length = 0;
+    drain(sim.broken, (c) => snd.broken(sim.project(c._x, c._y, 2)));
     // Blows land by the hundred a minute. audio.js lets twenty a second
     // through and drops the rest, which is what makes a melee a texture
     // rather than a machine gun.
-    for (const un of sim.blows) snd.blow(sim.project(un._x, un._y, un._s));
-    sim.blows.length = 0;
+    drain(sim.blows, (un) => snd.blow(sim.project(un._x, un._y, un._s)));
     // And a spell is a streak from the horn that cast it to whatever it was
     // cast at, in the colour of which spell it was: frost blue for a hold,
-    // gold for a bolt, red for a rage put on one of the caster's own. The
-    // sound is told which one for the same reason the streak is.
-    for (const c of sim.casts) {
+    // purple for a turncoat. The sound is told which one for the same reason
+    // the streak is.
+    drain(sim.casts, (c) => {
         // A spell goes horn to head, and the plain the spell was cast on has
         // no height on it. Each end is lifted by its own drawn size once the
         // camera has said how big that is.
@@ -104,8 +108,7 @@ function step(dt) {
         // by the caster's facing, and at about head height.
         bolt(ax + c._f * as * 0.86, ay + as * 0.53, bx, by + bs * 0.6, as, c._k);
         snd.cast([ax, ay, as], c._k);
-    }
-    sim.casts.length = 0;
+    });
     // A power bought is a white shower over every castle its side holds —
     // the same one a promotion and a capture get, and for the same reason.
     // It is the only thing on the field that says the run just got harder,
@@ -128,14 +131,14 @@ function step(dt) {
 }
 
 /**
- * The player's one verb: god mode. A touch reaches whichever unicorn is under
- * it — the one on top of the pile where several overlap, since that is the one
- * the player can see. Culling the side that is ahead is how the board is kept
- * level.
+ * The player's verb: god mode, with whichever hand is out. A touch reaches
+ * whichever unicorn is under it — the one on top of the pile where several
+ * overlap, since that is the one the player can see. Culling the side that is
+ * ahead is how the board is kept level.
  * @param {number} cx pointer x in pixels
  * @param {number} cy
  */
-function smite(cx, cy) {
+function touch(cx, cy) {
     // Any touch is a gesture, and a browser will not let a sound out before
     // one, so the first of them is what starts the audio.
     snd.boot();
@@ -260,15 +263,13 @@ const clock = /** @type {HTMLElement} */ (document.getElementById('t'));
 let _shown = -1, _shownPace = 1;
 
 /**
- * Seconds into the run as a clock that grows a field at a time: 11, then
- * 45:11, then 22:45:11, then 1:22:45:11. Only the leading field is unpadded.
+ * Seconds into the run as m:ss. Minutes keep counting past sixty: a run that
+ * went past an hour would read 73:20, which is a run nobody has played and
+ * not worth the fields it would take to write differently.
  * @param {number} s
  */
 function formatClock(s) {
     s |= 0;
-    // Minutes and seconds, and minutes keep counting past sixty. A run that
-    // went past an hour would read 73:20, which is a run nobody has played
-    // and not worth the fields it would take to write differently.
     return `${s / 60 | 0}:${String(s % 60).padStart(2, '0')}`;
 }
 
@@ -315,13 +316,14 @@ function showWinner() {
     // A new best is the headline, and who won drops to the small line under
     // the time: the player did not lose that run, they set a record with it.
     // Otherwise the result leads and the best is there to aim at.
-    if (t > best) {
+    const record = t > best;
+    if (record) {
         best = t;
         try { localStorage[BEST] = t; } catch { /* kept for this session only */ }
-        screen(`A NEW BEST<i>${formatClock(t)}</i><b>${side.toLowerCase()} took the field</b>`, reset);
-    } else {
-        screen(`${side} HOLD THE FIELD<i>${formatClock(t)}</i><b>best ${formatClock(best)}</b>`, reset);
     }
+    screen(record
+        ? `A NEW BEST<i>${formatClock(t)}</i><b>${side.toLowerCase()} took the field</b>`
+        : `${side} HOLD THE FIELD<i>${formatClock(t)}</i><b>best ${formatClock(best)}</b>`, reset);
 }
 
 /** Rewrite the clock only when the second turns over, or the pace changes. */
@@ -446,7 +448,7 @@ function drawScene(balance) {
     drawSparks();
 }
 
-// --- the two powers ---------------------------------------------------------
+// --- the hands --------------------------------------------------------------
 
 /**
  * Which of the god's hands is out. The buttons at the top left choose, and a
@@ -460,11 +462,6 @@ function drawScene(balance) {
  */
 let power = 0;
 const hands = /** @type {HTMLElement[]} */ ([...document.querySelectorAll('#p b')]);
-/**
- * The chosen hand lights up; one with nothing in it goes dim; and the bar
- * across the foot of every button is the fraction of the next charge, which
- * is the same number the button spends, read after the decimal point.
- */
 /** What each hand is called on the banner that says it has arrived. */
 const HAND_NAME = ['', 'Freeze', 'Stealth', 'Berserk', 'Turncoat'];
 const banner = /** @type {HTMLElement} */ (document.getElementById('u'));
@@ -486,6 +483,11 @@ function unlocked(i) {
     if (i > 1) snd.hand(at, i); else snd.ice(at);
 }
 
+/**
+ * The chosen hand lights up; one with nothing in it goes dim; and the bar
+ * across the foot of every button is the fraction of the next charge, which
+ * is the same number the button spends, read after the decimal point.
+ */
 function paintHands() {
     // A new run forgets what was learned, and a hand chosen last run may not
     // be on offer in this one.
@@ -580,16 +582,12 @@ function showPause() {
 }
 
 addEventListener('keydown', (e) => {
-    const k = e.key;
-    // Behind the start screen the only keys are the ones that start.
-    if (intro) {
-        if (k === ' ' || k === 'Enter') { start(); e.preventDefault(); }
-        return;
-    }
-    // And on the win screen Space or Enter begins the next run, as a touch
-    // does, rather than pausing a field that has already stopped.
-    if (sim.winner >= 0) {
-        if (k === ' ' || k === 'Enter') { snd.boot(); reset(); e.preventDefault(); }
+    const k = e.key, go = k === ' ' || k === 'Enter';
+    // Behind the start screen the only keys are the ones that start, and on
+    // the win screen the same two begin the next run, as a touch does,
+    // rather than pausing a field that has already stopped.
+    if (intro || sim.winner >= 0) {
+        if (go) { (intro ? start : reset)(); snd.boot(); e.preventDefault(); }
         return;
     }
     // 1 to 5 choose a hand, left to right, which is the order they are in on
@@ -622,9 +620,9 @@ if (!initGl(canvas)) {
     initSparks();
     reset();
 
-    addEventListener('pointerdown', (e) => smite(e.clientX, e.clientY));
+    addEventListener('pointerdown', (e) => touch(e.clientX, e.clientY));
 
-    if (__DEBUG__) import('./debug.js').then((d) => d.initDebug(state, reset, SOURCES, recompile, sim));
+    if (__DEBUG__) import('./debug.js').then((d) => d.initDebug(state, SOURCES, recompile, sim));
 
     let last = 0, acc = 0;
     requestAnimationFrame(function frame(now) {

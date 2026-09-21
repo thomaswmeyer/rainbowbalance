@@ -3,12 +3,15 @@
  *
  * Two drawing primitives, which between them cover everything this game needs:
  *
- *   - `fullscreen()` — one triangle covering the viewport, for the procedural
- *     passes (sky, ground, rainbow). No geometry, no textures: the fragment
+ *   - `Pass` — one triangle covering the viewport, for the procedural passes
+ *     (the world, the bow, a castle). No geometry, no textures: the fragment
  *     shader is the artwork.
  *   - `Batch` — instanced unit quads, for everything there are many of
- *     (unicorns, castles, particles). One draw call per batch, per-instance
- *     data in a single interleaved buffer.
+ *     (unicorns, sparks). One draw call per batch, per-instance data in a
+ *     single interleaved buffer.
+ *
+ * Each owns its program and the setter for its uniforms, and takes every
+ * uniform's value when it draws.
  *
  * Size discipline for this file, and every file here:
  *   - Internal properties are named with a leading underscore. The build
@@ -148,11 +151,28 @@ void main(){
 /** @type {WebGLVertexArrayObject|null} */
 let _emptyVao = null;
 
-/** Draw the fullscreen triangle with the currently bound program. */
-export function fullscreen() {
-    if (!_emptyVao) _emptyVao = gl.createVertexArray();
-    gl.bindVertexArray(_emptyVao);
-    gl.drawArrays(gl.TRIANGLES, 0, 3);
+/**
+ * A procedural pass: a fragment shader over that triangle, and the setter
+ * for its uniforms. The world, the bow and each castle are one of these.
+ */
+export class Pass {
+    /**
+     * @param {string} fs
+     * @param {string[]} names the uniforms it declares
+     */
+    constructor(fs, names) {
+        this._prog = program(FULLSCREEN_VS, fs);
+        this._u = uniforms(this._prog, names);
+    }
+
+    /** @param {Record<string, number[]>} values every uniform, by name */
+    draw(values) {
+        gl.useProgram(this._prog);
+        this._u(values);
+        if (!_emptyVao) _emptyVao = gl.createVertexArray();
+        gl.bindVertexArray(_emptyVao);
+        gl.drawArrays(gl.TRIANGLES, 0, 3);
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -178,13 +198,16 @@ export function fullscreen() {
  */
 export class Batch {
     /**
-     * @param {WebGLProgram} prog
+     * @param {string} vs
+     * @param {string} fs
+     * @param {string[]} names the uniforms the pair declares
      * @param {number[]} widths component count of each per-instance attribute,
      *   bound to locations 0, 1, 2… in order
      * @param {number} max maximum instances
      */
-    constructor(prog, widths, max) {
-        this._prog = prog;
+    constructor(vs, fs, names, widths, max) {
+        this._prog = program(vs, fs);
+        this._u = uniforms(this._prog, names);
         this._stride = widths.reduce((a, b) => a + b, 0);
         this._max = max;
         this._data = new Float32Array(max * this._stride);
@@ -220,10 +243,14 @@ export class Batch {
         this._data.set(values, this._n++ * this._stride);
     }
 
-    /** Upload what was pushed and draw it. */
-    draw() {
+    /**
+     * Upload what was pushed and draw it.
+     * @param {Record<string, number[]>} values every uniform, by name
+     */
+    draw(values) {
         if (!this._n) return;
         gl.useProgram(this._prog);
+        this._u(values);
         gl.bindVertexArray(this._vao);
         gl.bindBuffer(gl.ARRAY_BUFFER, this._buf);
         gl.bufferSubData(gl.ARRAY_BUFFER, 0, this._data, 0, this._n * this._stride);

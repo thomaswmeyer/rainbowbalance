@@ -44,78 +44,95 @@ const quiet = process.argv.includes('--quiet');
 const zopfliDeflate = promisify(deflate);
 
 // ---------------------------------------------------------------------------
-// GLSL
+// The squeeze: shaders, then esbuild, then terser
 // ---------------------------------------------------------------------------
 
+const kb = (n) => `${(n / 1024).toFixed(2)}KB`;
+const fail = (msg) => { console.error(`[build] FAILED: ${msg}`); process.exit(1); };
+
 /**
- * Find the `g`…`` tagged shader templates and replace each with its minified
- * self, before esbuild sees the file. The lookbehind keeps the phrase
- * "`g` template" in a doc comment from being taken for one.
+ * An esbuild plugin that finds the shader templates in the files `filter`
+ * matches and replaces each with its minified self, before esbuild sees the
+ * file. `template` is the regex that finds one, body in group 1, and `bytes`
+ * counts what went in and what came out, for the report.
+ * @param {RegExp} filter
+ * @param {RegExp} template
+ * @param {number[]} bytes
  */
-const glslPlugin = {
+const glslPlugin = (filter, template, bytes) => ({
     name: 'glsl',
     setup(build) {
-        build.onLoad({ filter: /src[\\/].*\.js$/ }, (args) => {
-            const src = readFileSync(args.path, 'utf8');
+        build.onLoad({ filter }, (args) => {
             const name = basename(args.path, '.js');
-            const contents = src.replace(SHADER_TEMPLATE, (_, body) => {
-                glslBytes[0] += body.length;
-                const min = minifyGlsl(body, name);
-                glslBytes[1] += min.length;
+            let n = 0;
+            const contents = readFileSync(args.path, 'utf8').replace(template, (_, body) => {
+                bytes[0] += body.length;
+                const min = minifyGlsl(body, `${name}-${++n}`);
+                bytes[1] += min.length;
                 return '`' + min + '`';
             });
             return { contents, loader: 'js' };
         });
     },
-};
+});
 
-/** Shader bytes in and out, for the report. */
-const glslBytes = [0, 0];
+/**
+ * One entry point, bundled and minified by esbuild with the shaders squeezed
+ * on the way in, then through terser with the game's compress options. Both
+ * outputs come back, since the game checks the first and ships the second.
+ * @param {string} entry
+ * @param {object} plugin from glslPlugin
+ * @param {object} mangle terser's mangle option
+ * @param {Record<string, string>} [define] esbuild's compile-time constants
+ * @returns {Promise<[string, string]>} esbuild's output, and terser's
+ */
+async function squeeze(entry, plugin, mangle, define) {
+    const bundled = await esbuild.build({
+        entryPoints: [entry],
+        bundle: true,
+        write: false,
+        format: 'iife',
+        target: 'es2020',
+        minify: true,
+        define,
+        plugins: [plugin],
+        logLevel: 'warning',
+    });
+    if (bundled.warnings.length) fail(`esbuild reported warnings for ${basename(entry)}`);
+    const js = bundled.outputFiles[0].text;
+    const terser = await minify(js, {
+        module: false,
+        ecma: 2020,
+        compress: COMPRESS,
+        mangle,
+        format: { comments: false },
+    });
+    if (!terser.code) fail(`terser produced nothing for ${basename(entry)}`);
+    return [js, terser.code];
+}
 
 // ---------------------------------------------------------------------------
 // Pipeline
 // ---------------------------------------------------------------------------
 
-const kb = (n) => `${(n / 1024).toFixed(2)}KB`;
 const stages = [];
-const fail = (msg) => { console.error(`[build] FAILED: ${msg}`); process.exit(1); };
+/** Shader bytes in and out, for the report. */
+const glslBytes = [0, 0];
 
 rmSync(OUT, { recursive: true, force: true });
 mkdirSync(OUT, { recursive: true });
 
-// 1 + 2. Bundle, with shaders squeezed on the way in.
-const bundled = await esbuild.build({
-    entryPoints: [join(ROOT, 'src', 'main.js')],
-    bundle: true,
-    write: false,
-    format: 'iife',
-    target: 'es2020',
-    minify: true,
-    // The debug panel is reached through a dynamic import inside
-    // `if (__DEBUG__)`. Defining it false makes the whole branch dead, so
-    // debug.js never enters the bundle at all.
-    define: { __DEBUG__: 'false' },
-    plugins: [glslPlugin],
-    logLevel: 'warning',
-});
-if (bundled.warnings.length) fail('esbuild reported warnings');
-let js = bundled.outputFiles[0].text;
-stages.push(['esbuild', js.length]);
-
-if (/initDebug|drive by hand/.test(js)) {
+// 1 to 3. Bundle, with shaders squeezed on the way in, then terser mangling
+// our own internals. The debug panel is reached through a dynamic import
+// inside `if (__DEBUG__)`: defining it false makes the whole branch dead, so
+// debug.js never enters the bundle at all.
+const [bundled, js] = await squeeze(join(ROOT, 'src', 'main.js'),
+    glslPlugin(/src[\\/].*\.js$/, SHADER_TEMPLATE, glslBytes),
+    { properties: { regex: /^_/ } }, { __DEBUG__: 'false' });
+stages.push(['esbuild', bundled.length]);
+if (/initDebug/.test(bundled)) {
     fail('the debug panel survived into the bundle — check the __DEBUG__ guard');
 }
-
-// 3. Terser, mangling our own internals.
-const terser = await minify(js, {
-    module: false,
-    ecma: 2020,
-    compress: COMPRESS,
-    mangle: { properties: { regex: /^_/ } },
-    format: { comments: false },
-});
-if (!terser.code) fail('terser produced nothing');
-js = terser.code;
 stages.push(['terser', js.length]);
 
 // 4. Roadroller.
@@ -200,43 +217,9 @@ if (process.argv.includes('--site') || process.env.CF_PAGES) {
     // esbuild, then terser with the game's compress options. No property
     // mangling: that regex was written for the game's own `_` fields.
     const siteShaders = [0, 0];
-    const siteGlsl = {
-        name: 'site-glsl',
-        setup(build) {
-            build.onLoad({ filter: /site[\\/].*\.js$/ }, (args) => {
-                const src = readFileSync(args.path, 'utf8');
-                const name = basename(args.path, '.js');
-                let n = 0;
-                const contents = src.replace(/`(#version 300 es[^`]*)`/g, (_, body) => {
-                    siteShaders[0] += body.length;
-                    const min = minifyGlsl(body, `${name}-${++n}`);
-                    siteShaders[1] += min.length;
-                    return '`' + min + '`';
-                });
-                return { contents, loader: 'js' };
-            });
-        },
-    };
-    const site = await esbuild.build({
-        entryPoints: [join(ROOT, 'site', 'mark.js')],
-        bundle: true,
-        write: false,
-        format: 'iife',
-        target: 'es2020',
-        minify: true,
-        plugins: [siteGlsl],
-        logLevel: 'warning',
-    });
-    const siteMin = await minify(site.outputFiles[0].text, {
-        module: false,
-        ecma: 2020,
-        compress: COMPRESS,
-        mangle: true,
-        format: { comments: false },
-    });
-    if (!siteMin.code) fail('terser produced nothing for the site script');
-    const mark = siteMin.code;
-    console.log(`[build] site script: esbuild ${kb(site.outputFiles[0].text.length)}, terser ${kb(mark.length)}, `
+    const [site, mark] = await squeeze(join(ROOT, 'site', 'mark.js'),
+        glslPlugin(/site[\\/].*\.js$/, /`(#version 300 es[^`]*)`/g, siteShaders), true);
+    console.log(`[build] site script: esbuild ${kb(site.length)}, terser ${kb(mark.length)}, `
         + `glsl ${siteShaders[1]} of ${siteShaders[0]} B`);
     if (mark.includes('</script')) fail('the site script contains </script — it would end the tag early');
     writeFileSync(join(OUT, 'index.html'), html + '<script>' + mark + '</script>');
