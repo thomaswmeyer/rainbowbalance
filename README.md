@@ -483,10 +483,9 @@ of several; treat the free space as the pessimistic figure it is.
 | `scripts/sim_test.js` | the fight headless — unit tests on hand-built situations, then a long run checked for invariants, with a crude player keeping it alive |
 | `src/main.js` | boot, fixed-step loop, the page and clock, the two panels of what the sides have learned, god mode and its five hands, and the depth-ordered draw of herd, castles and bow |
 | `src/debug.js` | frame rate under the clock, and the `?b=` and `?off=` URL switches. Never ships |
-| `scripts/build.js` | esbuild → shader-minifier-js → terser → Roadroller → zopfli zip, with the budget gate. The page is a skeleton; `main.js` makes the markup so it is packed, not just deflated |
+| `scripts/build.js` | esbuild → shader-minifier-js → terser → Roadroller → zopfli zip, with the budget gate. The page is a skeleton; `main.js` makes the markup so it is packed, not just deflated. With `--site` (Cloudflare Pages), the tom.to word mark from [particle_logo](https://github.com/thomaswmeyer/particle_logo) is appended to the page after the zip is written, so it is never in the zip or the Wavedash upload |
 | `scripts/glsl.js` | the shader minifier seam around shader-minifier-js |
 | `doc/TECH_TREE.md` | the tech tree: income, the four areas and what each is worth measured, the two trees of two powers, the wizard's rule, the player's hands, and how to add a power |
-| `site/` | rainbowbalance.tom.to only: the tom.to word mark on the start screen, with `inkmark.js` copied from Lord of the Swarm. Added by the Cloudflare Pages build after the zip is written, so never in the zip or the Wavedash upload |
 | `scripts/check_shaders.js` | renders source vs minified shader and compares pixels |
 | `scripts/dev_server.js` | static files, no dependencies |
 

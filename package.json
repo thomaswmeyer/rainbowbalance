@@ -19,6 +19,7 @@
   "devDependencies": {
     "@gfx/zopfli": "^1.0.15",
     "esbuild": "^0.28.2",
+    "particle_logo": "github:thomaswmeyer/particle_logo#fc40246011f1211b3d5c7e9207b59e60dcf93348",
     "puppeteer-core": "^25.10.0",
     "roadroller": "^2.1.0",
     "shader-minifier-js": "github:thomaswmeyer/shader-minifier-js#cff30a2653399ff268aed7780b4574f8a77ad923",
